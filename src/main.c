@@ -1,52 +1,7 @@
-#define _XOPEN_SOURCE
-#ifndef _BSD_SOURCE
-#define _BSD_SOURCE
-#endif
+#include "include/global.h"
+#include "include/http_proto.h"
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
-#include <ctype.h>
-#include <endian.h>
-#include <gnu/libc-version.h>
-#include <execinfo.h>
-#include <signal.h>
-#include <sys/queue.h>
-#include <ctype.h>
-#include <sys/types.h>
-#include <pwd.h>
-#include <sys/resource.h>
-#include <errno.h>
-#include <sys/prctl.h>
-#include <netinet/tcp.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
-#include <glib.h>
-#include <glib/gprintf.h>
-
-#include <event2/event.h>
-#include <event2/listener.h>
-#include <event2/bufferevent.h>
-#include <event2/bufferevent_struct.h>
-#include <event2/buffer.h>
-#include <event2/dns.h>
-
-#define FUSE_USE_VERSION 30
-
-#include <fuse/fuse_lowlevel.h>
-
-
-typedef struct {
+struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
     char *mountpoint;
@@ -64,8 +19,7 @@ typedef struct {
 
     // the buffer that we use to receive events
     char *recv_buf;
-
-} Application;
+};
 
 // prints a message string to stdout
 static void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G_GNUC_UNUSED const gchar *func, 
@@ -103,11 +57,12 @@ void hello_destroy (void *userdata) {
     LOG_msg ("[hello.destroy] userdata=%p", userdata);
 }
 
+/*
 void hello_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
     int err = 0;
     struct dirbuf buf;
 
-    INFO("[hello.readdir] ino=%lu, size=%zu, off=%zu, fi=%p", ino, size, off, fi);
+    ("[hello.readdir] ino=%lu, size=%zu, off=%zu, fi=%p", ino, size, off, fi);
 
     // there exists only one dir
     if (ino != 1) {
@@ -137,6 +92,7 @@ error:
     if ((err = fuse_reply_err(req, err ? err : EIO)))
         EWARNING(err, "failed to send error reply");
 }
+*/
 
 struct fuse_lowlevel_ops hello_llops = {
     .init = &hello_init,
@@ -152,8 +108,8 @@ struct fuse_lowlevel_ops hello_llops = {
 
 
     .getxattr = hello_getxattr,
-   */
     .readdir = &hello_readdir,
+   */
 };
 
 static void _evfuse_ev_read (evutil_socket_t fd, short what, void *arg) {
@@ -206,23 +162,26 @@ int main (int argc, char *argv[])
     Application *app;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
     struct fuse_lowlevel_ops llops;
+    HTTPConnection *con;
 
     app = g_new0 (Application, 1);
     app->evbase = event_base_new ();
-
-    llops = hello_llops;
 
     if (!app->evbase) {
         LOG_err ("Failed to create evbase !");
         return -1;
     }
 
-    app->dns_base = evdns_base_new (app->evbase, 1);
+    app->dns_base = evdns_base_new (app->evbase, 0);
     if (!app->dns_base) {
         LOG_err ("Failed to create dns_base !");
         return -1;
     }
 
+    con = http_connection_new (app, argv[1]);
+
+    /*
+    llops = hello_llops;
     if (fuse_parse_cmdline (&fuse_args, &app->mountpoint, &app->multithreaded, &app->foreground) == -1) {
         LOG_err ("fuse_parse_cmdline");
         return -1;
@@ -260,7 +219,7 @@ int main (int argc, char *argv[])
         LOG_err ("event_add");
         return -1;
     }
-
+*/
     event_base_dispatch (app->evbase);
 
     return 0;

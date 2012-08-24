@@ -1,9 +1,13 @@
 #include "include/global.h"
-#include "include/http_proto.h"
+#include "include/bucket_connection.h"
 
 struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
+
+    gchar *aws_access_key_id;
+    gchar *aws_secret_access_key;
+
     char *mountpoint;
     int multithreaded;
     int foreground;
@@ -19,35 +23,10 @@ struct _Application {
 
     // the buffer that we use to receive events
     char *recv_buf;
+
+    S3Bucket *bucket;
 };
 
-// prints a message string to stdout
-static void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G_GNUC_UNUSED const gchar *func, 
-        const gchar *format, ...)
-{
-    va_list args;
-    char out_str[1024];
-
-    va_start (args, format);
-        g_vsnprintf (out_str, 1024, format, args);
-    va_end (args);
-
-#ifdef DEBUG
-    g_fprintf (stdout, "%s:%d(%s) %s\n", file, line, func, out_str);
-#else
-    g_fprintf (stdout, "%s\n",out_str);
-#endif
-}
-
-#define LOG_msg(x...) \
-G_STMT_START { \
-    logger_log_msg (__FILE__, __LINE__, __func__, x); \
-} G_STMT_END
-
-#define LOG_err(x...) \
-G_STMT_START { \
-    logger_log_msg (__FILE__, __LINE__, __func__, x); \
-} G_STMT_END
 
 void hello_init (void *userdata, struct fuse_conn_info *conn) {
     LOG_msg ("[hello.init] userdata=%p, conn=%p", userdata, conn);
@@ -157,28 +136,61 @@ error:
  //   evfuse_close(ctx);
 }
 
+struct event_base *application_get_evbase (Application *app)
+{
+    return app->evbase;
+}
+
+struct evdns_base *application_get_dnsbase (Application *app)
+{
+    return app->dns_base;
+}
+
+const gchar *application_get_access_key_id (Application *app)
+{
+    return (const gchar *) app->aws_access_key_id;
+}
+
+const gchar *application_get_secret_access_key (Application *app)
+{
+    return (const gchar *) app->aws_secret_access_key;
+}
+
 int main (int argc, char *argv[])
 {
     Application *app;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
     struct fuse_lowlevel_ops llops;
-    HTTPConnection *con;
+    BucketConnection *con;
 
     app = g_new0 (Application, 1);
     app->evbase = event_base_new ();
 
     if (!app->evbase) {
-        LOG_err ("Failed to create evbase !");
+        LOG_err ("Failed to create event base !");
         return -1;
     }
 
-    app->dns_base = evdns_base_new (app->evbase, 0);
+    app->dns_base = evdns_base_new (app->evbase, 1);
     if (!app->dns_base) {
-        LOG_err ("Failed to create dns_base !");
+        LOG_err ("Failed to create DNS base !");
         return -1;
     }
 
-    con = http_connection_new (app, argv[1]);
+    app->bucket = g_new0 (S3Bucket, 1);
+    app->bucket->uri = evhttp_uri_parse (argv[1]);
+
+    app->aws_access_key_id = getenv("AWSACCESSKEYID");
+    app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
+
+    if (!app->aws_access_key_id || !app->aws_secret_access_key) {
+        LOG_err ("Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !");
+        return -1;
+    }
+
+
+    con = bucket_connection_new (app, app->bucket);
+    bucket_connection_connect (con);
 
     /*
     llops = hello_llops;

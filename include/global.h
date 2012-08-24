@@ -43,12 +43,21 @@
 #include <event2/bufferevent_struct.h>
 #include <event2/buffer.h>
 #include <event2/dns.h>
+#include <event2/http.h>
 
 #define FUSE_USE_VERSION 26
 
 #include <fuse/fuse_lowlevel.h>
 
 typedef struct _Application Application;
-typedef struct _HTTPConnection HTTPConnection;
+typedef struct _BucketConnection BucketConnection;
+
+struct event_base *application_get_evbase (Application *app);
+struct evdns_base *application_get_dnsbase (Application *app);
+const gchar *application_get_access_key_id (Application *app);
+const gchar *application_get_secret_access_key (Application *app);
+
+#include "include/log.h" 
+#include "include/s3.h" 
 
 #endif

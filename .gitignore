@@ -1,0 +1,9 @@
+.objs
+.update
+*.un~
+*.dia~
+*.swp
+tags
+bin/*
+*.cache
+*.swf

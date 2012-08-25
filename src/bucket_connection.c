@@ -6,6 +6,10 @@ struct _BucketConnection {
     S3Bucket *bucket;
 
     struct bufferevent *bev;
+
+    // only 1 request per connection
+    gpointer request;
+    RequestType req_type;
 };
 
 static void bucket_connection_on_read (struct bufferevent *bev, void *ctx);
@@ -67,6 +71,16 @@ void bucket_connection_destroy (BucketConnection *con)
     g_free (con);
 }
 
+S3Bucket *bucket_connection_get_bucket (BucketConnection *con)
+{
+    return con->bucket;
+}
+
+void bucket_connection_set_request (BucketConnection *con, gpointer request)
+{
+    con->request = request;
+}
+
 // Received data
 static void bucket_connection_on_read (struct bufferevent *bev, void *ctx)
 {
@@ -76,10 +90,21 @@ static void bucket_connection_on_read (struct bufferevent *bev, void *ctx)
     inbuf = bufferevent_get_input (bev);
 
     LOG_debug ("Received %zd bytes", evbuffer_get_length (inbuf));
-    g_printf (">>>%s<<<", evbuffer_pullup (inbuf,  500));
+    g_printf ("========================\n%s\n===================\n", evbuffer_pullup (inbuf,  -1));
+
+    // XXX: read headers
+    //
+    // if ok:
+    switch (con->req_type) {
+        case RT_list: 
+            bucket_connection_on_directory_listing (con->request, inbuf);
+            break;
+        default:
+            break;
+    }
 }
 
-// Sending data
+// Sending data callback
 static void bucket_connection_on_write (struct bufferevent *bev, void *ctx)
 {
     BucketConnection *con = (BucketConnection *)ctx;
@@ -88,8 +113,15 @@ static void bucket_connection_on_write (struct bufferevent *bev, void *ctx)
 
     outbuf = bufferevent_get_output (bev);
 
-    LOG_debug ("Sending %zd bytes", evbuffer_get_length (outbuf));
+   // LOG_debug ("Sending %zd bytes", evbuffer_get_length (outbuf));
+}
 
+// sends data
+void bucket_connection_send (BucketConnection *con, struct evbuffer *outbuf)
+{
+    LOG_debug ("Sending %zd bytes:", evbuffer_get_length (outbuf));
+    g_printf ("========================\n%s\n===================\n", evbuffer_pullup (outbuf, -1));
+    bufferevent_write_buffer (con->bev, outbuf);
 }
 
 // Connection event
@@ -220,36 +252,21 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
     return res;
 }
 
-gboolean bucket_connection_get_directory_listing (BucketConnection *con, const gchar *path)
-{
-    struct evbuffer *buf;
-    const gchar *auth;
+struct evbuffer *bucket_connection_append_headers (BucketConnection *con, struct evbuffer *buf,
+    const gchar *method, const gchar *auth_str, const gchar *request_path)
+{    
     const gchar *host;
-    const gchar *method;
     char time_str[100];
     time_t t = time (NULL);
-    gchar *resource_path;
-    gchar *req_path;
 
-    resource_path = g_strdup_printf ("/%s%s", con->bucket->name, path);
-    req_path = g_strdup_printf ("%s?delimiter=/&max-keys=%d&marker=&prefix=", path, 1000);
-    method = g_strdup ("GET");
-
-    auth = bucket_connection_get_auth_string (con, method, "", resource_path);
     host = evhttp_uri_get_host (con->bucket->uri);
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
     
-    buf = evbuffer_new ();
-    evbuffer_add_printf (buf, "%s %s HTTP/1.1\n", method, req_path);
+    evbuffer_add_printf (buf, "%s %s HTTP/1.1\n", method, request_path);
     evbuffer_add_printf (buf, "Host: %s\n", host);
     evbuffer_add_printf (buf, "Date: %s\n", time_str);
-    evbuffer_add_printf (buf, "Authorization: AWS %s:%s\n", application_get_access_key_id (con->app), auth);
-    evbuffer_add_printf (buf, "\n\n");
+    evbuffer_add_printf (buf, "Authorization: AWS %s:%s\n", application_get_access_key_id (con->app), auth_str);
+    evbuffer_add_printf (buf, "\n");
 
-    LOG_debug ("Sending DIR request:");
-    LOG_debug ("%s", evbuffer_pullup (buf, -1));
-
-    bufferevent_write_buffer (con->bev, buf);
-
-    return TRUE;
+    return buf;
 }

@@ -49,6 +49,7 @@
 #include <event2/buffer.h>
 #include <event2/dns.h>
 #include <event2/http.h>
+#include <event2/http_struct.h>
 
 #define FUSE_USE_VERSION 26
 

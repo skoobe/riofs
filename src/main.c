@@ -198,9 +198,8 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-
     con = bucket_connection_new (app, app->bucket);
-    bucket_connection_connect (con);
+    bucket_connection_get_directory_listing (con, "/");
 
     /*
     llops = hello_llops;

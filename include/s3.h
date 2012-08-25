@@ -7,7 +7,7 @@ typedef struct {
     // low level stuff
     evutil_socket_t fd;
 
-    const gchar *host;
+    const gchar *name;
     struct evhttp_uri *uri;
 } S3Bucket;
 

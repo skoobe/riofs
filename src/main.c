@@ -156,12 +156,21 @@ const gchar *application_get_secret_access_key (Application *app)
     return (const gchar *) app->aws_secret_access_key;
 }
 
+void application_connected (Application *app, BucketConnection *con)
+{
+    bucket_connection_get_directory_listing (con, "/");
+}
+
 int main (int argc, char *argv[])
 {
     Application *app;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
     struct fuse_lowlevel_ops llops;
     BucketConnection *con;
+
+    // init libraries
+    ENGINE_load_builtin_engines ();
+    ENGINE_register_all_complete ();
 
     app = g_new0 (Application, 1);
     app->evbase = event_base_new ();
@@ -179,6 +188,7 @@ int main (int argc, char *argv[])
 
     app->bucket = g_new0 (S3Bucket, 1);
     app->bucket->uri = evhttp_uri_parse (argv[1]);
+    app->bucket->name = g_strdup (argv[2]);
 
     app->aws_access_key_id = getenv("AWSACCESSKEYID");
     app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");

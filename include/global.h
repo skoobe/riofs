@@ -33,9 +33,14 @@
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <math.h>
 
 #include <glib.h>
 #include <glib/gprintf.h>
+
+#include <openssl/engine.h>
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
 
 #include <event2/event.h>
 #include <event2/listener.h>
@@ -56,6 +61,7 @@ struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
+void application_connected (Application *app, BucketConnection *con);
 
 #include "include/log.h" 
 #include "include/s3.h" 

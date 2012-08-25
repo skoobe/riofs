@@ -1,4 +1,5 @@
 #include "include/bucket_connection.h"
+#include "include/utils.h"
 
 struct _BucketConnection {
     Application *app;
@@ -10,6 +11,7 @@ struct _BucketConnection {
 static void bucket_connection_on_read (struct bufferevent *bev, void *ctx);
 static void bucket_connection_on_write (struct bufferevent *bev, void *ctx);
 static void bucket_connection_on_even (struct bufferevent *bev, short what, void *ctx);
+static void bucket_connection_on_connection (BucketConnection *con);
 
 #define READ_TIMEOUT 20
 #define WRITE_TIMEOUT 20
@@ -51,6 +53,9 @@ BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
     timeout_write.tv_usec = 0;
     timeout_write.tv_sec = WRITE_TIMEOUT;
     bufferevent_set_timeouts (con->bev, &timeout_read, &timeout_write);
+    
+    // enable events
+    bufferevent_enable (con->bev, EV_READ | EV_WRITE);
 
     return con;
 }
@@ -71,12 +76,20 @@ static void bucket_connection_on_read (struct bufferevent *bev, void *ctx)
     inbuf = bufferevent_get_input (bev);
 
     LOG_debug ("Received %zd bytes", evbuffer_get_length (inbuf));
+    g_printf (">>>%s<<<", evbuffer_pullup (inbuf,  500));
 }
 
 // Sending data
 static void bucket_connection_on_write (struct bufferevent *bev, void *ctx)
 {
     BucketConnection *con = (BucketConnection *)ctx;
+
+    struct evbuffer *outbuf;
+
+    outbuf = bufferevent_get_output (bev);
+
+    LOG_debug ("Sending %zd bytes", evbuffer_get_length (outbuf));
+
 }
 
 // Connection event
@@ -145,9 +158,10 @@ gboolean bucket_connection_connect (BucketConnection *con)
 }
 
 // connection established 
-void bucket_connection_on_connection (BucketConnection *con)
+static void bucket_connection_on_connection (BucketConnection *con)
 {
     LOG_debug ("Connection established !");
+    application_connected (con->app, con);
 }
 
 
@@ -157,9 +171,14 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
     const gchar *string_to_sign;
     char time_str[100];
     time_t t = time (NULL);
+    unsigned int md_len;
+    unsigned char md[EVP_MAX_MD_SIZE];
+    gchar *res;
+    BIO *bmem, *b64;
+    BUF_MEM *bptr;
+    int ret;
 
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-
 
     string_to_sign = g_strdup_printf (
         "%s\n"  // HTTP-Verb + "\n"
@@ -168,10 +187,69 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
         "%s\n"  // Date + "\n" 
         "%s"    // CanonicalizedAmzHeaders
         "%s",    // CanonicalizedResource
-    );    
 
+        method, "", content_type, time_str, "", resource
+    );
+
+    LOG_debug ("%s", string_to_sign);
+
+    HMAC (EVP_sha1(), 
+        application_get_secret_access_key (con->app),
+        strlen (application_get_secret_access_key (con->app)),
+        (unsigned char *)string_to_sign, strlen (string_to_sign),
+        md, &md_len
+    );
+    
+    b64 = BIO_new (BIO_f_base64 ());
+    bmem = BIO_new (BIO_s_mem ());
+    b64 = BIO_push (b64, bmem);
+    BIO_write (b64, md, md_len);
+    ret = BIO_flush (b64);
+    if (ret != 1) {
+        LOG_err ("Failed to create base64 of auth string !");
+        return NULL;
+    }
+    BIO_get_mem_ptr (b64, &bptr);
+
+    res = g_malloc (bptr->length + 1);
+    memcpy (res, bptr->data, bptr->length);
+    res[bptr->length] = '\0';
+
+    BIO_free_all (b64);
+
+    return res;
 }
 
 gboolean bucket_connection_get_directory_listing (BucketConnection *con, const gchar *path)
 {
+    struct evbuffer *buf;
+    const gchar *auth;
+    const gchar *host;
+    const gchar *method;
+    char time_str[100];
+    time_t t = time (NULL);
+    gchar *resource_path;
+    gchar *req_path;
+
+    resource_path = g_strdup_printf ("/%s%s", con->bucket->name, path);
+    req_path = g_strdup_printf ("%s?delimiter=/&max-keys=%d&marker=&prefix=", path, 1000);
+    method = g_strdup ("GET");
+
+    auth = bucket_connection_get_auth_string (con, method, "", resource_path);
+    host = evhttp_uri_get_host (con->bucket->uri);
+    strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+    
+    buf = evbuffer_new ();
+    evbuffer_add_printf (buf, "%s %s HTTP/1.1\n", method, req_path);
+    evbuffer_add_printf (buf, "Host: %s\n", host);
+    evbuffer_add_printf (buf, "Date: %s\n", time_str);
+    evbuffer_add_printf (buf, "Authorization: AWS %s:%s\n", application_get_access_key_id (con->app), auth);
+    evbuffer_add_printf (buf, "\n\n");
+
+    LOG_debug ("Sending DIR request:");
+    LOG_debug ("%s", evbuffer_pullup (buf, -1));
+
+    bufferevent_write_buffer (con->bev, buf);
+
+    return TRUE;
 }

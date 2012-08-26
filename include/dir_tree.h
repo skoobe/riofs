@@ -15,7 +15,7 @@ typedef void (*dir_tree_readdir_cb) (gpointer readdir_cb_data, int result, const
 
 gboolean dir_tree_fill_dir_buf (DirTree *dtree, 
         fuse_ino_t ino, size_t size, off_t off,
-        dir_tree_readdir_cb, gpointer readdir_cb_data);
+        dir_tree_readdir_cb readdir_cb, gpointer readdir_cb_data);
 
 
 #endif

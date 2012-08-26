@@ -51,15 +51,23 @@
 #include <event2/http.h>
 #include <event2/http_struct.h>
 
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
 #define FUSE_USE_VERSION 26
 
 #include <fuse/fuse_lowlevel.h>
 
 typedef struct _Application Application;
 typedef struct _BucketConnection BucketConnection;
+typedef struct _DirTree DirTree;
+typedef struct _FuseInfo FuseInfo;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
+DirTree *application_get_dir_tree (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
 void application_connected (Application *app, BucketConnection *con);

@@ -1,5 +1,4 @@
 #include "include/bucket_connection.h"
-#include "include/utils.h"
 
 struct _BucketConnection {
     Application *app;
@@ -49,6 +48,11 @@ BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
         LOG_err ("Failed to create evhttp_connection !");
         return NULL;
     }
+    
+    // XXX: config these
+    evhttp_connection_set_timeout (con->evcon, 5);
+    evhttp_connection_set_retries (con->evcon, -1);
+
 
     evhttp_connection_set_closecb (con->evcon, bucket_connection_on_close, con);
 
@@ -74,6 +78,12 @@ S3Bucket *bucket_connection_get_bucket (BucketConnection *con)
 {
     return con->bucket;
 }
+
+Application *bucket_connection_get_app (BucketConnection *con)
+{
+    return con->app;
+}
+
 
 struct evhttp_connection *bucket_connection_get_evcon (BucketConnection *con)
 {
@@ -107,7 +117,7 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
         method, "", content_type, time_str, "", resource
     );
 
-    LOG_debug ("%s", string_to_sign);
+ //   LOG_debug ("%s", string_to_sign);
 
     HMAC (EVP_sha1(), 
         application_get_secret_access_key (con->app),
@@ -152,7 +162,7 @@ struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
 
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (con->app), auth_str);
 
-    LOG_debug (">>auth_key: >>%s<<", auth_key);
+//    LOG_debug (">>auth_key: >>%s<<", auth_key);
 
     req = evhttp_request_new (cb, arg);
     evhttp_add_header (req->output_headers, 

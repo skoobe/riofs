@@ -10,6 +10,7 @@ void bucket_connection_destroy (BucketConnection *con);
 
 struct evhttp_connection *bucket_connection_get_evcon (BucketConnection *con);
 S3Bucket *bucket_connection_get_bucket (BucketConnection *con);
+Application *bucket_connection_get_app (BucketConnection *con);
 
 gboolean bucket_connection_connect (BucketConnection *con);
 

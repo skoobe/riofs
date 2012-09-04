@@ -387,5 +387,48 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 }
 /*}}}*/
 
+// write data to output buf
+// data will be sent in flush () function
+// XXX: add caching
+void dir_tree_write (DirTree *dtree, fuse_ino_t ino, 
+    const char *buf, size_t size, off_t off, 
+    dir_tree_write_cb write_cb, fuse_req_t req,
+    struct fuse_file_info *fi)
+{
+    struct evbuffer *out_buf;
+    DirEntry *en;
+    size_t out_buf_len;
 
-void dir_tree_write (
+    LOG_debug ("Writing Object  inode %d, size: %zd, off: %d", ino, size, off);
+
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
+
+    // if entry does not exist
+    // or it's not a directory type ?
+    if (!en) {
+        LOG_msg ("Entry (ino = %d) not found !", ino);
+        write_cb (req, FALSE,  0);
+        return;
+    }
+    
+    // fi->fh contains output buffer
+    if (fi->fh)
+        out_buf = (struct evbuffer *) fi->fh;
+    else {
+        out_buf = evbuffer_new ();
+        fi->fh = out_buf;
+    }
+
+    // current write position should be at the end of output buffer
+    out_buf_len = evbuffer_get_length (out_buf);
+    if (out_buf_len != off) {
+        LOG_msg ("Error in entry (ino = %d) output buffer  !", ino);
+        write_cb (req, FALSE, 0);
+        return;
+    }
+    // increase file size
+    en->size += size;
+
+    evbuffer_add (out_buf, buf, size);
+    write_cb (req, TRUE, size);
+}

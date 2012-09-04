@@ -332,6 +332,18 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 }
 /*}}}*/
 
+// write callback
+static void s3fuse_write_cb (fuse_req_t req, gboolean success, size_t count)
+{
+    LOG_debug ("write_cb  success: %s", success?"YES":"NO");
+
+    if (!success) {
+		fuse_reply_err (req, ENOENT);
+        return;
+    }
+    
+    fuse_reply_write (req, count);
+}
 // FUSE lowlevel operation: write
 // Valid replies: fuse_reply_write() fuse_reply_err()
 static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)
@@ -340,10 +352,11 @@ static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_
     
     LOG_debug ("write  inode: %d, size: %zd, off: %ld ", ino, size, off);
 
- //   dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req);
+    dir_tree_write (s3fuse->dir_tree, ino, buf, size, off, s3fuse_write_cb, req, fi);
 }
 
-
+/*{{{ create operation */
+// create callback
 void s3fuse_add_file_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, void *f)
 {
 	struct fuse_entry_param e;
@@ -378,4 +391,4 @@ static void s3fuse_add_file (fuse_req_t req, fuse_ino_t parent_inode, const char
 
     dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_add_file_cb, req, fi);
 }
-
+/*}}}*/

@@ -1,0 +1,13 @@
+
+readdir op:
+
+1. fuse gets request for *readdir* operation, specifying inode, and output buffer parameters
+2. fuse wrapper executes *dir_tree_fill_dir_buf* function, passing pointer to *readdir_cb* callback function
+3. DirTree searches in the file hash table for the inode
+4. if entry not found, *readdir_cb* is executed with *status* = FALSE
+4a. fuse returns *ENOTDIR* code to the caller
+5. DirTree checks if requested directory has dir_cache prepared
+5a. Adjust directory cache according to output buffer parameters
+5b. executes *readdir_cb* is executed with *status* = TRUE and output buffer
+5c. fuse returns output buffer to caller
+6. 

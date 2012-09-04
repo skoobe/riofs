@@ -25,15 +25,21 @@ static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino,
     size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_lookup (fuse_req_t req, fuse_ino_t parent, const char *name);
 static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
+static void s3fuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi);
 static void s3fuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
+static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
+static void s3fuse_add_file (fuse_req_t req, fuse_ino_t parent_inode, const char *name, mode_t mode, struct fuse_file_info *fi);
 
 static struct fuse_lowlevel_ops s3fuse_opers = {
 	.readdir	= s3fuse_readdir,
 	.lookup		= s3fuse_lookup,
     .getattr	= s3fuse_getattr,
+    .setattr	= s3fuse_setattr,
 	.open		= s3fuse_open,
 	.read		= s3fuse_read,
+	.write		= s3fuse_write,
+	.create		= s3fuse_add_file,
 };
 /*}}}*/
 
@@ -217,6 +223,34 @@ static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 }
 /*}}}*/
 
+// setattr callback
+static void s3fuse_setattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size)
+{
+    struct stat stbuf;
+
+    LOG_debug ("setattr_cb  success: %s", success?"YES":"NO");
+    if (!success) {
+		fuse_reply_err (req, ENOENT);
+        return;
+    }
+    memset (&stbuf, 0, sizeof(stbuf));
+    stbuf.st_ino = ino;
+    stbuf.st_mode = mode;
+	stbuf.st_nlink = 1;
+	stbuf.st_size = file_size;
+    
+    fuse_reply_attr (req, &stbuf, 1.0);
+}
+
+// FUSE lowlevel operation: setattr
+// Valid replies: fuse_reply_attr() fuse_reply_err()
+static void s3fuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
+{
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+
+    dir_tree_setattr (s3fuse->dir_tree, ino, attr, to_set, s3fuse_setattr_cb, req, fi);
+}
+
 /*{{{ lookup operation*/
 
 // lookup callback
@@ -274,6 +308,7 @@ static void s3fuse_read_cb (fuse_req_t req, gboolean success, size_t max_size, o
 {
 
     LOG_debug ("read_cb  success: %s", success?"YES":"NO");
+
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -296,3 +331,51 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req);
 }
 /*}}}*/
+
+// FUSE lowlevel operation: write
+// Valid replies: fuse_reply_write() fuse_reply_err()
+static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)
+{
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+    
+    LOG_debug ("write  inode: %d, size: %zd, off: %ld ", ino, size, off);
+
+ //   dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req);
+}
+
+
+void s3fuse_add_file_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, void *f)
+{
+	struct fuse_entry_param e;
+    struct fuse_file_info *fi = (struct fuse_file_info *) f;
+
+    LOG_debug ("add_file_cb  success: %s", success?"YES":"NO");
+    if (!success) {
+		fuse_reply_err (req, ENOENT);
+        return;
+    }
+
+    memset(&e, 0, sizeof(e));
+    e.ino = ino;
+    e.attr_timeout = 1.0;
+    e.entry_timeout = 1.0;
+
+    e.attr.st_ino = ino;
+    e.attr.st_mode = mode;
+	e.attr.st_nlink = 1;
+	e.attr.st_size = file_size;
+
+    fuse_reply_create (req, &e, fi);
+}
+
+// FUSE lowlevel operation: create
+// Valid replies: fuse_reply_create() fuse_reply_err()
+static void s3fuse_add_file (fuse_req_t req, fuse_ino_t parent_inode, const char *name, mode_t mode, struct fuse_file_info *fi)
+{
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+    
+    LOG_debug ("create  parent_inode: %d, name: %s, mode: %d ", parent_inode, name, mode);
+
+    dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_add_file_cb, req, fi);
+}
+

@@ -2,6 +2,7 @@
 #include "include/bucket_connection.h"
 #include "include/dir_tree.h"
 #include "include/fuse.h"
+#include "include/cache_mng.h"
 
 struct _Application {
     struct event_base *evbase;
@@ -9,6 +10,7 @@ struct _Application {
     
     S3Fuse *s3fuse;
     DirTree *dir_tree;
+    CacheMng *cache_mng;
 
     gchar *aws_access_key_id;
     gchar *aws_secret_access_key;
@@ -45,6 +47,11 @@ const gchar *application_get_secret_access_key (Application *app)
 BucketConnection *application_get_con (Application *app)
 {
     return app->con;
+}
+
+CacheMng *application_get_cache_mng (Application *app)
+{
+    return app->cache_mng;
 }
 
 
@@ -102,7 +109,8 @@ int main (int argc, char *argv[])
         LOG_err ("Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !");
         return -1;
     }
-
+    
+    app->cache_mng = cache_mng_create (app, "/tmp");
     app->con = bucket_connection_new (app, app->bucket);
     bucket_connection_get_directory_listing (app->con, "/");
 

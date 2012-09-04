@@ -51,7 +51,7 @@ BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
     }
     
     // XXX: config these
-    evhttp_connection_set_timeout (con->evcon, 5);
+    evhttp_connection_set_timeout (con->evcon, 60);
     evhttp_connection_set_retries (con->evcon, -1);
 
     evhttp_connection_set_closecb (con->evcon, bucket_connection_on_close, con);

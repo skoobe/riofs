@@ -18,6 +18,7 @@ typedef struct {
 
     // for type == DET_file
     guint64 size;
+    mode_t mode;
 
     // for type == DET_dir
     char *dir_cache; // FUSE directory cache
@@ -34,7 +35,7 @@ struct _DirTree {
     guint64 current_age;
 };
 
-static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name);
+static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name, mode_t mode);
 
 
 DirTree *dir_tree_create (Application *app)
@@ -47,7 +48,7 @@ DirTree *dir_tree_create (Application *app)
     dtree->max_ino = 1;
     dtree->current_age = 0;
 
-    dtree->root = dir_tree_create_directory (dtree, "/");
+    dtree->root = dir_tree_create_directory (dtree, "/", S_IFDIR | 0755);
 
     return dtree;
 }
@@ -66,7 +67,7 @@ static void dir_entry_destroy (gpointer data)
     g_free (en);
 }
 
-static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name)
+static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name, mode_t mode)
 {
     DirEntry *en;
 
@@ -74,6 +75,7 @@ static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name)
     en->ino = dtree->max_ino++;
     en->age = dtree->current_age;
     en->name = g_strdup (name);
+    en->mode = mode;
     
     en->type = DET_dir;
     en->dir_cache = NULL;
@@ -90,7 +92,7 @@ static void dir_tree_directory_add_file (DirEntry *dir, DirEntry *file)
     g_hash_table_insert (dir->h_dir_tree, file->name, file);
 }
 
-static DirEntry *dir_tree_create_file (DirTree *dtree, const gchar *name, guint64 size)
+static DirEntry *dir_tree_create_file (DirTree *dtree, const gchar *name, guint64 size, mode_t mode)
 {
     DirEntry *en;
 
@@ -100,6 +102,9 @@ static DirEntry *dir_tree_create_file (DirTree *dtree, const gchar *name, guint6
     en->name = g_strdup (name);
     en->type = DET_file;
     en->size = size;
+    en->mode = mode;
+
+    LOG_debug ("Creating new file '%s' inode: %d", en->name, en->ino);
 
     g_hash_table_insert (dtree->h_inodes, GUINT_TO_POINTER (en->ino), en);
 
@@ -134,8 +139,22 @@ void dir_tree_update_entry (DirTree *dtree, const gchar *path, const gchar *entr
     if (en) {
         en->age = dtree->current_age;
     } else {
-        en = dir_tree_create_file (dtree, entry_name, size);
+        //XXX: default mode
+        en = dir_tree_create_file (dtree, entry_name, size, S_IFREG | 0444);
         dir_tree_directory_add_file (root_en, en);
+    }
+}
+
+// let it know that directory cache have to be updated
+void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
+{
+    if (en->type == DET_dir) {
+        if (en->dir_cache_size) {
+            g_free (en->dir_cache);
+            en->dir_cache_size = 0;
+        }
+    } else {
+        // XXX: get parent, update dir cache
     }
 }
 
@@ -203,7 +222,6 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_lookup_cb lookup_cb, fuse_req_t req)
 {
     DirEntry *dir_en, *en;
-    int mode;
     
     LOG_debug ("Looking up for '%s' in directory ino: %d", name, parent_ino);
     
@@ -223,12 +241,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         return;
     }
 
-    if (en->type == DET_file) {
-        mode = S_IFREG | 0444;
-    } else {
-        mode = S_IFDIR | 0755;
-    }
-    lookup_cb (req, TRUE, en->ino, mode, en->size);
+    lookup_cb (req, TRUE, en->ino, en->mode, en->size);
 }
 /*}}}*/
 
@@ -238,7 +251,6 @@ void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
     dir_tree_getattr_cb getattr_cb, fuse_req_t req)
 {
     DirEntry  *en;
-    int mode;
     
     LOG_debug ("Getting attributes for %d", ino);
     
@@ -251,16 +263,62 @@ void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
         return;
     }
 
-    if (en->type == DET_file) {
-        mode = S_IFREG | 0444;
-    } else {
-        mode = S_IFDIR | 0755;
-    }
-    getattr_cb (req, TRUE, en->ino, mode, en->size);
+    getattr_cb (req, TRUE, en->ino, en->mode, en->size);
 }
 /*}}}*/
 
-/*{{{ */
+/*{{{ dir_tree_setattr */
+// set entry's attributes
+// update directory cache
+void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino, 
+    struct stat *attr, int to_set,
+    dir_tree_setattr_cb setattr_cb, fuse_req_t req, void *fi)
+{
+    DirEntry  *en;
+    
+    LOG_debug ("Setting attributes for %d", ino);
+    
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
+    
+    // entry not found
+    if (!en) {
+        LOG_msg ("Entry (%d) not found !", ino);
+        setattr_cb (req, FALSE, 0, 0, 0);
+        return;
+    }
+    //XXX: en->mode
+    setattr_cb (req, TRUE, en->ino, en->mode, en->size);
+}
+/*}}}*/
+
+/*{{{ dir_tree_read*/
+
+typedef struct {
+    dir_tree_read_cb read_cb;
+    fuse_req_t req;
+    size_t size;
+    off_t off;
+} DirTreeReadData;
+
+static void dir_tree_read_callback (gpointer callback_data, gboolean success, struct evbuffer *in_data)
+{
+    DirTreeReadData *data = (DirTreeReadData *) callback_data;
+    char *buf;
+    size_t buf_len;
+
+    LOG_debug ("Read object callback  success: %s", success?"YES":"NO");
+
+    if (!success) {
+        data->read_cb (data->req, FALSE, data->size, data->off, NULL, 0);
+    } else {
+        buf_len = evbuffer_get_length (in_data);
+        buf = evbuffer_pullup (in_data, buf_len);
+        data->read_cb (data->req, TRUE, data->size, data->off, buf, buf_len);
+    }
+
+    g_free (data);
+}
+
 // return entry's buffer
 void dir_tree_read (DirTree *dtree, fuse_ino_t ino, 
     size_t size, off_t off,
@@ -269,8 +327,9 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
     DirEntry *en;
     BucketConnection *con;
     char full_name[1024];
+    DirTreeReadData *data;
     
-    LOG_debug ("Reading buffer  inode %d, size: %zd, off: %d", ino, size, off);
+    LOG_debug ("Read Object  inode %d, size: %zd, off: %d", ino, size, off);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -281,10 +340,52 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
         read_cb (req, FALSE, size, off, NULL, 0);
         return;
     }
+    // create callback data
+    data = g_new0 (DirTreeReadData, 1);
+    data->read_cb = read_cb;
+    data->req = req;
+    data->size = size;
+    data->off = off;
+
     con = application_get_con (dtree->app);
 
     snprintf (full_name, sizeof (full_name), "/%s", en->name);
     // XXX: caching alg
-    bucket_connection_get_object (con, full_name);
+    bucket_connection_get_object (con, full_name, dir_tree_read_callback, data);
 
 }/*}}}*/
+
+/*{{{ dir_tree_add_file */
+// add new file entry to directory, return new inode
+void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
+    dir_tree_add_file_cb add_file_cb, fuse_req_t req, void *fi)
+{
+    DirEntry *dir_en, *en;
+    
+    LOG_debug ("Adding new entry '%s' to directory ino: %d", name, parent_ino);
+    
+    dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
+    
+    // entry not found
+    if (!dir_en || dir_en->type != DET_dir) {
+        LOG_msg ("Directory (%d) not found !", parent_ino);
+        add_file_cb (req, FALSE, 0, 0, 0, fi);
+        return;
+    }
+    
+    // create a new entry
+    en = dir_tree_create_file (dtree, name, 0, mode);
+    // add to parent directory
+    g_hash_table_insert (dir_en->h_dir_tree, en->name, en);
+    // update directory buffer
+    dir_tree_entry_modified (dtree, dir_en);
+    
+    // execute callback
+    add_file_cb (req, TRUE, en->ino, mode, en->size, fi);
+
+    //XXX: S3 request
+}
+/*}}}*/
+
+
+void dir_tree_write (

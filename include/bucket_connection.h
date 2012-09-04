@@ -25,3 +25,4 @@ struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
 
 
 gboolean bucket_connection_get_directory_listing (BucketConnection *con, const gchar *path);
+gboolean bucket_connection_get_object (BucketConnection *con, const gchar *path);

@@ -10,6 +10,7 @@ struct _BucketConnection {
 static void bucket_connection_on_close (struct evhttp_connection *evcon, void *ctx);
 
 // creates BucketConnection object
+// establishes HTTP connections to S3
 BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
 {
     BucketConnection *con;
@@ -53,7 +54,6 @@ BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
     evhttp_connection_set_timeout (con->evcon, 5);
     evhttp_connection_set_retries (con->evcon, -1);
 
-
     evhttp_connection_set_closecb (con->evcon, bucket_connection_on_close, con);
 
     return con;
@@ -66,6 +66,7 @@ void bucket_connection_destroy (BucketConnection *con)
     g_free (con);
 }
 
+// connection is closed
 static void bucket_connection_on_close (struct evhttp_connection *evcon, void *ctx)
 {
     BucketConnection *con = (BucketConnection *) ctx;
@@ -84,13 +85,12 @@ Application *bucket_connection_get_app (BucketConnection *con)
     return con->app;
 }
 
-
 struct evhttp_connection *bucket_connection_get_evcon (BucketConnection *con)
 {
     return con->evcon;
 }
 
-
+// create S3 auth string
 const gchar *bucket_connection_get_auth_string (BucketConnection *con, 
         const gchar *method, const gchar *content_type, const gchar *resource)
 {
@@ -116,8 +116,6 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
 
         method, "", content_type, time_str, "", resource
     );
-
- //   LOG_debug ("%s", string_to_sign);
 
     HMAC (EVP_sha1(), 
         application_get_secret_access_key (con->app),
@@ -146,6 +144,7 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
     return res;
 }
 
+// create S3 connection request
 struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
     void (*cb)(struct evhttp_request *, void *), void *arg,
     const gchar *auth_str)
@@ -161,8 +160,6 @@ struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
 	cur_p = &cur;
 
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (con->app), auth_str);
-
-//    LOG_debug (">>auth_key: >>%s<<", auth_key);
 
     req = evhttp_request_new (cb, arg);
     evhttp_add_header (req->output_headers, 

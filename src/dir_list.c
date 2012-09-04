@@ -9,7 +9,7 @@ typedef struct {
     gchar *path;
 } DirListRequest;
 
-// parses directory XML 
+// parses S3 directory XML 
 // reutrns TRUE if ok
 static gchar* parse_xml (DirListRequest *dir_list, const char *xml, size_t xml_len)
 {
@@ -63,7 +63,6 @@ static gchar* parse_xml (DirListRequest *dir_list, const char *xml, size_t xml_l
         // object name
         key = xmlXPathEvalExpression((xmlChar *) "s3:Prefix", ctx);
         key_nodes = key->nodesetval;
-        g_printf (">>>>>>>>>>>>>>>>>. dir: %s\n", xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1));
 
         xmlXPathFreeObject(key);
     }
@@ -102,7 +101,6 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
 
   return next_marker;
 }
-
 
 // read callback function
 static void bucket_connection_on_directory_listing (struct evhttp_request *req, void *ctx)
@@ -156,7 +154,7 @@ static void bucket_connection_on_directory_listing (struct evhttp_request *req, 
         return;
     }
 
-
+    // execute HTTP request
     auth_str = bucket_connection_get_auth_string (dir_req->con, "GET", "", dir_req->resource_path);
     req_path = g_strdup_printf ("%s?max-keys=%d&delimiter=/&marker=%s", dir_req->path, 2, next_marker);
     new_req = bucket_connection_create_request (dir_req->con, bucket_connection_on_directory_listing, dir_req, auth_str);
@@ -174,7 +172,7 @@ gboolean bucket_connection_get_directory_listing (BucketConnection *con, const g
     int res;
     gchar *auth_str;
 
-    LOG_debug ("Getting directory listing ..");
+    LOG_debug ("Getting directory listing for: %s", path);
 
 
     bucket = bucket_connection_get_bucket (con);

@@ -63,13 +63,14 @@
 typedef struct _Application Application;
 typedef struct _BucketConnection BucketConnection;
 typedef struct _DirTree DirTree;
-typedef struct _FuseInfo FuseInfo;
+typedef struct _S3Fuse S3Fuse;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
+BucketConnection *application_get_con (Application *app);
 void application_connected (Application *app, BucketConnection *con);
 
 #include "include/log.h" 

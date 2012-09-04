@@ -7,12 +7,13 @@ struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
     
-    FuseInfo *fusei;
+    S3Fuse *s3fuse;
     DirTree *dir_tree;
 
     gchar *aws_access_key_id;
     gchar *aws_secret_access_key;
 
+    BucketConnection *con;
     S3Bucket *bucket;
 };
 
@@ -41,6 +42,12 @@ const gchar *application_get_secret_access_key (Application *app)
     return (const gchar *) app->aws_secret_access_key;
 }
 
+BucketConnection *application_get_con (Application *app)
+{
+    return app->con;
+}
+
+
 void application_connected (Application *app, BucketConnection *con)
 {
     bucket_connection_get_directory_listing (con, "/");
@@ -49,7 +56,6 @@ void application_connected (Application *app, BucketConnection *con)
 int main (int argc, char *argv[])
 {
     Application *app;
-       BucketConnection *con;
 
     // init libraries
     ENGINE_load_builtin_engines ();
@@ -82,8 +88,8 @@ int main (int argc, char *argv[])
     argv += 2;
     argc -= 2;
 
-    app->fusei = fuse_create (app, argc, argv);
-    if (!app->fusei) {
+    app->s3fuse = s3fuse_create (app, argc, argv);
+    if (!app->s3fuse) {
         LOG_err ("Failed to create FUSE fs !");
         return -1;
     }
@@ -97,9 +103,8 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-
-    con = bucket_connection_new (app, app->bucket);
-    bucket_connection_get_directory_listing (con, "/");
+    app->con = bucket_connection_new (app, app->bucket);
+    bucket_connection_get_directory_listing (app->con, "/");
 
     event_base_dispatch (app->evbase);
 

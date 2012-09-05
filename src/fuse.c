@@ -27,6 +27,7 @@ static void s3fuse_lookup (fuse_req_t req, fuse_ino_t parent, const char *name);
 static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void s3fuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi);
 static void s3fuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
+static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_add_file (fuse_req_t req, fuse_ino_t parent_inode, const char *name, mode_t mode, struct fuse_file_info *fi);
@@ -37,6 +38,7 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
     .getattr	= s3fuse_getattr,
     .setattr	= s3fuse_setattr,
 	.open		= s3fuse_open,
+	.release	= s3fuse_release,
 	.read		= s3fuse_read,
 	.write		= s3fuse_write,
 	.create		= s3fuse_add_file,
@@ -295,11 +297,31 @@ static void s3fuse_lookup (fuse_req_t req, fuse_ino_t parent, const char *name)
 // Valid replies: fuse_reply_open() fuse_reply_err()
 static void s3fuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+    
     LOG_debug ("open  inode: %d, flags: %d", ino, fi->flags);
+
+    dir_tree_open (s3fuse->dir_tree, ino, fi);
 
     fuse_reply_open (req, fi);
 }
 /*}}}*/
+
+/*{{{ release operation */
+
+// FUSE lowlevel operation: release
+// Valid replies: fuse_reply_err()
+static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+
+    LOG_debug ("release  inode: %d, flags: %d", ino, fi->flags);
+
+    dir_tree_release (s3fuse->dir_tree, ino, fi);
+}
+/*}}}*/
+
+
 
 /*{{{ read operation */
 
@@ -328,7 +350,7 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     
     LOG_debug ("read  inode: %d, size: %zd, off: %ld ", ino, size, off);
 
-    dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req);
+    dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req, fi);
 }
 /*}}}*/
 
@@ -357,10 +379,9 @@ static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_
 
 /*{{{ create operation */
 // create callback
-void s3fuse_add_file_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, void *f)
+void s3fuse_add_file_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, struct fuse_file_info *fi)
 {
 	struct fuse_entry_param e;
-    struct fuse_file_info *fi = (struct fuse_file_info *) f;
 
     LOG_debug ("add_file_cb  success: %s", success?"YES":"NO");
     if (!success) {

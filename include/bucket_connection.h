@@ -30,3 +30,6 @@ gboolean bucket_connection_get_directory_listing (BucketConnection *con, const g
 typedef void (*bucket_connection_get_object_callback) (gpointer callback_data, gboolean success, struct evbuffer *in_data);
 gboolean bucket_connection_get_object (BucketConnection *con, const gchar *path,
     bucket_connection_get_object_callback get_object_callback, gpointer callback_data);
+
+gboolean bucket_connection_put_object (BucketConnection *con, const gchar *path,
+    struct evbuffer *out_buf);

@@ -3745,6 +3745,8 @@ $as_echo "yes" >&6; }
 
 fi
 
+CFLAGS="$CFLAGS -Wall -Wextra  -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3"
+
 ac_config_files="$ac_config_files Makefile src/Makefile tests/Makefile"
 
 cat >confcache <<\_ACEOF

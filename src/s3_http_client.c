@@ -35,6 +35,9 @@ struct _S3Connection {
 
     S3Connection_on_input_data_cb on_input_data_cb;
     gpointer on_input_data_ctx;
+
+    S3Connection_on_close_cb on_close_cb;
+    gpointer on_close_ctx;
 };
 
 typedef struct {
@@ -78,11 +81,6 @@ S3Connection *s3connection_new (struct event_base *evbase, struct evdns_base *dn
         return NULL;
     }
 
-    bufferevent_setcb (con->bev, 
-        s3connection_read_cb, s3connection_write_cb, s3connection_event_cb,
-        con
-    );
-
     return con;
 }
 
@@ -94,7 +92,8 @@ void s3connection_destroy (S3Connection *con)
     evbuffer_free (con->input_buffer);
     s3connection_free_headers (con->l_input_headers);
     s3connection_free_headers (con->l_output_headers);
-    g_free (con->response_code_line);
+    if (con->response_code_line)
+        g_free (con->response_code_line);
     g_free (con->url);
     g_free (con);
 }
@@ -178,8 +177,10 @@ static gboolean s3connection_parse_headers (S3Connection *con, struct evbuffer *
 	while ((line = evbuffer_readln (input_buf, &line_length, EVBUFFER_EOL_CRLF)) != NULL) {
 		char *skey, *svalue;
         
+        LOG_debug ("Line: >>%s<<", line);
         // last line
 		if (*line == '\0') {
+            LOG_debug ("Last header line !");
 			g_free (line);
 			return TRUE;
 		}
@@ -189,6 +190,7 @@ static gboolean s3connection_parse_headers (S3Connection *con, struct evbuffer *
 		svalue = line;
 		skey = strsep(&svalue, ":");
 		if (svalue == NULL) {
+            LOG_debug ("Wrong header !");
 	        g_free (line);
 			return TRUE;
         }
@@ -199,6 +201,8 @@ static gboolean s3connection_parse_headers (S3Connection *con, struct evbuffer *
         header->key = g_strdup (skey);
         header->value = g_strdup (svalue);
         con->l_input_headers = g_list_append (con->l_input_headers, header);
+
+        LOG_debug ("Adding header !");
         if (!strcmp (skey, "Content-Length")) {
             char *endp;
 		    con->input_length = evutil_strtoll (svalue, &endp, 10);
@@ -210,6 +214,7 @@ static gboolean s3connection_parse_headers (S3Connection *con, struct evbuffer *
 
         g_free (line);        
     }
+    LOG_debug ("Wrong header line: %s", line);
 
     // if we are here - not all headers have been received !
     return FALSE;
@@ -222,7 +227,7 @@ static void s3connection_read_cb (struct bufferevent *bev, void *ctx)
 
     in_buf = bufferevent_get_input (bev);
     LOG_debug ("Data received: %zd\n=====================================", evbuffer_get_length (in_buf));
-    LOG_debug ("%s\n=========================================", evbuffer_pullup (in_buf, -1));
+ //   LOG_debug ("%s\n=========================================", evbuffer_pullup (in_buf, -1));
 
     if (con->state == S3S_expected_first_line) {
         size_t first_line_len = s3connection_parse_first_line (con, in_buf);
@@ -237,25 +242,32 @@ static void s3connection_read_cb (struct bufferevent *bev, void *ctx)
     }
 
     if (con->state == S3S_expected_headers) {
+        GList *l;
         if (!s3connection_parse_headers (con, in_buf)) {
             LOG_debug ("More headers data expected !");
-            con->state = S3S_expected_first_line;
-            g_free (con->response_code_line);
-            con->response_code_line = NULL;
             s3connection_free_headers (con->l_input_headers);
             con->l_input_headers = NULL;
             return;
         }
 
         con->state = S3S_expected_data;
+        LOG_debug ("ALL headers received !");
+        for (l = g_list_first (con->l_input_headers); l; l = g_list_next (l)) {
+            S3Header *header = (S3Header *) l->data;
+            LOG_debug ("\t%s: %s", header->key, header->value);
+        }
     }
 
     if (con->state == S3S_expected_data) {
         con->input_read += evbuffer_get_length (in_buf);
         evbuffer_add_buffer (con->input_buffer, in_buf);
-        LOG_debug ("INPUT buf:\n%s\n", evbuffer_pullup (con->input_buffer, -1));
+        LOG_debug ("INPUT buf: %zd bytes", evbuffer_get_length (con->input_buffer));
         if (con->on_input_data_cb)
             con->on_input_data_cb (con, con->input_buffer, con->on_input_data_ctx);
+        if (con->input_read == con->input_length) {
+            LOG_debug ("DONE downloading !");
+            con->state == S3S_expected_first_line;
+        }
     }
 }
 
@@ -266,6 +278,9 @@ static void s3connection_event_cb (struct bufferevent *bev, short what, void *ct
     LOG_debug ("Connection event !");
 
     con->state = S3S_disconnected;
+
+    if (con->on_close_cb)
+        con->on_close_cb (con, con->on_close_ctx);
 }
 
 static void s3connection_connection_event_cb (struct bufferevent *bev, short what, void *ctx)
@@ -282,7 +297,7 @@ static void s3connection_connection_event_cb (struct bufferevent *bev, short wha
 
     con->state = S3S_expected_first_line;
 
-    bufferevent_enable (con->bev, EV_WRITE | EV_READ);
+    bufferevent_enable (con->bev, EV_READ);
     bufferevent_setcb (con->bev, 
         s3connection_read_cb, s3connection_write_cb, s3connection_event_cb,
         con
@@ -450,4 +465,10 @@ void s3connection_set_input_data_cb (S3Connection *con,  S3Connection_on_input_d
 {
     con->on_input_data_cb = on_input_data_cb;
     con->on_input_data_ctx = ctx;
+}
+
+void s3connection_set_close_cb (S3Connection *con, S3Connection_on_close_cb on_close_cb, gpointer ctx)
+{
+    con->on_close_cb = on_close_cb;
+    con->on_close_ctx = ctx;
 }

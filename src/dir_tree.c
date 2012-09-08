@@ -44,6 +44,7 @@ typedef enum {
 typedef struct {
     FileOperationType type;
     struct evbuffer *buf;
+    gpointer write_req;
 } FileOperation;
 
 static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name, mode_t mode);
@@ -430,6 +431,25 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 }
 /*}}}*/
 
+typedef struct {
+    dir_tree_write_cb write_cb;
+    fuse_req_t req;
+    size_t size;
+    off_t off;
+    FileOperation *fop;
+} DirTreeWriteData;
+
+
+// buffer is sent
+static void dir_tree_write_on_data_sent (gpointer ctx)
+{
+    DirTreeWriteData *data = (DirTreeWriteData *) ctx;
+
+    LOG_debug ("Buffer sent !");
+    data->write_cb (data->req, TRUE, data->size);
+    g_free (data);
+}
+
 // write data to output buf
 // data will be sent in flush () function
 // XXX: add caching
@@ -441,6 +461,7 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
     DirEntry *en;
     size_t out_buf_len;
     FileOperation *fop = (FileOperation *) fi->fh;
+    DirTreeWriteData *data;
     
     LOG_debug ("Writing Object  inode %d, size: %zd, off: %d", ino, size, off);
 
@@ -473,9 +494,30 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
     // increase file size
     en->size += size;
 
-    evbuffer_add (fop->buf, buf, size);
+    // create s3 http request for writing 
+    /*
+    if (!fop->write_req) {
+        BucketConnection *con;
+        char full_name[1024];
+
+        con = application_get_con (dtree->app);
+        snprintf (full_name, sizeof (full_name), "/%s", en->name);
+        // XXX: caching alg
+
+        fop->write_req = bucket_connection_put_object_create_req (con, full_name);
+    }*/
     
-    write_cb (req, TRUE, size);
+    // adding data to buffer
+    evbuffer_add (fop->buf, buf, size);
+/*
+    data = g_new0 (DirTreeWriteData, 1);
+    data->write_cb = write_cb;
+    data->req = req;
+    data->size = size;
+    data->off = off;
+    bucket_connection_put_object (fop->write_req, fop->buf, dir_tree_write_on_data_sent, data);
+    */
+    write_cb (req, TRUE,  size);
 }
 
 void dir_tree_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -501,7 +543,7 @@ void dir_tree_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi
     }
     
     if (fop->type == FOT_write) {
-        FILE *f;
+       // FILE *f;
         size_t buf_size;
         BucketConnection *con;
         char full_name[1024];
@@ -519,7 +561,7 @@ void dir_tree_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi
         snprintf (full_name, sizeof (full_name), "/%s", en->name);
         // XXX: caching alg
 
-        bucket_connection_put_object (con, full_name, fop->buf);
+        bucket_connection_put_object_create_req (con, full_name, fop->buf);
         /*
         buf = evbuffer_pullup (out_buf, buf_size);
         f = fopen ("/tmp/file", "w");

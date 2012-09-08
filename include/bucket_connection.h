@@ -1,3 +1,5 @@
+#ifndef _BUCKET_CONNECTION_H_
+#define _BUCKET_CONNECTION_H_
 #include "include/global.h"
 
 typedef enum {
@@ -31,5 +33,12 @@ typedef void (*bucket_connection_get_object_callback) (gpointer callback_data, g
 gboolean bucket_connection_get_object (BucketConnection *con, const gchar *path,
     bucket_connection_get_object_callback get_object_callback, gpointer callback_data);
 
-gboolean bucket_connection_put_object (BucketConnection *con, const gchar *path,
-    struct evbuffer *out_buf);
+gpointer bucket_connection_put_object_create_req (BucketConnection *con, const gchar *path, struct evbuffer *out_buf);
+typedef void (*bucket_connection_put_object_callback) (gpointer callback_data);
+gboolean bucket_connection_put_object (gpointer req_p, struct evbuffer *out_buf,
+    bucket_connection_put_object_callback put_object_callback, gpointer callback_data);
+
+//gboolean bucket_connection_put_object (BucketConnection *con, const gchar *path,
+//    struct evbuffer *out_buf);
+
+#endif

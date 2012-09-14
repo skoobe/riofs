@@ -1,6 +1,7 @@
 #include "include/dir_tree.h"
 #include "include/fuse.h"
 #include "include/bucket_connection.h"
+#include "include/s3_http_client.h"
 
 typedef enum {
     DET_dir = 0,
@@ -34,18 +35,6 @@ struct _DirTree {
     fuse_ino_t max_ino;
     guint64 current_age;
 };
-
-typedef enum {
-    FOT_other = 0,
-    FOT_read = 1,
-    FOT_write = 2,
-} FileOperationType;
-
-typedef struct {
-    FileOperationType type;
-    struct evbuffer *buf;
-    gpointer write_req;
-} FileOperation;
 
 static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name, mode_t mode);
 
@@ -310,7 +299,6 @@ typedef struct {
     fuse_req_t req;
     size_t size;
     off_t off;
-    FileOperation *fop;
 } DirTreeReadData;
 
 static void dir_tree_read_callback (gpointer callback_data, gboolean success, struct evbuffer *in_data)
@@ -325,7 +313,7 @@ static void dir_tree_read_callback (gpointer callback_data, gboolean success, st
         data->read_cb (data->req, FALSE, data->size, data->off, NULL, 0);
     } else {
         // copy buffer
-        evbuffer_add_buffer_reference (data->fop->buf, in_data);
+  //      evbuffer_add_buffer_reference (data->fop->buf, in_data);
 
         buf_len = evbuffer_get_length (in_data);
         buf = evbuffer_pullup (in_data, buf_len);
@@ -345,7 +333,7 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
     BucketConnection *con;
     char full_name[1024];
     DirTreeReadData *data;
-    FileOperation *fop = (FileOperation *) fi->fh;
+
     
     LOG_debug ("Read Object  inode %d, size: %zd, off: %d", ino, size, off);
     
@@ -359,45 +347,16 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
         return;
     }
 
-    if (!fop) {
-        LOG_msg ("Output buffer not found :%d !", ino);
-        read_cb (req, FALSE, size, off, NULL, 0);
-        return;
-    }
-    
-    fop->type = FOT_read;
-
-    if (!evbuffer_get_length (fop->buf)) {
-        // create callback data
-        data = g_new0 (DirTreeReadData, 1);
-        data->read_cb = read_cb;
-        data->req = req;
-        data->size = size;
-        data->off = off;
-        data->fop = fop;
-
-        con = application_get_con (dtree->app);
-
-        snprintf (full_name, sizeof (full_name), "/%s", en->name);
-        // XXX: caching alg
-        bucket_connection_get_object (con, full_name, dir_tree_read_callback, data);
-    } else {
-        char *buf;
-        size_t buf_len;
-
-        buf_len = evbuffer_get_length (fop->buf);
-        buf = evbuffer_pullup (fop->buf, buf_len);
-        read_cb (req, TRUE, size, off, buf, buf_len);
-    }
 }/*}}}*/
 
 /*{{{ dir_tree_add_file */
 // add new file entry to directory, return new inode
-void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
-    dir_tree_add_file_cb add_file_cb, fuse_req_t req, struct fuse_file_info *fi)
+void dir_tree_create_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
+    dir_tree_create_file_cb create_file_cb, fuse_req_t req, struct fuse_file_info *fi)
 {
     DirEntry *dir_en, *en;
-    FileOperation *fop;
+    S3Connection *con;
+    S3Bucket *bucket;
     
     LOG_debug ("Adding new entry '%s' to directory ino: %d", name, parent_ino);
     
@@ -406,7 +365,7 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
         LOG_msg ("Directory (%d) not found !", parent_ino);
-        add_file_cb (req, FALSE, 0, 0, 0, fi);
+        create_file_cb (req, FALSE, 0, 0, 0, fi);
         return;
     }
     
@@ -418,25 +377,31 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_entry_modified (dtree, dir_en);
     
     //XXX: from open
-    fop = g_new0 (FileOperation, 1);
-    fop->type = FOT_write;
-    fop->buf = evbuffer_new ();
-    fi->fh = (uint64_t)fop;
 
     // execute callback
-    add_file_cb (req, TRUE, en->ino, mode, en->size, fi);
+    create_file_cb (req, TRUE, en->ino, mode, en->size, fi);
 
-
-    //XXX: S3 request
+    bucket = application_get_s3bucket (dtree->app);
+    con = s3connection_new (application_get_evbase (dtree->app), application_get_dnsbase (dtree->app), 
+        S3Method_put, bucket->s_uri
+    );
+    fi->fh = (uint64_t) con;
 }
 /*}}}*/
+
+void dir_tree_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+
+    LOG_debug ("dir_tree_open  inode %d", ino);
+
+    
+}
 
 typedef struct {
     dir_tree_write_cb write_cb;
     fuse_req_t req;
     size_t size;
     off_t off;
-    FileOperation *fop;
 } DirTreeWriteData;
 
 
@@ -460,7 +425,6 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
 {
     DirEntry *en;
     size_t out_buf_len;
-    FileOperation *fop = (FileOperation *) fi->fh;
     DirTreeWriteData *data;
     
     LOG_debug ("Writing Object  inode %d, size: %zd, off: %d", ino, size, off);
@@ -476,100 +440,13 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
     }
     
     // fi->fh contains output buffer
-    if (!fop) {
-        LOG_msg ("Output buffer not found :%d !", ino);
-        write_cb (req, FALSE,  0);
-        return;
-    }
-
-    fop->type = FOT_write;
-    
-    // current write position should be at the end of output buffer
-    out_buf_len = evbuffer_get_length (fop->buf);
-    if (out_buf_len != off) {
-        LOG_msg ("Error in entry (ino = %d) output buffer ! (%ld != %ld)", ino, out_buf_len, off);
-        write_cb (req, FALSE, 0);
-        return;
-    }
-    // increase file size
-    en->size += size;
-
-    // create s3 http request for writing 
-    /*
-    if (!fop->write_req) {
-        BucketConnection *con;
-        char full_name[1024];
-
-        con = application_get_con (dtree->app);
-        snprintf (full_name, sizeof (full_name), "/%s", en->name);
-        // XXX: caching alg
-
-        fop->write_req = bucket_connection_put_object_create_req (con, full_name);
-    }*/
-    
-    // adding data to buffer
-    evbuffer_add (fop->buf, buf, size);
-/*
-    data = g_new0 (DirTreeWriteData, 1);
-    data->write_cb = write_cb;
-    data->req = req;
-    data->size = size;
-    data->off = off;
-    bucket_connection_put_object (fop->write_req, fop->buf, dir_tree_write_on_data_sent, data);
-    */
+  
     write_cb (req, TRUE,  size);
 }
 
-void dir_tree_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
-{
-    FileOperation *fop;
 
-    LOG_debug ("dir_tree_open  inode %d", ino);
-
-    fop = g_new0 (FileOperation, 1);
-    fop->type = FOT_other;
-    fop->buf = evbuffer_new ();
-    fi->fh = (uint64_t) fop;
-}
 
 void dir_tree_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
 {
-    FileOperation *fop = (FileOperation *) fi->fh;
-    
     LOG_debug ("dir_tree_release  inode %d", ino);
-    if (!fop) {
-    // XXX:
-        return;
-    }
-    
-    if (fop->type == FOT_write) {
-       // FILE *f;
-        size_t buf_size;
-        BucketConnection *con;
-        char full_name[1024];
-        DirEntry *en;
-        //char *buf;
-
-        en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
-        
-        
-        buf_size = evbuffer_get_length (fop->buf);
-        LOG_debug ("== FILE  size: %zd", buf_size);
-
-        con = application_get_con (dtree->app);
-
-        snprintf (full_name, sizeof (full_name), "/%s", en->name);
-        // XXX: caching alg
-
-        bucket_connection_put_object_create_req (con, full_name, fop->buf);
-        /*
-        buf = evbuffer_pullup (out_buf, buf_size);
-        f = fopen ("/tmp/file", "w");
-        fwrite (buf, 1, buf_size, f);
-        fclose (f);
-        */
-    }
-
-    evbuffer_free (fop->buf);
-    g_free (fop);
 }

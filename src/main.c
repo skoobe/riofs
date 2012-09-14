@@ -54,6 +54,11 @@ CacheMng *application_get_cache_mng (Application *app)
     return app->cache_mng;
 }
 
+S3Bucket *application_get_s3bucket (Application *app)
+{
+    return app->bucket;
+}
+
 
 void application_connected (Application *app, BucketConnection *con)
 {
@@ -84,6 +89,7 @@ int main (int argc, char *argv[])
     
     app->bucket = g_new0 (S3Bucket, 1);
     app->bucket->uri = evhttp_uri_parse (argv[1]);
+    app->bucket->s_uri = g_strdup (argv[1]);
     app->bucket->name = g_strdup (argv[2]);
 
     app->dir_tree = dir_tree_create (app);

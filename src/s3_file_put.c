@@ -70,38 +70,9 @@ struct evbuffer *out_buf)
     gchar *auth_str;
     struct evbuffer *post_buf;
     struct bufferevent *bev;
-    void **cbarg_ptr;
-
-    bufferevent_data_cb *readcb_ptr,
-    bufferevent_data_cb *writecb_ptr,
-    bufferevent_event_cb *eventcb_ptr,
 
     LOG_debug ("Creating put handler for object: %s", path);
 
-    bucket = bucket_connection_get_bucket (con);
-
-    resource_path = g_strdup_printf ("/%s%s", bucket->name, path);
-    auth_str = bucket_connection_get_auth_string (con, "PUT", "", resource_path);
-
-    req = bucket_connection_create_request (con, bucket_connection_on_object_put, NULL, auth_str);
-    
-    // get the request output buffer
-    post_buf = evhttp_request_get_output_buffer (req);
-    evbuffer_add_buffer (post_buf, out_buf);
-
-    bev = evhttp_connection_get_bufferevent (req);
-bufferevent_getcb(bev,
-     readcb_ptr,
-     writecb_ptr,
-    eventcb_ptr,
-    cbarg_ptr);
-
-bufferevent_setcb (bev, NULL, 
-    
-    // send it
-    res = evhttp_make_request (bucket_connection_get_evcon (con), req, EVHTTP_REQ_PUT, path);
-    
-    g_free (auth_str);
 
     return req;
 }

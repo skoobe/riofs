@@ -33,11 +33,10 @@ struct _S3Connection {
     guint64 input_length;
     guint64 input_read;
 
+    gpointer cb_data;
     S3Connection_on_input_data_cb on_input_data_cb;
-    gpointer on_input_data_ctx;
-
     S3Connection_on_close_cb on_close_cb;
-    gpointer on_close_ctx;
+    S3Connection_on_connection_cb on_connection_cb;
 };
 
 typedef struct {
@@ -263,7 +262,7 @@ static void s3connection_read_cb (struct bufferevent *bev, void *ctx)
         evbuffer_add_buffer (con->input_buffer, in_buf);
         LOG_debug ("INPUT buf: %zd bytes", evbuffer_get_length (con->input_buffer));
         if (con->on_input_data_cb)
-            con->on_input_data_cb (con, con->input_buffer, con->on_input_data_ctx);
+            con->on_input_data_cb (con, con->input_buffer, con->cb_data);
         if (con->input_read == con->input_length) {
             LOG_debug ("DONE downloading !");
             con->state == S3S_expected_first_line;
@@ -280,7 +279,7 @@ static void s3connection_event_cb (struct bufferevent *bev, short what, void *ct
     con->state = S3S_disconnected;
 
     if (con->on_close_cb)
-        con->on_close_cb (con, con->on_close_ctx);
+        con->on_close_cb (con, con->cb_data);
 }
 
 static void s3connection_connection_event_cb (struct bufferevent *bev, short what, void *ctx)
@@ -303,7 +302,9 @@ static void s3connection_connection_event_cb (struct bufferevent *bev, short wha
         con
     );
     
-    s3connection_send_initial_request (con);
+    if (con->on_connection_cb)
+        con->on_connection_cb (con, con->cb_data);
+   // s3connection_send_initial_request (con);
 }
 /*}}}*/
 
@@ -396,9 +397,9 @@ gint64 s3connection_get_input_length (S3Connection *con)
 static const gchar *s3method_to_string (S3RequestMethod method)
 {
     switch (method) {
-        case S3RM_get:
+        case S3Method_get:
             return "GET";
-        case S3RM_put:
+        case S3Method_put:
             return "PUT";
         default:
             return "GET";
@@ -461,14 +462,23 @@ gboolean s3connection_start_request (S3Connection *con)
 /*}}}*/
 
 
-void s3connection_set_input_data_cb (S3Connection *con,  S3Connection_on_input_data_cb on_input_data_cb, gpointer ctx)
+void s3connection_set_cb_data (S3Connection *con, gpointer ctx)
 {
-    con->on_input_data_cb = on_input_data_cb;
-    con->on_input_data_ctx = ctx;
+    con->cb_data = ctx;
 }
 
-void s3connection_set_close_cb (S3Connection *con, S3Connection_on_close_cb on_close_cb, gpointer ctx)
+void s3connection_set_input_data_cb (S3Connection *con,  S3Connection_on_input_data_cb on_input_data_cb)
+{
+    con->on_input_data_cb = on_input_data_cb;
+}
+
+void s3connection_set_close_cb (S3Connection *con, S3Connection_on_close_cb on_close_cb)
 {
     con->on_close_cb = on_close_cb;
-    con->on_close_ctx = ctx;
 }
+
+void s3connection_set_connection_cb (S3Connection *con, S3Connection_on_connection_cb on_connection_cb)
+{
+    con->on_connection_cb = on_connection_cb;
+}
+

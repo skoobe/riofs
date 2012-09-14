@@ -1,5 +1,6 @@
 #ifndef _BUCKET_CONNECTION_H_
 #define _BUCKET_CONNECTION_H_
+
 #include "include/global.h"
 
 typedef enum {

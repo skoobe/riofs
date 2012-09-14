@@ -254,7 +254,7 @@ static void run_test (struct event_base *evbase, struct evdns_base *dns_base, Te
 
     start_srv (out);
     
-    con = s3connection_new (evbase, dns_base, S3RM_get, "http://127.0.0.1:8080/index.html");
+    con = s3connection_new (evbase, dns_base, S3Method_get, "http://127.0.0.1:8080/index.html");
 /*
     s3connection_add_output_header (con, "Test", "aaaa");
     s3connection_add_output_data (con, test, sizeof (test));

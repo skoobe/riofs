@@ -9,6 +9,7 @@ typedef struct {
 
     const gchar *name;
     struct evhttp_uri *uri;
+    gchar *s_uri;
 } S3Bucket;
 
 #endif

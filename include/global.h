@@ -60,6 +60,8 @@
 
 #include <fuse/fuse_lowlevel.h>
 
+#include "include/s3.h" 
+
 typedef struct _Application Application;
 typedef struct _BucketConnection BucketConnection;
 typedef struct _DirTree DirTree;
@@ -74,8 +76,8 @@ const gchar *application_get_secret_access_key (Application *app);
 BucketConnection *application_get_con (Application *app);
 CacheMng *application_get_cache_mng (Application *app);
 void application_connected (Application *app, BucketConnection *con);
+S3Bucket *application_get_s3bucket (Application *app);
 
 #include "include/log.h" 
-#include "include/s3.h" 
 
 #endif

@@ -382,7 +382,7 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     create_file_cb (req, TRUE, en->ino, mode, en->size, fi);
 
     bucket = application_get_s3bucket (dtree->app);
-    con = s3connection_new (application_get_evbase (dtree->app), application_get_dnsbase (dtree->app), 
+    con = s3http_new (application_get_evbase (dtree->app), application_get_dnsbase (dtree->app), 
         S3Method_put, bucket->s_uri
     );
     fi->fh = (uint64_t) con;

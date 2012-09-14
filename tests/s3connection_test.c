@@ -229,18 +229,18 @@ static void start_srv (OutData *out)
 }
 
 
-void on_input_data_cb (S3Connection *con, struct evbuffer *input_buf, gpointer ctx)
+void on_input_data_cb (S3Http *http, struct evbuffer *input_buf, gpointer ctx)
 {
     struct evbuffer *in_buf = (struct evbuffer *) ctx;
     LOG_debug ("CLN:  >>>> got %zd bytes! Total: %ld length.", 
-        evbuffer_get_length (input_buf), s3connection_get_input_length (con));
+        evbuffer_get_length (input_buf), S3Http_get_input_length (con));
     evbuffer_add_buffer (in_buf, input_buf);
     LOG_debug ("CLN: Resulting buf: %zd", evbuffer_get_length (in_buf));
 }
 
 static void run_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
 {
-    S3Connection *con;
+    S3Http *http;
     S3Request *req;
     OutData *out;
     char test[] = "Hello !!!";
@@ -254,21 +254,21 @@ static void run_test (struct event_base *evbase, struct evdns_base *dns_base, Te
 
     start_srv (out);
     
-    con = s3connection_new (evbase, dns_base, S3Method_get, "http://127.0.0.1:8080/index.html");
+    con = S3Http_new (evbase, dns_base, S3Method_get, "http://127.0.0.1:8080/index.html");
 /*
-    s3connection_add_output_header (con, "Test", "aaaa");
-    s3connection_add_output_data (con, test, sizeof (test));
+    S3Http_add_output_header (con, "Test", "aaaa");
+    S3Http_add_output_data (con, test, sizeof (test));
 */
     in_buf = evbuffer_new ();
-    s3connection_set_input_data_cb (con, on_input_data_cb);
+    S3Http_set_input_data_cb (con, on_input_data_cb);
 
-    s3connection_start_request (con);
+    S3Http_start_request (con);
     
     
     
     event_base_dispatch (evbase);
     
-    s3connection_destroy (con);
+    S3Http_destroy (con);
 
     LOG_debug ("Resulting buff: %zd", evbuffer_get_length (in_buf));
     evbuffer_free (in_buf);

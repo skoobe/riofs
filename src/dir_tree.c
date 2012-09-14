@@ -351,7 +351,7 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
 
 /*{{{ dir_tree_add_file */
 // add new file entry to directory, return new inode
-void dir_tree_create_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
+void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
     dir_tree_create_file_cb create_file_cb, fuse_req_t req, struct fuse_file_info *fi)
 {
     DirEntry *dir_en, *en;

@@ -38,7 +38,7 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
     struct fuse_file_info *fi);
 
 typedef void (*dir_tree_create_file_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, struct fuse_file_info *fi);
-void dir_tree_create_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
+void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
     dir_tree_create_file_cb create_file_cb, fuse_req_t req, struct fuse_file_info *fi);
 
 typedef void (*dir_tree_write_cb) (fuse_req_t req, gboolean success, size_t count);

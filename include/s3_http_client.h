@@ -33,7 +33,7 @@ void s3connection_set_input_data_cb (S3Connection *con,  S3Connection_on_input_d
 typedef void (*S3Connection_on_close_cb) (S3Connection *con, gpointer ctx);
 void s3connection_set_close_cb (S3Connection *con,  S3Connection_on_close_cb on_close_cb);
 
-typedef void (*S3Connection_on_connected_cb) (S3Connection *con, gpointer ctx);
+typedef void (*S3Connection_on_connection_cb) (S3Connection *con, gpointer ctx);
 void s3connection_set_close_cb (S3Connection *con,  S3Connection_on_close_cb on_close_cb);
 
 #endif

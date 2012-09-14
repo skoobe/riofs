@@ -260,7 +260,7 @@ static void run_test (struct event_base *evbase, struct evdns_base *dns_base, Te
     s3connection_add_output_data (con, test, sizeof (test));
 */
     in_buf = evbuffer_new ();
-    s3connection_set_input_data_cb (con, on_input_data_cb, in_buf);
+    s3connection_set_input_data_cb (con, on_input_data_cb);
 
     s3connection_start_request (con);
     

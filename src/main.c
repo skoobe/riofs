@@ -101,7 +101,7 @@ int main (int argc, char *argv[])
     argv += 2;
     argc -= 2;
 
-    app->s3fuse = s3fuse_create (app, argc, argv);
+    app->s3fuse = s3fuse_new (app, argc, argv);
     if (!app->s3fuse) {
         LOG_err ("Failed to create FUSE fs !");
         return -1;

@@ -1,7 +1,7 @@
 #include "include/dir_tree.h"
 #include "include/fuse.h"
 #include "include/bucket_connection.h"
-#include "include/s3_http_client.h"
+#include "include/s3http_client.h"
 
 typedef enum {
     DET_dir = 0,

@@ -8,8 +8,8 @@ s3ffs_SOURCES += s3_fuse.c
 s3ffs_SOURCES += s3_dir_list.c
 s3ffs_SOURCES += s3_file_get.c
 s3ffs_SOURCES += s3_file_put.c
-s3ffs_SOURCES += s3_http_client.c
-s3ffs_SOURCES += s3_http_client_pool.c
+s3ffs_SOURCES += s3http_client.c
+s3ffs_SOURCES += s3http_client_pool.c
 s3ffs_SOURCES += main.c
 
 s3ffs_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)

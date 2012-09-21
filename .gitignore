@@ -8,3 +8,4 @@ bin/*
 *.cache
 *.swf
 *.o
+tests/file.in

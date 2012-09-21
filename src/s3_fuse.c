@@ -49,7 +49,7 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
 
 // create S3Fuse object
 // create fuse handle and add it to libevent polling
-S3Fuse *s3fuse_create (Application *app, int argc, char *argv[])
+S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
 {
     S3Fuse *s3fuse;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
@@ -71,7 +71,7 @@ S3Fuse *s3fuse_create (Application *app, int argc, char *argv[])
         return NULL;
     }
 
-    // the receive buffer stufff
+    // the receive buffer stuff
     s3fuse->recv_size = fuse_chan_bufsize (s3fuse->chan);
 
     // allocate the recv buffer
@@ -81,14 +81,19 @@ S3Fuse *s3fuse_create (Application *app, int argc, char *argv[])
     }
     
     // allocate a low-level session
-    if ((s3fuse->session = fuse_lowlevel_new (&fuse_args, &s3fuse_opers, sizeof (s3fuse_opers), s3fuse)) == NULL) {
+    s3fuse->session = fuse_lowlevel_new (&fuse_args, &s3fuse_opers, sizeof (s3fuse_opers), s3fuse);
+    if (!s3fuse->session) {
         LOG_err ("fuse_lowlevel_new");
         return NULL;
     }
     
     fuse_session_add_chan (s3fuse->session, s3fuse->chan);
 
-    if ((s3fuse->ev = event_new (application_get_evbase (app), fuse_chan_fd (s3fuse->chan), EV_READ, &s3fuse_on_read, s3fuse)) == NULL) {
+    s3fuse->ev = event_new (application_get_evbase (app), 
+        fuse_chan_fd (s3fuse->chan), EV_READ, &s3fuse_on_read, 
+        s3fuse
+    );
+    if (!s3fuse->ev) {
         LOG_err ("event_new");
         return NULL;
     }
@@ -120,21 +125,20 @@ static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
     } while (res == -EINTR);
 
     if (res == 0)
-        LOG_err("fuse_chan_recv gave EOF");
+        LOG_err ("fuse_chan_recv gave EOF");
 
     if (res < 0 && res != -EAGAIN)
-        LOG_err("fuse_chan_recv failed: %s", strerror(-res));
+        LOG_err ("fuse_chan_recv failed: %s", strerror(-res));
     
     if (res > 0) {
-        LOG_msg("got %d bytes from /dev/fuse", res);
+        LOG_msg ("got %d bytes from /dev/fuse", res);
 
-        // received a fuse_req, so process it
         fuse_session_process (s3fuse->session, s3fuse->recv_buf, res, ch);
     }
     
     // reschedule
     if (event_add (s3fuse->ev, NULL))
-        LOG_err("event_add");
+        LOG_err ("event_add");
 
     // ok, wait for the next event
     return;
@@ -342,7 +346,8 @@ static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_inode, const char *
     
     LOG_debug ("create  parent_inode: %d, name: %s, mode: %d ", parent_inode, name, mode);
 
-    dir_tree_create_file (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_create_file_cb, req, fi);
+    //dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_create_file_cb, req, fi);
+    dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, NULL, req, fi);
 }
 /*}}}*/
 /*{{{ release operation */

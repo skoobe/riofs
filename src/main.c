@@ -10,6 +10,7 @@ struct _Application {
     
     S3Fuse *s3fuse;
     DirTree *dir_tree;
+    S3ConPool *con_pool;
     CacheMng *cache_mng;
 
     gchar *aws_access_key_id;
@@ -101,7 +102,7 @@ int main (int argc, char *argv[])
     argv += 2;
     argc -= 2;
 
-    app->s3fuse = s3fuse_create (app, argc, argv);
+    app->s3fuse = s3fuse_new (app, argc, argv);
     if (!app->s3fuse) {
         LOG_err ("Failed to create FUSE fs !");
         return -1;
@@ -117,6 +118,7 @@ int main (int argc, char *argv[])
     }
     
     app->cache_mng = cache_mng_create (app, "/tmp");
+    app->con_pool = s3_connection_pool_new (app);
     app->con = bucket_connection_new (app, app->bucket);
     bucket_connection_get_directory_listing (app->con, "/");
 

@@ -1,7 +1,7 @@
 #include "include/dir_tree.h"
 #include "include/fuse.h"
 #include "include/bucket_connection.h"
-#include "include/s3_http_client.h"
+#include "include/s3http_client.h"
 
 typedef enum {
     DET_dir = 0,
@@ -351,7 +351,7 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
 
 /*{{{ dir_tree_add_file */
 // add new file entry to directory, return new inode
-void dir_tree_create_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
+void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
     dir_tree_create_file_cb create_file_cb, fuse_req_t req, struct fuse_file_info *fi)
 {
     DirEntry *dir_en, *en;
@@ -382,7 +382,7 @@ void dir_tree_create_file (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     create_file_cb (req, TRUE, en->ino, mode, en->size, fi);
 
     bucket = application_get_s3bucket (dtree->app);
-    con = s3connection_new (application_get_evbase (dtree->app), application_get_dnsbase (dtree->app), 
+    con = s3http_new (application_get_evbase (dtree->app), application_get_dnsbase (dtree->app), 
         S3Method_put, bucket->s_uri
     );
     fi->fh = (uint64_t) con;

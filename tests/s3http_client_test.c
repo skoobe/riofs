@@ -1,5 +1,5 @@
-#include "global.h"
-#include "s3_http_client.h"
+#include "include/global.h"
+#include "include/s3http_client.h"
 
 typedef enum {
     TID_first_line_not_sent,
@@ -37,9 +37,7 @@ typedef struct {
 static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 {
     OutData *out = (OutData *) ctx;
-    size_t i;
     struct timeval tv;
-    int res;
     struct evbuffer *out_buf;
     char *buf;
     char c;
@@ -50,14 +48,14 @@ static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
         bufferevent_free (out->bev);
         evconnlistener_disable (out->listener);
         event_base_loopbreak (out->evbase);
-        LOG_debug ("SRV: All header data sent !! ");
+        LOG_debug ("SRV: All headers data sent !! ");
         return;
     }
     
     out_buf = evbuffer_new ();
 
     if (out->test_id < TID_body) {
-        buf = evbuffer_pullup (out->out_buf, -1);
+        buf = (char *)evbuffer_pullup (out->out_buf, -1);
         c = buf[out->timer_count];
 
         evbuffer_add (out_buf, &c, sizeof (c));
@@ -81,7 +79,7 @@ static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
         LOG_debug ("SRV: Sending BODY %zd bytes", evbuffer_get_length (out_buf));
     }
 
-    res = bufferevent_write_buffer (out->bev, out_buf);
+    bufferevent_write_buffer (out->bev, out_buf);
     evbuffer_free (out_buf);
     
     evutil_timerclear(&tv);
@@ -110,18 +108,15 @@ static void srv_event_cb (struct bufferevent *bev, short what, void *ctx)
     LOG_debug ("SRV: on event ..");
 }
 
-static void
-accept_cb(struct evconnlistener *listener, evutil_socket_t fd,
-    struct sockaddr *a, int slen, void *p)
+static void accept_cb (G_GNUC_UNUSED struct evconnlistener *listener, evutil_socket_t fd,
+    G_GNUC_UNUSED struct sockaddr *a, G_GNUC_UNUSED int slen, void *p)
 {
     OutData *out = (OutData *) p;
-    char first_line[] = "HTTP/1.1 200 OKokokookok\n";
-    char header_line[] = "Content-Length: %zd\n";
-    char header_line_ok[] = "Content-Length: %zd\n\n";
-    char header_line_2[] = "Content-Length: %zd\nServer: Testt asd aaa\n";
-    char header_line_2_ok[] = "Content-Length: %zd\nServer: Testt asd aaa\n\n";
-
-
+    const char first_line[] = "HTTP/1.1 200 OKokokookok\n";
+    const char header_line[] = "Content-Length: %lld\n";
+    const char header_line_ok[] = "Content-Length: %lld\n\n";
+    const char header_line_2[] = "Content-Length: %lld\nServer: Testt asd aaa\n";
+    const char header_line_2_ok[] = "Content-Length: %lld\nServer: Testt asd aaa\n\n";
 
     out->bev = bufferevent_socket_new (out->evbase, fd, BEV_OPT_CLOSE_ON_FREE|BEV_OPT_DEFER_CALLBACKS);
     out->req_count = 0;
@@ -194,26 +189,24 @@ static void start_srv (OutData *out)
     struct stat st;
     int fd;
     char in_file[] = "./file.in";
-
     
     // read input file
 	if (stat (in_file, &st) == -1) {
         LOG_err ("Failed to stat file %s", in_file);
-        return -1;
+        return;
     }
     out->in_file_size = st.st_size;
 
     fd = open (in_file, O_RDONLY);
     if (fd < 0) {
         LOG_err ("Failed to open file %s", in_file);
-        return -1;
+        return;
     }
 
     out->in_file = evbuffer_new ();
     
     evbuffer_add_file (out->in_file, fd, 0, st.st_size);
     LOG_debug ("SRV: filesize %ld bytes, in buf: %zd", out->in_file_size, evbuffer_get_length (out->in_file));
-
 
     // start listening on port
 	memset(&sin, 0, sizeof(sin));
@@ -229,21 +222,19 @@ static void start_srv (OutData *out)
 }
 
 
-void on_input_data_cb (S3Connection *con, struct evbuffer *input_buf, gpointer ctx)
+void on_input_data_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
 {
     struct evbuffer *in_buf = (struct evbuffer *) ctx;
     LOG_debug ("CLN:  >>>> got %zd bytes! Total: %ld length.", 
-        evbuffer_get_length (input_buf), s3connection_get_input_length (con));
+        evbuffer_get_length (input_buf), s3http_client_get_input_length (http));
     evbuffer_add_buffer (in_buf, input_buf);
     LOG_debug ("CLN: Resulting buf: %zd", evbuffer_get_length (in_buf));
 }
 
-static void run_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
+static void run_responce_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
 {
-    S3Connection *con;
-    S3Request *req;
+    S3HttpClient *http;
     OutData *out;
-    char test[] = "Hello !!!";
     struct evbuffer *in_buf;
 
     LOG_debug ("===================== TEST ID : %d  =======================", test_id);
@@ -254,21 +245,18 @@ static void run_test (struct event_base *evbase, struct evdns_base *dns_base, Te
 
     start_srv (out);
     
-    con = s3connection_new (evbase, dns_base, S3Method_get, "http://127.0.0.1:8080/index.html");
-/*
-    s3connection_add_output_header (con, "Test", "aaaa");
-    s3connection_add_output_data (con, test, sizeof (test));
-*/
+    http = s3http_client_create (evbase, dns_base);
     in_buf = evbuffer_new ();
-    s3connection_set_input_data_cb (con, on_input_data_cb, in_buf);
 
-    s3connection_start_request (con);
-    
-    
+    s3http_client_set_cb_ctx (http, in_buf);
+    s3http_client_set_input_data_cb (http, on_input_data_cb);
+    s3http_client_set_output_length (http, 1);
+
+    s3http_client_start_request (http, S3Method_get, "http://127.0.0.1:8080/index.html");
     
     event_base_dispatch (evbase);
     
-    s3connection_destroy (con);
+    s3http_client_destroy (http);
 
     LOG_debug ("Resulting buff: %zd", evbuffer_get_length (in_buf));
     evbuffer_free (in_buf);
@@ -285,6 +273,9 @@ static void run_test (struct event_base *evbase, struct evdns_base *dns_base, Te
     LOG_debug ("===================== END TEST ID : %d  =======================", test_id);
 }
 
+static void run_request_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
+{
+}
 
 int main (int argc, char *argv[])
 {
@@ -296,16 +287,16 @@ int main (int argc, char *argv[])
     event_set_mem_functions (g_malloc, g_realloc, g_free);
 
     evbase = event_base_new ();
-	dns_base = evdns_base_new (evbase, 3);
+	dns_base = evdns_base_new (evbase, 1);
     
     if (argc > 1)
         test_id = atoi (argv[1]);
 
     if (test_id >= 0)
-        run_test (evbase, dns_base, test_id);
+        run_responce_test (evbase, dns_base, test_id);
     else {
         for (i = 0; i < TID_last_test; i++) {
-            run_test (evbase, dns_base, i);
+            run_responce_test (evbase, dns_base, i);
         }
     }
 

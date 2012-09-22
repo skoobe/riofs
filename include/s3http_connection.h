@@ -1,5 +1,5 @@
-#ifndef _BUCKET_CONNECTION_H_
-#define _BUCKET_CONNECTION_H_
+#ifndef _S3_HTTP_CONNECTION_H_
+#define _S3_HTTP_CONNECTION_H_
 
 #include "include/global.h"
 
@@ -7,39 +7,44 @@ typedef enum {
     RT_list = 0,
 } RequestType;
 
+struct _S3HTTPConnection {
+    Application *app;
 
-BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket);
-void bucket_connection_destroy (BucketConnection *con);
-
-struct evhttp_connection *bucket_connection_get_evcon (BucketConnection *con);
-S3Bucket *bucket_connection_get_bucket (BucketConnection *con);
-Application *bucket_connection_get_app (BucketConnection *con);
-
-gboolean bucket_connection_connect (BucketConnection *con);
-
-void bucket_connection_send (BucketConnection *con, struct evbuffer *outbuf);
+    struct evhttp_connection *evcon;
+    gchar *bucket_name;
+    struct evhttp_uri *s3_url;
+};
 
 
-const gchar *bucket_connection_get_auth_string (BucketConnection *con, 
+S3HTTPConnection *s3http_connection_create (Application *app, struct evhttp_uri *s3_url, const gchar *bucket_name);
+void s3http_connection_destroy (S3HTTPConnection *con);
+
+struct evhttp_connection *s3http_connection_get_evcon (S3HTTPConnection *con);
+Application *s3http_connection_get_app (S3HTTPConnection *con);
+
+gboolean s3http_connection_connect (S3HTTPConnection *con);
+
+void s3http_connection_send (S3HTTPConnection *con, struct evbuffer *outbuf);
+
+
+const gchar *s3http_connection_get_auth_string (S3HTTPConnection *con, 
         const gchar *method, const gchar *content_type, const gchar *resource);
-struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
+struct evhttp_request *s3http_connection_create_request (S3HTTPConnection *con,
     void (*cb)(struct evhttp_request *, void *), void *arg,
     const gchar *auth_str);
 
 
-gboolean bucket_connection_get_directory_listing (BucketConnection *con, const gchar *path);
+gboolean s3http_connection_get_directory_listing (S3HTTPConnection *con, const gchar *path);
 
 
-typedef void (*bucket_connection_get_object_callback) (gpointer callback_data, gboolean success, struct evbuffer *in_data);
-gboolean bucket_connection_get_object (BucketConnection *con, const gchar *path,
-    bucket_connection_get_object_callback get_object_callback, gpointer callback_data);
+typedef void (*S3HTTPConnection_get_object_callback) (gpointer callback_data, gboolean success, struct evbuffer *in_data);
+gboolean s3http_connection_get_object (S3HTTPConnection *con, const gchar *path,
+     S3HTTPConnection_get_object_callback get_object_callback, gpointer callback_data);
 
-gpointer bucket_connection_put_object_create_req (BucketConnection *con, const gchar *path, struct evbuffer *out_buf);
-typedef void (*bucket_connection_put_object_callback) (gpointer callback_data);
-gboolean bucket_connection_put_object (gpointer req_p, struct evbuffer *out_buf,
-    bucket_connection_put_object_callback put_object_callback, gpointer callback_data);
+gpointer s3http_connection_put_object_create_req (S3HTTPConnection *con, const gchar *path, struct evbuffer *out_buf);
 
-//gboolean bucket_connection_put_object (BucketConnection *con, const gchar *path,
-//    struct evbuffer *out_buf);
+typedef void (*S3HTTPConnection_put_object_callback) (gpointer callback_data);
+gboolean s3http_connection_put_object (gpointer req_p, struct evbuffer *out_buf,
+    S3HTTPConnection_put_object_callback put_object_callback, gpointer callback_data);
 
 #endif

@@ -1,17 +1,17 @@
-#include "include/bucket_connection.h"
+#include "include/s3http_connection.h"
 #include "include/dir_tree.h"
 
 typedef struct {
     Application *app;
     DirTree *dir_tree;
-    BucketConnection *con;
+    S3HTTPConnection *con;
     gchar *resource_path;
-    gchar *path;
+    gchar *dir_path;
 } DirListRequest;
 
 // parses S3 directory XML 
 // reutrns TRUE if ok
-static gchar* parse_xml (DirListRequest *dir_list, const char *xml, size_t xml_len)
+static gchar* parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t xml_len)
 {
     xmlDocPtr doc;
     xmlXPathContextPtr ctx;
@@ -103,7 +103,7 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
 }
 
 // read callback function
-static void bucket_connection_on_directory_listing (struct evhttp_request *req, void *ctx)
+static void s3http_connection_on_directory_listing (struct evhttp_request *req, void *ctx)
 {   
     DirListRequest *dir_req = (DirListRequest *) ctx;
     struct evbuffer *inbuf;
@@ -118,7 +118,7 @@ static void bucket_connection_on_directory_listing (struct evhttp_request *req, 
     
     if (!req) {
         LOG_err ("Failed to get responce from server !");
-        bucket_connection_get_directory_listing (dir_req->con, dir_req->path);
+        s3http_connection_get_directory_listing (dir_req->con, dir_req->path);
         return;
     }
 
@@ -139,7 +139,7 @@ static void bucket_connection_on_directory_listing (struct evhttp_request *req, 
    
     g_printf ("======================\n%s\n=======================\n", buf);
 
-    parse_xml (dir_req, buf, buf_len);
+    parse_dir_xml (dir_req, buf, buf_len);
     
     // repeat starting from the mark
     next_marker = get_next_marker (buf, buf_len);
@@ -155,18 +155,17 @@ static void bucket_connection_on_directory_listing (struct evhttp_request *req, 
     }
 
     // execute HTTP request
-    auth_str = bucket_connection_get_auth_string (dir_req->con, "GET", "", dir_req->resource_path);
+    auth_str = s3http_connection_get_auth_string (dir_req->con, "GET", "", dir_req->resource_path);
     req_path = g_strdup_printf ("%s?max-keys=%d&delimiter=/&marker=%s", dir_req->path, 2, next_marker);
-    new_req = bucket_connection_create_request (dir_req->con, bucket_connection_on_directory_listing, dir_req, auth_str);
-    res = evhttp_make_request (bucket_connection_get_evcon (dir_req->con), new_req, EVHTTP_REQ_GET, req_path);
+    new_req = s3http_connection_create_request (dir_req->con, s3http_connection_on_directory_listing, dir_req, auth_str);
+    res = evhttp_make_request (s3http_connection_get_evcon (dir_req->con), new_req, EVHTTP_REQ_GET, req_path);
     g_free (req_path);
 }
 
 // create DirListRequest
-gboolean bucket_connection_get_directory_listing (BucketConnection *con, const gchar *path)
+gboolean s3http_connection_get_directory_listing (S3HTTPConnection *con, const gchar *dir_path)
 {
     DirListRequest *dir_req;
-    S3Bucket *bucket;
     struct evhttp_request *req;
     gchar *req_path;
     int res;
@@ -174,25 +173,22 @@ gboolean bucket_connection_get_directory_listing (BucketConnection *con, const g
 
     LOG_debug ("Getting directory listing for: %s", path);
 
-
-    bucket = bucket_connection_get_bucket (con);
-
     dir_req = g_new0 (DirListRequest, 1);
     dir_req->con = con;
-    dir_req->app = bucket_connection_get_app (con);
+    dir_req->app = s3http_connection_get_app (con);
     dir_req->dir_tree = application_get_dir_tree (dir_req->app);
 
-    dir_req->resource_path = g_strdup_printf ("/%s%s", bucket->name, path);
-    dir_req->path = g_strdup (path);
-    auth_str = bucket_connection_get_auth_string (con, "GET", "", dir_req->resource_path);
+    dir_req->resource_path = g_strdup_printf ("/%s%s", con->bucket_name, dir_path);
+    dir_req->path = g_strdup (dir_path);
+    auth_str = s3http_connection_get_auth_string (con, "GET", "", dir_req->resource_path);
 
     req_path = g_strdup_printf ("%s?max-keys=%d&delimiter=/&prefix=%s", dir_req->path, 100, "");
 
     // inform that we started to update the directory
     dir_tree_start_update (dir_req->dir_tree, path);
 
-    req = bucket_connection_create_request (con, bucket_connection_on_directory_listing, dir_req, auth_str);
-    res = evhttp_make_request (bucket_connection_get_evcon (con), req, EVHTTP_REQ_GET, req_path);
+    req = s3http_connection_create_request (con, s3http_connection_on_directory_listing, dir_req, auth_str);
+    res = evhttp_make_request (s3http_connection_get_evcon (con), req, EVHTTP_REQ_GET, req_path);
     g_free (req_path);
     g_free (auth_str);
 

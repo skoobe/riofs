@@ -1,0 +1,10 @@
+How to start using s3ffs:
+
+./configure
+make
+make install
+
+export AWSACCESSKEYID="your AWS access key"
+export AWSSECRETACCESSKEY="your AWS secret access key"
+
+s3ffs [http://s3.amazonaws.com] [bucketname] [FUSE params] [mountpoint]

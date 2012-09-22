@@ -57,13 +57,10 @@
 #include <libxml/tree.h>
 
 #define FUSE_USE_VERSION 26
-
 #include <fuse/fuse_lowlevel.h>
 
-#include "include/s3.h" 
-
 typedef struct _Application Application;
-typedef struct _BucketConnection BucketConnection;
+typedef struct _S3HTTPConnection S3HTTPConnection;
 typedef struct _DirTree DirTree;
 typedef struct _S3Fuse S3Fuse;
 typedef struct _CacheMng CacheMng;
@@ -73,10 +70,9 @@ struct evdns_base *application_get_dnsbase (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
-BucketConnection *application_get_con (Application *app);
+S3HTTPConnection *application_get_con (Application *app);
 CacheMng *application_get_cache_mng (Application *app);
-void application_connected (Application *app, BucketConnection *con);
-S3Bucket *application_get_s3bucket (Application *app);
+void application_connected (Application *app, S3HTTPConnection *con);
 
 #include "include/log.h" 
 

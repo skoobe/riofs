@@ -1,4 +1,4 @@
-#include "include/fuse.h"
+#include "include/s3fuse.h"
 #include "include/dir_tree.h"
 
 /*{{{ struct */

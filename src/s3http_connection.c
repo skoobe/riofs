@@ -1,39 +1,36 @@
+#include "include/s3http_connection.h"
 
-#include "include/bucket_connection.h"
+/*{{{ struct*/
 
-struct _BucketConnection {
-    Application *app;
-    S3Bucket *bucket;
+static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
+/*}}}*/
 
-    struct evhttp_connection *evcon;
-};
-
-static void bucket_connection_on_close (struct evhttp_connection *evcon, void *ctx);
-
-// creates BucketConnection object
-// establishes HTTP connections to S3
-BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
+/*{{{ create / destroy */
+// create S3HTTPConnection object
+// establish HTTP connections to S3
+S3HTTPConnection *s3http_connection_create (Application *app, struct evhttp_uri *s3_url, const gchar *bucket_name)
 {
-    BucketConnection *con;
+    S3HTTPConnection *con;
     int port;
 
-    con = g_new0 (BucketConnection, 1);
+    con = g_new0 (S3HTTPConnection, 1);
     if (!con) {
-        LOG_err ("Failed to create BucketConnection !");
+        LOG_err ("Failed to create S3HTTPConnection !");
         return NULL;
     }
 
     con->app = app;
-    con->bucket = bucket;
-    
-    port = evhttp_uri_get_port (con->bucket->uri);
-    // if no port is specified, libevent returns -1. Set it to default on
+    con->bucket_name = g_strdup (bucket_name);
+    con->s3_url = s3_url;
+
+    port = evhttp_uri_get_port (s3_url);
+    // if no port is specified, libevent returns -1
     if (port == -1) {
         port = 80;
     }
 
     LOG_debug ("Connecting to %s:%d", 
-        evhttp_uri_get_host (con->bucket->uri),
+        evhttp_uri_get_host (s3_url),
         port
     );
 
@@ -42,7 +39,7 @@ BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
         application_get_evbase (app),
         application_get_dnsbase (app),
         NULL,
-        evhttp_uri_get_host (con->bucket->uri),
+        evhttp_uri_get_host (s3_url),
         port
     );
 
@@ -52,47 +49,47 @@ BucketConnection *bucket_connection_new (Application *app, S3Bucket *bucket)
     }
     
     // XXX: config these
-    evhttp_connection_set_timeout (con->evcon, 60);
+    evhttp_connection_set_timeout (con->evcon, 20);
     evhttp_connection_set_retries (con->evcon, -1);
 
-    evhttp_connection_set_closecb (con->evcon, bucket_connection_on_close, con);
+    evhttp_connection_set_closecb (con->evcon, s3http_connection_on_close, con);
 
     return con;
 }
 
-// destory BucketConnection
-void bucket_connection_destroy (BucketConnection *con)
+// destory S3HTTPConnection
+void s3http_connection_destroy (S3HTTPConnection *con)
 {
     evhttp_connection_free (con->evcon);
     g_free (con);
 }
+/*}}}*/
 
-// connection is closed
-static void bucket_connection_on_close (struct evhttp_connection *evcon, void *ctx)
+// callback connection is closed
+static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx)
 {
-    BucketConnection *con = (BucketConnection *) ctx;
+    S3HTTPConnection *con = (S3HTTPConnection *) ctx;
 
     LOG_debug ("Connection closed !");
 }
 
-
-S3Bucket *bucket_connection_get_bucket (BucketConnection *con)
-{
-    return con->bucket;
-}
-
-Application *bucket_connection_get_app (BucketConnection *con)
+/*{{{ getters */
+Application *s3http_connection_get_app (S3HTTPConnection *con)
 {
     return con->app;
 }
 
-struct evhttp_connection *bucket_connection_get_evcon (BucketConnection *con)
+struct evhttp_connection *s3http_connection_get_evcon (S3HTTPConnection *con)
 {
     return con->evcon;
 }
 
+/*}}}*/
+
+/*{{{ get_auth_string */
 // create S3 auth string
-const gchar *bucket_connection_get_auth_string (BucketConnection *con, 
+// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/dev/RESTAuthentication.html
+const gchar *s3http_connection_get_auth_string (S3HTTPConnection *con, 
         const gchar *method, const gchar *content_type, const gchar *resource)
 {
     const gchar *string_to_sign;
@@ -144,9 +141,10 @@ const gchar *bucket_connection_get_auth_string (BucketConnection *con,
 
     return res;
 }
+/*}}}*/
 
-// create S3 connection request
-struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
+// create S3 and setup HTTP connection request
+struct evhttp_request *s3http_connection_create_request (S3HTTPConnection *con,
     void (*cb)(struct evhttp_request *, void *), void *arg,
     const gchar *auth_str)
 {    
@@ -166,7 +164,7 @@ struct evhttp_request *bucket_connection_create_request (BucketConnection *con,
     evhttp_add_header (req->output_headers, 
         "Authorization", auth_key);
     evhttp_add_header (req->output_headers, 
-        "Host", evhttp_uri_get_host (con->bucket->uri));
+        "Host", evhttp_uri_get_host (con->s3_url));
 		
     if (strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S GMT", cur_p) != 0) {
 			evhttp_add_header (req->output_headers, "Date", date);

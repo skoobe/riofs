@@ -34,7 +34,9 @@ struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
     const gchar *auth_str);
 
 
-gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar *path);
+typedef void (*S3HttpConnection_directory_listing_callback) (gpointer callback_data, gboolean success);
+gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar *path, fuse_ino_t ino,
+    S3HttpConnection_directory_listing_callback directory_listing_callback, gpointer callback_data);
 
 
 typedef void (*S3HttpConnection_get_object_callback) (gpointer callback_data, gboolean success, struct evbuffer *in_data);

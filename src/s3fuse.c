@@ -184,7 +184,7 @@ void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse
 // Valid replies: fuse_reply_buf() fuse_reply_err()
 static void s3fuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size)
 {
-    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %d", success?"YES":"NO", buf_size, max_size, off);
+    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %"OFF_FMT, success?"YES":"NO", buf_size, max_size, off);
 
     if (!success) {
 		fuse_reply_err (req, ENOTDIR);
@@ -203,7 +203,7 @@ static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t o
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "readdir  inode: %d, size: %zd, off: %d", ino, size, off);
+    LOG_debug (FUSE_LOG, "readdir  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
     
     // fill directory buffer for "ino" directory
     dir_tree_fill_dir_buf (s3fuse->dir_tree, ino, size, off, s3fuse_readdir_cb, req);
@@ -213,7 +213,7 @@ static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t o
 /*{{{ getattr operation */
 
 // getattr callback
-static void s3fuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size)
+static void s3fuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
     struct stat stbuf;
 
@@ -227,6 +227,9 @@ static void s3fuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
     stbuf.st_mode = mode;
 	stbuf.st_nlink = 1;
 	stbuf.st_size = file_size;
+    stbuf.st_ctime = ctime;
+    stbuf.st_atime = ctime;
+    stbuf.st_mtime = ctime;
     
     fuse_reply_attr (req, &stbuf, 1.0);
 }
@@ -236,6 +239,8 @@ static void s3fuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
 static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
+    
+    LOG_debug (FUSE_LOG, "getattr  for %d", ino);
 
     dir_tree_getattr (s3fuse->dir_tree, ino, s3fuse_getattr_cb, req);
 }
@@ -274,7 +279,7 @@ static void s3fuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, i
 /*{{{ lookup operation*/
 
 // lookup callback
-static void s3fuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size)
+static void s3fuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
 	struct fuse_entry_param e;
 
@@ -293,6 +298,9 @@ static void s3fuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
     e.attr.st_mode = mode;
 	e.attr.st_nlink = 1;
 	e.attr.st_size = file_size;
+    e.attr.st_ctime = ctime;
+    e.attr.st_atime = ctime;
+    e.attr.st_mtime = ctime;
 
     fuse_reply_entry (req, &e);
 }

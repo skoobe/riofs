@@ -48,14 +48,9 @@ const gchar *application_get_secret_access_key (Application *app)
     return (const gchar *) app->aws_secret_access_key;
 }
 
-S3HttpConnection *application_get_con (Application *app)
+S3HttpConnection *application_get_s3http_connection (Application *app)
 {
     return app->s3http_connection;
-}
-
-void application_connected (Application *app, S3HttpConnection *con)
-{
-    s3http_connection_get_directory_listing (con, "/");
 }
 
 /*{{{ signal handlers */
@@ -188,22 +183,6 @@ int main (int argc, char *argv[])
     }
     app->s_url = g_strdup (argv[1]);
     app->bucket_name = g_strdup (argv[2]);
-
-    // create DirTree
-    app->dir_tree = dir_tree_create (app);
-    if (!app->dir_tree) {
-        LOG_err (APP_LOG, "Failed to create DirTree !");
-        return -1;
-    }
-    
-    // create FUSE
-    argv += 2;
-    argc -= 2;
-    app->s3fuse = s3fuse_new (app, argc, argv);
-    if (!app->s3fuse) {
-        LOG_err (APP_LOG, "Failed to create FUSE fs !");
-        return -1;
-    }
     
     // create S3HTTPClientPool
     app->s3http_client_pool = s3http_client_pool_create (app->evbase, app->dns_base, 10);
@@ -216,6 +195,22 @@ int main (int argc, char *argv[])
     app->s3http_connection = s3http_connection_create (app, app->url, app->bucket_name);
     if (!app->s3http_connection) {
         LOG_err (APP_LOG, "Failed to create S3HttpConnection !");
+        return -1;
+    }
+
+    // create DirTree
+    app->dir_tree = dir_tree_create (app);
+    if (!app->dir_tree) {
+        LOG_err (APP_LOG, "Failed to create DirTree !");
+        return -1;
+    }
+
+    // create FUSE
+    argv += 2;
+    argc -= 2;
+    app->s3fuse = s3fuse_new (app, argc, argv);
+    if (!app->s3fuse) {
+        LOG_err (APP_LOG, "Failed to create FUSE fs !");
         return -1;
     }
 

@@ -117,6 +117,8 @@ const gchar *s3http_connection_get_auth_string (S3HttpConnection *con,
         method, "", content_type, time_str, "", resource
     );
 
+     LOG_debug (CON_LOG, "AUTH: %s", string_to_sign);
+
     HMAC (EVP_sha1(), 
         application_get_secret_access_key (con->app),
         strlen (application_get_secret_access_key (con->app)),
@@ -156,11 +158,14 @@ struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
 	time_t t = time(NULL);
     struct tm cur;
     char date[50];
+    //char hostname[1024];
 
 	gmtime_r(&t, &cur);
 	cur_p = &cur;
 
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (con->app), auth_str);
+    //snprintf (hostname, sizeof (hostname), "%s.%s", con->bucket_name, evhttp_uri_get_host (con->s3_url));
+    
 
     req = evhttp_request_new (cb, arg);
     evhttp_add_header (req->output_headers, 

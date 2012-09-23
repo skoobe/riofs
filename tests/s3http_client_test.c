@@ -34,6 +34,8 @@ typedef struct {
     off_t in_file_size;
 } OutData;
 
+#define HTTP_TEST "http_test"
+
 static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 {
     OutData *out = (OutData *) ctx;
@@ -42,13 +44,13 @@ static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
     char *buf;
     char c;
 
-    LOG_debug ("SRV: on output timer ..");
+    LOG_debug (HTTP_TEST, "SRV: on output timer ..");
 
     if (out->test_id < TID_body && out->timer_count >= evbuffer_get_length (out->out_buf)) {
         bufferevent_free (out->bev);
         evconnlistener_disable (out->listener);
         event_base_loopbreak (out->evbase);
-        LOG_debug ("SRV: All headers data sent !! ");
+        LOG_debug (HTTP_TEST, "SRV: All headers data sent !! ");
         return;
     }
     
@@ -60,7 +62,7 @@ static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 
         evbuffer_add (out_buf, &c, sizeof (c));
         out->timer_count++;
-        LOG_debug ("SRV: Sending %zd bytes:\n>>%s<<\n", evbuffer_get_length (out_buf), evbuffer_pullup (out_buf, -1));
+        LOG_debug (HTTP_TEST, "SRV: Sending %zd bytes:\n>>%s<<\n", evbuffer_get_length (out_buf), evbuffer_pullup (out_buf, -1));
     } else {
         if (!out->header_sent) {
             evbuffer_add_buffer (out_buf, out->out_buf);
@@ -71,12 +73,12 @@ static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
             bufferevent_free (out->bev);
             evconnlistener_disable (out->listener);
             event_base_loopbreak (out->evbase);
-            LOG_debug ("SRV: All data sent !! ");
+            LOG_debug (HTTP_TEST, "SRV: All data sent !! ");
             return;
         }*/
         evbuffer_remove_buffer (out->in_file, out_buf, 1024*100);
 
-        LOG_debug ("SRV: Sending BODY %zd bytes", evbuffer_get_length (out_buf));
+        LOG_debug (HTTP_TEST, "SRV: Sending BODY %zd bytes", evbuffer_get_length (out_buf));
     }
 
     bufferevent_write_buffer (out->bev, out_buf);
@@ -93,7 +95,7 @@ static void srv_read_cb (struct bufferevent *bev, void *ctx)
     OutData *out = (OutData *) ctx;
     struct timeval tv;
 
-    LOG_debug ("SRV: on reading ..");
+    LOG_debug (HTTP_TEST, "SRV: on reading ..");
 
     out->req_count++;
 
@@ -105,7 +107,7 @@ static void srv_read_cb (struct bufferevent *bev, void *ctx)
 
 static void srv_event_cb (struct bufferevent *bev, short what, void *ctx)
 {
-    LOG_debug ("SRV: on event ..");
+    LOG_debug (HTTP_TEST, "SRV: on event ..");
 }
 
 static void accept_cb (G_GNUC_UNUSED struct evconnlistener *listener, evutil_socket_t fd,
@@ -172,7 +174,7 @@ static void accept_cb (G_GNUC_UNUSED struct evconnlistener *listener, evutil_soc
     if (out->header_line_size)
         evbuffer_add (out->out_buf, out->header_line, out->header_line_size);
 
-    LOG_debug ("SRV: New client connected ! %zd == %zd\nBUF: >>%s<<", sizeof (first_line), strlen (first_line),
+    LOG_debug (HTTP_TEST, "SRV: New client connected ! %zd == %zd\nBUF: >>%s<<", sizeof (first_line), strlen (first_line),
         evbuffer_pullup (out->out_buf, -1));
     bufferevent_setcb (out->bev, 
         srv_read_cb, NULL, srv_event_cb,
@@ -192,21 +194,21 @@ static void start_srv (OutData *out)
     
     // read input file
 	if (stat (in_file, &st) == -1) {
-        LOG_err ("Failed to stat file %s", in_file);
+        LOG_err (HTTP_TEST, "Failed to stat file %s", in_file);
         return;
     }
     out->in_file_size = st.st_size;
 
     fd = open (in_file, O_RDONLY);
     if (fd < 0) {
-        LOG_err ("Failed to open file %s", in_file);
+        LOG_err (HTTP_TEST, "Failed to open file %s", in_file);
         return;
     }
 
     out->in_file = evbuffer_new ();
     
     evbuffer_add_file (out->in_file, fd, 0, st.st_size);
-    LOG_debug ("SRV: filesize %ld bytes, in buf: %zd", out->in_file_size, evbuffer_get_length (out->in_file));
+    LOG_debug (HTTP_TEST, "SRV: filesize %ld bytes, in buf: %zd", out->in_file_size, evbuffer_get_length (out->in_file));
 
     // start listening on port
 	memset(&sin, 0, sizeof(sin));
@@ -218,17 +220,17 @@ static void start_srv (OutData *out)
         -1, (struct sockaddr*)&sin, sizeof (sin)
     );
     if (!out->listener)
-        LOG_err ("OPS !");
+        LOG_err (HTTP_TEST, "OPS !");
 }
 
 
 void on_input_data_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
 {
     struct evbuffer *in_buf = (struct evbuffer *) ctx;
-    LOG_debug ("CLN:  >>>> got %zd bytes! Total: %ld length.", 
+    LOG_debug (HTTP_TEST, "CLN:  >>>> got %zd bytes! Total: %ld length.", 
         evbuffer_get_length (input_buf), s3http_client_get_input_length (http));
     evbuffer_add_buffer (in_buf, input_buf);
-    LOG_debug ("CLN: Resulting buf: %zd", evbuffer_get_length (in_buf));
+    LOG_debug (HTTP_TEST, "CLN: Resulting buf: %zd", evbuffer_get_length (in_buf));
 }
 
 static void run_responce_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
@@ -237,7 +239,7 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
     OutData *out;
     struct evbuffer *in_buf;
 
-    LOG_debug ("===================== TEST ID : %d  =======================", test_id);
+    LOG_debug (HTTP_TEST, "===================== TEST ID : %d  =======================", test_id);
     out = g_new0 (OutData, 1);
     out->evbase = evbase;
     out->test_id = test_id;
@@ -258,7 +260,7 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
     
     s3http_client_destroy (http);
 
-    LOG_debug ("Resulting buff: %zd", evbuffer_get_length (in_buf));
+    LOG_debug (HTTP_TEST, "Resulting buff: %zd", evbuffer_get_length (in_buf));
     evbuffer_free (in_buf);
 
     g_free (out->first_line);
@@ -270,7 +272,7 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
     evbuffer_free (out->in_file);
 
     g_free (out);
-    LOG_debug ("===================== END TEST ID : %d  =======================", test_id);
+    LOG_debug (HTTP_TEST, "===================== END TEST ID : %d  =======================", test_id);
 }
 
 static void run_request_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)

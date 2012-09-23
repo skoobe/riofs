@@ -69,9 +69,10 @@ struct evdns_base *application_get_dnsbase (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
-S3HttpConnection *application_get_con (Application *app);
-void application_connected (Application *app, S3HttpConnection *con);
+S3HttpConnection *application_get_s3http_connection (Application *app);
 
 #include "include/log.h" 
+#define OFF_FMT "ju"
+#define INO_FMT "llu"
 
 #endif

@@ -60,19 +60,17 @@
 #include <fuse/fuse_lowlevel.h>
 
 typedef struct _Application Application;
-typedef struct _S3HTTPConnection S3HTTPConnection;
+typedef struct _S3HttpConnection S3HttpConnection;
 typedef struct _DirTree DirTree;
 typedef struct _S3Fuse S3Fuse;
-typedef struct _CacheMng CacheMng;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
-S3HTTPConnection *application_get_con (Application *app);
-CacheMng *application_get_cache_mng (Application *app);
-void application_connected (Application *app, S3HTTPConnection *con);
+S3HttpConnection *application_get_con (Application *app);
+void application_connected (Application *app, S3HttpConnection *con);
 
 #include "include/log.h" 
 

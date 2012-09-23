@@ -15,7 +15,6 @@ typedef enum {
     S3C_connected = 2,
 } S3HttpClientConnectionState;
 
-
 // HTTP structure
 struct _S3HttpClient {
     struct event_base *evbase;
@@ -68,6 +67,7 @@ typedef struct {
     gchar *value;
 } S3HttpClientHeader;
 
+#define HTTP_LOG "http"
 
 static void s3http_client_read_cb (struct bufferevent *bev, void *ctx);
 static void s3http_client_write_cb (struct bufferevent *bev, void *ctx);
@@ -104,7 +104,7 @@ S3HttpClient *s3http_client_create (struct event_base *evbase, struct evdns_base
 
     http->bev = bufferevent_socket_new (evbase, -1, 0);
     if (!http->bev) {
-        LOG_err ("Failed to create HTTP object!");
+        LOG_err (HTTP_LOG, "Failed to create HTTP object!");
         return NULL;
     }
 
@@ -171,7 +171,7 @@ static void s3http_client_request_reset (S3HttpClient *http)
 static void s3http_client_write_cb (struct bufferevent *bev, void *ctx)
 {
     S3HttpClient *http = (S3HttpClient *) ctx;
-    LOG_debug ("Data sent !");
+    LOG_debug (HTTP_LOG, "Data sent !");
 }
 
 // parse the first HTTP response line
@@ -195,19 +195,19 @@ static gboolean s3http_client_parse_response_line (S3HttpClient *http, char *lin
 	http->response_code = atoi (number);
 	n = sscanf (protocol, "HTTP/%d.%d%c", &major, &minor, &ch);
 	if (n != 2 || major > 1) {
-		LOG_err ("Bad HTTP version %s", line);
+		LOG_err (HTTP_LOG, "Bad HTTP version %s", line);
 		return FALSE;
 	}
 	http->major = major;
 	http->minor = minor;
 
 	if (http->response_code == 0) {
-		LOG_err ("Bad HTTP response code \"%s\"", number);
+		LOG_err (HTTP_LOG, "Bad HTTP response code \"%s\"", number);
 		return FALSE;
 	}
 
 	if ((http->response_code_line = g_strdup (readable)) == NULL) {
-		LOG_err ("Failed to strdup() !");
+		LOG_err (HTTP_LOG, "Failed to strdup() !");
 		return FALSE;
 	}
 
@@ -224,12 +224,12 @@ static gboolean s3http_client_parse_first_line (S3HttpClient *http, struct evbuf
     line = evbuffer_readln (input_buf, &line_length, EVBUFFER_EOL_CRLF);
     // need more data ?
     if (!line || line_length < 1) {
-        LOG_debug ("Failed to read the first HTTP response line !");
+        LOG_debug (HTTP_LOG, "Failed to read the first HTTP response line !");
         return FALSE;
     }
 
     if (!s3http_client_parse_response_line (http, line)) {
-        LOG_debug ("Failed to parse the first HTTP response line !");
+        LOG_debug (HTTP_LOG, "Failed to parse the first HTTP response line !");
         g_free (line);
         return FALSE;
     }
@@ -256,12 +256,12 @@ static gboolean s3http_client_parse_headers (S3HttpClient *http, struct evbuffer
 			return TRUE;
 		}
 
-        LOG_debug ("HEADER line: %s\n", line);
+        LOG_debug (HTTP_LOG, "HEADER line: %s\n", line);
 
 		svalue = line;
 		skey = strsep (&svalue, ":");
 		if (svalue == NULL) {
-            LOG_debug ("Wrong header data received !");
+            LOG_debug (HTTP_LOG, "Wrong header data received !");
 	        g_free (line);
 			return FALSE;
         }
@@ -277,14 +277,14 @@ static gboolean s3http_client_parse_headers (S3HttpClient *http, struct evbuffer
             char *endp;
 		    http->input_length = evutil_strtoll (svalue, &endp, 10);
 		    if (*svalue == '\0' || *endp != '\0') {
-                LOG_debug ("Illegal content length: %s", svalue);
+                LOG_debug (HTTP_LOG, "Illegal content length: %s", svalue);
                 http->input_length = 0;
             }
         }
 
         g_free (line);        
     }
-    LOG_debug ("Wrong header line: %s", line);
+    LOG_debug (HTTP_LOG, "Wrong header line: %s", line);
 
     // if we are here - not all headers have been received !
     return FALSE;
@@ -302,23 +302,23 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
         if (!s3http_client_parse_first_line (http, in_buf)) {
             g_free (http->response_code_line);
             http->response_code_line = NULL;
-            LOG_debug ("More first line data expected !");
+            LOG_debug (HTTP_LOG, "More first line data expected !");
             return;
         }
-        LOG_debug ("Response:  HTTP %d.%d, code: %d, code_line: %s", 
+        LOG_debug (HTTP_LOG, "Response:  HTTP %d.%d, code: %d, code_line: %s", 
                 http->major, http->minor, http->response_code, http->response_code_line);
         http->response_state = S3R_expected_headers;
     }
 
     if (http->response_state == S3R_expected_headers) {
         if (!s3http_client_parse_headers (http, in_buf)) {
-            LOG_debug ("More headers data expected !");
+            LOG_debug (HTTP_LOG, "More headers data expected !");
             s3http_client_free_headers (http->l_input_headers);
             http->l_input_headers = NULL;
             return;
         }
 
-        LOG_debug ("ALL headers received !");
+        LOG_debug (HTTP_LOG, "ALL headers received !");
         http->response_state = S3R_expected_data;
     }
 
@@ -326,7 +326,7 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
         // add input data to the input buffer
         http->input_read += evbuffer_get_length (in_buf);
         evbuffer_add_buffer (http->input_buffer, in_buf);
-        LOG_debug ("INPUT buf: %zd bytes", evbuffer_get_length (http->input_buffer));
+        LOG_debug (HTTP_LOG, "INPUT buf: %zd bytes", evbuffer_get_length (http->input_buffer));
         
         // inform client that a part of data is received
         if (http->on_input_data_cb)
@@ -334,7 +334,7 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
 
         // request is fully downloaded
         if (http->input_read >= http->input_length) {
-            LOG_debug ("DONE downloading !");
+            LOG_debug (HTTP_LOG, "DONE downloading !");
             http->response_state = S3R_expected_first_line;
             // rest
             s3http_client_request_reset (http);
@@ -350,7 +350,7 @@ static void s3http_client_event_cb (struct bufferevent *bev, short what, void *c
 {
     S3HttpClient *http = (S3HttpClient *) ctx;
     
-    LOG_debug ("Disconnection event !");
+    LOG_debug (HTTP_LOG, "Disconnection event !");
 
     http->connection_state = S3C_disconnected;
     // XXX: reset
@@ -368,11 +368,11 @@ static void s3http_client_connection_event_cb (struct bufferevent *bev, short wh
 	if (!(what & BEV_EVENT_CONNECTED)) {
         // XXX: reset
         http->connection_state = S3C_disconnected;
-        LOG_msg ("Failed to establish connection !");
+        LOG_msg (HTTP_LOG, "Failed to establish connection !");
         return;
     }
     
-    LOG_debug ("Connected to the server !");
+    LOG_debug (HTTP_LOG, "Connected to the server !");
 
     http->connection_state = S3C_connected;
     
@@ -398,7 +398,7 @@ static void s3http_client_connect (S3HttpClient *http)
     if (http->connection_state == S3C_connecting)
         return;
     
-    LOG_debug ("Connecting to %s:%d ..",
+    LOG_debug (HTTP_LOG, "Connecting to %s:%d ..",
         evhttp_uri_get_host (http->http_uri),
         evhttp_uri_get_port (http->http_uri)
     );
@@ -513,7 +513,7 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
 
     // output length must be set !
     if (!http->output_length) {
-        LOG_err ("Output length is not set !");
+        LOG_err (HTTP_LOG, "Output length is not set !");
         return FALSE;
     }
 
@@ -573,7 +573,7 @@ gboolean s3http_client_start_request (S3HttpClient *http, S3HttpClientRequestMet
     
     http->http_uri = evhttp_uri_parse_with_flags (url, 0);
     if (!http->http_uri) {
-        LOG_err ("Failed to parse URL string: %s", url);
+        LOG_err (HTTP_LOG, "Failed to parse URL string: %s", url);
         return FALSE;
     }
     http->url = g_strdup (url);

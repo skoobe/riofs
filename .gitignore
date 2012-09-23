@@ -9,3 +9,4 @@ bin/*
 *.swf
 *.o
 tests/file.in
+src/test_keys.sh

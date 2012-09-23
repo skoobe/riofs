@@ -20,6 +20,8 @@ struct _S3Fuse {
     char *recv_buf;
 };
 
+#define FUSE_LOG "fuse"
+
 static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg);
 static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, 
     size_t size, off_t off, struct fuse_file_info *fi);
@@ -45,7 +47,7 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
 };
 /*}}}*/
 
-/*{{{ init*/
+/*{{{ create / destroy */
 
 // create S3Fuse object
 // create fuse handle and add it to libevent polling
@@ -53,21 +55,21 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
 {
     S3Fuse *s3fuse;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
-    char *mountpoint;
-    int multithreaded;
-    int foreground;
 
     s3fuse = g_new0 (S3Fuse, 1);
     s3fuse->app = app;
     s3fuse->dir_tree = application_get_dir_tree (app);
     
-    if (fuse_parse_cmdline (&fuse_args, &mountpoint, &multithreaded, &foreground) == -1) {
-        LOG_err ("fuse_parse_cmdline");
+    if (fuse_parse_cmdline (&fuse_args, &s3fuse->mountpoint, &s3fuse->multithreaded, &s3fuse->foreground) == -1) {
+        LOG_err (FUSE_LOG, "fuse_parse_cmdline");
         return NULL;
     }
 
-    if ((s3fuse->chan = fuse_mount (mountpoint, &fuse_args)) == NULL) {
-        LOG_err ("fuse_mount_common");
+    LOG_debug (FUSE_LOG, "FUSE params: mountpoint: %s, multithreaded: %d, foreground: %d", 
+        s3fuse->mountpoint, s3fuse->multithreaded, s3fuse->foreground);
+
+    if ((s3fuse->chan = fuse_mount (s3fuse->mountpoint, &fuse_args)) == NULL) {
+        LOG_err (FUSE_LOG, "fuse_mount_common");
         return NULL;
     }
 
@@ -76,14 +78,14 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
 
     // allocate the recv buffer
     if ((s3fuse->recv_buf = g_malloc (s3fuse->recv_size)) == NULL) {
-        LOG_err ("failed to malloc memory !");
+        LOG_err (FUSE_LOG, "failed to malloc memory !");
         return NULL;
     }
     
     // allocate a low-level session
     s3fuse->session = fuse_lowlevel_new (&fuse_args, &s3fuse_opers, sizeof (s3fuse_opers), s3fuse);
     if (!s3fuse->session) {
-        LOG_err ("fuse_lowlevel_new");
+        LOG_err (FUSE_LOG, "fuse_lowlevel_new");
         return NULL;
     }
     
@@ -94,16 +96,26 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
         s3fuse
     );
     if (!s3fuse->ev) {
-        LOG_err ("event_new");
+        LOG_err (FUSE_LOG, "event_new");
         return NULL;
     }
 
     if (event_add (s3fuse->ev, NULL)) {
-        LOG_err ("event_add");
+        LOG_err (FUSE_LOG, "event_add");
         return NULL;
     }
 
     return s3fuse;
+}
+
+void s3fuse_destroy (S3Fuse *s3fuse)
+{
+    fuse_unmount (s3fuse->mountpoint, s3fuse->chan);
+    free (s3fuse->mountpoint);
+    g_free (s3fuse->recv_buf);
+    event_free (s3fuse->ev);
+    fuse_session_destroy (s3fuse->session);
+    g_free (s3fuse);
 }
 
 // low level fuse reading operations
@@ -114,7 +126,7 @@ static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
     int res;
 
     if (!ch) {
-        LOG_err ("OPS");
+        LOG_err (FUSE_LOG, "OPS");
         return;
     }
     
@@ -125,20 +137,20 @@ static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
     } while (res == -EINTR);
 
     if (res == 0)
-        LOG_err ("fuse_chan_recv gave EOF");
+        LOG_err (FUSE_LOG, "fuse_chan_recv gave EOF");
 
     if (res < 0 && res != -EAGAIN)
-        LOG_err ("fuse_chan_recv failed: %s", strerror(-res));
+        LOG_err (FUSE_LOG, "fuse_chan_recv failed: %s", strerror(-res));
     
     if (res > 0) {
-        LOG_msg ("got %d bytes from /dev/fuse", res);
+        LOG_debug (FUSE_LOG, "got %d bytes from /dev/fuse", res);
 
         fuse_session_process (s3fuse->session, s3fuse->recv_buf, res, ch);
     }
     
     // reschedule
     if (event_add (s3fuse->ev, NULL))
-        LOG_err ("event_add");
+        LOG_err (FUSE_LOG, "event_add");
 
     // ok, wait for the next event
     return;
@@ -155,7 +167,7 @@ void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse
     struct stat stbuf;
     size_t oldsize = b->size;
     
-    LOG_debug ("add_dirbuf  ino: %d, name: %s", ino, name);
+    LOG_debug (FUSE_LOG, "add_dirbuf  ino: %d, name: %s", ino, name);
 
     // get required buff size
 	b->size += fuse_add_direntry (req, NULL, 0, name, NULL, 0);
@@ -172,7 +184,7 @@ void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse
 // Valid replies: fuse_reply_buf() fuse_reply_err()
 static void s3fuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size)
 {
-    LOG_debug ("readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %d", success?"YES":"NO", buf_size, max_size, off);
+    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %d", success?"YES":"NO", buf_size, max_size, off);
 
     if (!success) {
 		fuse_reply_err (req, ENOTDIR);
@@ -191,7 +203,7 @@ static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t o
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug ("readdir  inode: %d, size: %zd, off: %d", ino, size, off);
+    LOG_debug (FUSE_LOG, "readdir  inode: %d, size: %zd, off: %d", ino, size, off);
     
     // fill directory buffer for "ino" directory
     dir_tree_fill_dir_buf (s3fuse->dir_tree, ino, size, off, s3fuse_readdir_cb, req);
@@ -205,7 +217,7 @@ static void s3fuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
 {
     struct stat stbuf;
 
-    LOG_debug ("getattr_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "getattr_cb  success: %s", success?"YES":"NO");
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -235,7 +247,7 @@ static void s3fuse_setattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
 {
     struct stat stbuf;
 
-    LOG_debug ("setattr_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "setattr_cb  success: %s", success?"YES":"NO");
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -266,7 +278,7 @@ static void s3fuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
 {
 	struct fuse_entry_param e;
 
-    LOG_debug ("lookup_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "lookup_cb  success: %s", success?"YES":"NO");
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -291,7 +303,7 @@ static void s3fuse_lookup (fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug ("lookup  name: %s parent inode: %d", name, parent);
+    LOG_debug (FUSE_LOG, "lookup  name: %s parent inode: %d", name, parent);
 
     dir_tree_lookup (s3fuse->dir_tree, parent, name, s3fuse_lookup_cb, req);
 }
@@ -305,7 +317,7 @@ static void s3fuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug ("open  inode: %d, flags: %d", ino, fi->flags);
+    LOG_debug (FUSE_LOG, "open  inode: %d, flags: %d", ino, fi->flags);
 
     dir_tree_open (s3fuse->dir_tree, ino, fi);
 
@@ -319,7 +331,7 @@ void s3fuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mod
 {
 	struct fuse_entry_param e;
 
-    LOG_debug ("add_file_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "add_file_cb  success: %s", success?"YES":"NO");
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -344,7 +356,7 @@ static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_inode, const char *
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug ("create  parent_inode: %d, name: %s, mode: %d ", parent_inode, name, mode);
+    LOG_debug (FUSE_LOG, "create  parent_inode: %d, name: %s, mode: %d ", parent_inode, name, mode);
 
     //dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_create_file_cb, req, fi);
     dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, NULL, req, fi);
@@ -358,7 +370,7 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug ("release  inode: %d, flags: %d", ino, fi->flags);
+    LOG_debug (FUSE_LOG, "release  inode: %d, flags: %d", ino, fi->flags);
 
     dir_tree_release (s3fuse->dir_tree, ino, fi);
 }
@@ -370,7 +382,7 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 static void s3fuse_read_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size)
 {
 
-    LOG_debug ("read_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "read_cb  success: %s", success?"YES":"NO");
 
     if (!success) {
 		fuse_reply_err (req, ENOENT);
@@ -389,7 +401,7 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug ("read  inode: %d, size: %zd, off: %ld ", ino, size, off);
+    LOG_debug (FUSE_LOG, "read  inode: %d, size: %zd, off: %ld ", ino, size, off);
 
     dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req, fi);
 }
@@ -398,7 +410,7 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 // write callback
 static void s3fuse_write_cb (fuse_req_t req, gboolean success, size_t count)
 {
-    LOG_debug ("write_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "write_cb  success: %s", success?"YES":"NO");
 
     if (!success) {
 		fuse_reply_err (req, ENOENT);
@@ -413,7 +425,7 @@ static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug ("write  inode: %d, size: %zd, off: %ld ", ino, size, off);
+    LOG_debug (FUSE_LOG, "write  inode: %d, size: %zd, off: %ld ", ino, size, off);
 
     dir_tree_write (s3fuse->dir_tree, ino, buf, size, off, s3fuse_write_cb, req, fi);
 }

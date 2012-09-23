@@ -36,6 +36,8 @@ struct _DirTree {
     guint64 current_age;
 };
 
+#define DIR_TREE_LOG "dir_tree"
+
 static DirEntry *dir_tree_create_directory (DirTree *dtree, const gchar *name, mode_t mode);
 
 
@@ -105,7 +107,7 @@ static DirEntry *dir_tree_create_file (DirTree *dtree, const gchar *name, guint6
     en->size = size;
     en->mode = mode;
 
-    LOG_debug ("Creating new file '%s' inode: %d", en->name, en->ino);
+    LOG_debug (DIR_TREE_LOG, "Creating new file '%s' inode: %d", en->name, en->ino);
 
     g_hash_table_insert (dtree->h_inodes, GUINT_TO_POINTER (en->ino), en);
 
@@ -132,7 +134,7 @@ void dir_tree_update_entry (DirTree *dtree, const gchar *path, const gchar *entr
     DirEntry *root_en;
     DirEntry *en;
 
-    LOG_debug ("Updating %s %ld", entry_name, size);
+    LOG_debug (DIR_TREE_LOG, "Updating %s %ld", entry_name, size);
     
     root_en = dtree->root;
     
@@ -172,21 +174,21 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     struct dirbuf b; // directory buffer
     gpointer value;
     
-    LOG_debug ("Requesting directory buffer for dir ino %d, size: %zd, off: %d", ino, size, off);
+    LOG_debug (DIR_TREE_LOG, "Requesting directory buffer for dir ino %d, size: %zd, off: %d", ino, size, off);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
     // if directory does not exist
     // or it's not a directory type ?
     if (!en || en->type != DET_dir) {
-        LOG_msg ("Directory (ino = %d) not found !", ino);
+        LOG_msg (DIR_TREE_LOG, "Directory (ino = %d) not found !", ino);
         readdir_cb (req, FALSE, size, off, NULL, 0);
         return;
     }
     
     // already have directory buffer in the cache
     if (en->dir_cache_size) {
-        LOG_debug ("Sending directory buffer (ino = %d) from cache !", ino);
+        LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %d) from cache !", ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
         return;
     }
@@ -224,20 +226,20 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 {
     DirEntry *dir_en, *en;
     
-    LOG_debug ("Looking up for '%s' in directory ino: %d", name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %d", name, parent_ino);
     
     dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
-        LOG_msg ("Directory (%d) not found !", parent_ino);
+        LOG_msg (DIR_TREE_LOG, "Directory (%d) not found !", parent_ino);
         lookup_cb (req, FALSE, 0, 0, 0);
         return;
     }
 
     en = g_hash_table_lookup (dir_en->h_dir_tree, name);
     if (!en) {
-        LOG_msg ("Entry '%s' not found !", name);
+        LOG_msg (DIR_TREE_LOG, "Entry '%s' not found !", name);
         lookup_cb (req, FALSE, 0, 0, 0);
         return;
     }
@@ -253,13 +255,13 @@ void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
 {
     DirEntry  *en;
     
-    LOG_debug ("Getting attributes for %d", ino);
+    LOG_debug (DIR_TREE_LOG, "Getting attributes for %d", ino);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
     
     // entry not found
     if (!en) {
-        LOG_msg ("Entry (%d) not found !", ino);
+        LOG_msg (DIR_TREE_LOG, "Entry (%d) not found !", ino);
         getattr_cb (req, FALSE, 0, 0, 0);
         return;
     }
@@ -277,13 +279,13 @@ void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino,
 {
     DirEntry  *en;
     
-    LOG_debug ("Setting attributes for %d", ino);
+    LOG_debug (DIR_TREE_LOG, "Setting attributes for %d", ino);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
     
     // entry not found
     if (!en) {
-        LOG_msg ("Entry (%d) not found !", ino);
+        LOG_msg (DIR_TREE_LOG, "Entry (%d) not found !", ino);
         setattr_cb (req, FALSE, 0, 0, 0);
         return;
     }
@@ -307,7 +309,7 @@ static void dir_tree_read_callback (gpointer callback_data, gboolean success, st
     char *buf;
     size_t buf_len;
 
-    LOG_debug ("Read object callback  success: %s", success?"YES":"NO");
+    LOG_debug (DIR_TREE_LOG, "Read object callback  success: %s", success?"YES":"NO");
 
     if (!success) {
         data->read_cb (data->req, FALSE, data->size, data->off, NULL, 0);
@@ -330,19 +332,19 @@ void dir_tree_read (DirTree *dtree, fuse_ino_t ino,
     struct fuse_file_info *fi)
 {
     DirEntry *en;
-    S3HTTPConnection *con;
+    S3HttpConnection *con;
     char full_name[1024];
     DirTreeReadData *data;
 
     
-    LOG_debug ("Read Object  inode %d, size: %zd, off: %d", ino, size, off);
+    LOG_debug (DIR_TREE_LOG, "Read Object  inode %d, size: %zd, off: %d", ino, size, off);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
     // if entry does not exist
     // or it's not a directory type ?
     if (!en) {
-        LOG_msg ("Entry (ino = %d) not found !", ino);
+        LOG_msg (DIR_TREE_LOG, "Entry (ino = %d) not found !", ino);
         read_cb (req, FALSE, size, off, NULL, 0);
         return;
     }
@@ -355,15 +357,15 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_create_file_cb create_file_cb, fuse_req_t req, struct fuse_file_info *fi)
 {
     DirEntry *dir_en, *en;
-    S3HTTPConnection *con;
+    S3HttpConnection *con;
     
-    LOG_debug ("Adding new entry '%s' to directory ino: %d", name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Adding new entry '%s' to directory ino: %d", name, parent_ino);
     
     dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
-        LOG_msg ("Directory (%d) not found !", parent_ino);
+        LOG_msg (DIR_TREE_LOG, "Directory (%d) not found !", parent_ino);
         create_file_cb (req, FALSE, 0, 0, 0, fi);
         return;
     }
@@ -392,7 +394,7 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 void dir_tree_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 
-    LOG_debug ("dir_tree_open  inode %d", ino);
+    LOG_debug (DIR_TREE_LOG, "dir_tree_open  inode %d", ino);
 
     
 }
@@ -410,7 +412,7 @@ static void dir_tree_write_on_data_sent (gpointer ctx)
 {
     DirTreeWriteData *data = (DirTreeWriteData *) ctx;
 
-    LOG_debug ("Buffer sent !");
+    LOG_debug (DIR_TREE_LOG, "Buffer sent !");
     data->write_cb (data->req, TRUE, data->size);
     g_free (data);
 }
@@ -427,14 +429,14 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
     size_t out_buf_len;
     DirTreeWriteData *data;
     
-    LOG_debug ("Writing Object  inode %d, size: %zd, off: %d", ino, size, off);
+    LOG_debug (DIR_TREE_LOG, "Writing Object  inode %d, size: %zd, off: %d", ino, size, off);
 
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
     // if entry does not exist
     // or it's not a directory type ?
     if (!en) {
-        LOG_msg ("Entry (ino = %d) not found !", ino);
+        LOG_msg (DIR_TREE_LOG, "Entry (ino = %d) not found !", ino);
         write_cb (req, FALSE,  0);
         return;
     }
@@ -448,5 +450,5 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
 
 void dir_tree_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
 {
-    LOG_debug ("dir_tree_release  inode %d", ino);
+    LOG_debug (DIR_TREE_LOG, "dir_tree_release  inode %d", ino);
 }

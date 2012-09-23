@@ -2,20 +2,22 @@
 
 /*{{{ struct*/
 
+#define CON_LOG "con"
+
 static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
 /*}}}*/
 
 /*{{{ create / destroy */
-// create S3HTTPConnection object
+// create S3HttpConnection object
 // establish HTTP connections to S3
-S3HTTPConnection *s3http_connection_create (Application *app, struct evhttp_uri *s3_url, const gchar *bucket_name)
+S3HttpConnection *s3http_connection_create (Application *app, struct evhttp_uri *s3_url, const gchar *bucket_name)
 {
-    S3HTTPConnection *con;
+    S3HttpConnection *con;
     int port;
 
-    con = g_new0 (S3HTTPConnection, 1);
+    con = g_new0 (S3HttpConnection, 1);
     if (!con) {
-        LOG_err ("Failed to create S3HTTPConnection !");
+        LOG_err (CON_LOG, "Failed to create S3HttpConnection !");
         return NULL;
     }
 
@@ -29,7 +31,7 @@ S3HTTPConnection *s3http_connection_create (Application *app, struct evhttp_uri 
         port = 80;
     }
 
-    LOG_debug ("Connecting to %s:%d", 
+    LOG_debug (CON_LOG, "Connecting to %s:%d", 
         evhttp_uri_get_host (s3_url),
         port
     );
@@ -44,7 +46,7 @@ S3HTTPConnection *s3http_connection_create (Application *app, struct evhttp_uri 
     );
 
     if (!con->evcon) {
-        LOG_err ("Failed to create evhttp_connection !");
+        LOG_err (CON_LOG, "Failed to create evhttp_connection !");
         return NULL;
     }
     
@@ -57,8 +59,8 @@ S3HTTPConnection *s3http_connection_create (Application *app, struct evhttp_uri 
     return con;
 }
 
-// destory S3HTTPConnection
-void s3http_connection_destroy (S3HTTPConnection *con)
+// destory S3HttpConnection
+void s3http_connection_destroy (S3HttpConnection *con)
 {
     evhttp_connection_free (con->evcon);
     g_free (con);
@@ -68,18 +70,18 @@ void s3http_connection_destroy (S3HTTPConnection *con)
 // callback connection is closed
 static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx)
 {
-    S3HTTPConnection *con = (S3HTTPConnection *) ctx;
+    S3HttpConnection *con = (S3HttpConnection *) ctx;
 
-    LOG_debug ("Connection closed !");
+    LOG_debug (CON_LOG, "Connection closed !");
 }
 
 /*{{{ getters */
-Application *s3http_connection_get_app (S3HTTPConnection *con)
+Application *s3http_connection_get_app (S3HttpConnection *con)
 {
     return con->app;
 }
 
-struct evhttp_connection *s3http_connection_get_evcon (S3HTTPConnection *con)
+struct evhttp_connection *s3http_connection_get_evcon (S3HttpConnection *con)
 {
     return con->evcon;
 }
@@ -89,7 +91,7 @@ struct evhttp_connection *s3http_connection_get_evcon (S3HTTPConnection *con)
 /*{{{ get_auth_string */
 // create S3 auth string
 // http://docs.amazonwebservices.com/AmazonS3/2006-03-01/dev/RESTAuthentication.html
-const gchar *s3http_connection_get_auth_string (S3HTTPConnection *con, 
+const gchar *s3http_connection_get_auth_string (S3HttpConnection *con, 
         const gchar *method, const gchar *content_type, const gchar *resource)
 {
     const gchar *string_to_sign;
@@ -128,7 +130,7 @@ const gchar *s3http_connection_get_auth_string (S3HTTPConnection *con,
     BIO_write (b64, md, md_len);
     ret = BIO_flush (b64);
     if (ret != 1) {
-        LOG_err ("Failed to create base64 of auth string !");
+        LOG_err (CON_LOG, "Failed to create base64 of auth string !");
         return NULL;
     }
     BIO_get_mem_ptr (b64, &bptr);
@@ -144,7 +146,7 @@ const gchar *s3http_connection_get_auth_string (S3HTTPConnection *con,
 /*}}}*/
 
 // create S3 and setup HTTP connection request
-struct evhttp_request *s3http_connection_create_request (S3HTTPConnection *con,
+struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
     void (*cb)(struct evhttp_request *, void *), void *arg,
     const gchar *auth_str)
 {    

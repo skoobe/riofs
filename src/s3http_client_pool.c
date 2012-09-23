@@ -14,6 +14,8 @@ typedef struct {
     gpointer ctx;
 } RequestData;
 
+#define HTTP_POOL "http_pool"
+
 static void s3http_client_pool_on_request_done (S3HttpClient *http, gpointer ctx);
 
 // creates connection pool object
@@ -73,7 +75,7 @@ gboolean s3http_client_pool_get_S3HttpClient (S3HttpClientPool *pool, S3HttpClie
     
     // check if the awaiting queue is full
     if (g_queue_get_length (pool->q_requests) >= pool->max_requests) {
-        LOG_err ("HTTP client awaiting queue is full !");
+        LOG_err (HTTP_POOL, "HTTP client awaiting queue is full !");
         return FALSE;
     }
 

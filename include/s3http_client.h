@@ -31,7 +31,7 @@ void s3http_client_set_cb_ctx (S3HttpClient *http, gpointer ctx);
 void s3http_client_set_pool_cb_ctx (S3HttpClient *http, gpointer pool_ctx);
 
 // a chunk of data is received
-typedef void (*S3HttpClient_on_input_data_cb) (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx);
+typedef void (*S3HttpClient_on_input_data_cb) (S3HttpClient *http, struct evbuffer *input_buf, gboolean the_last_part, gpointer ctx);
 void s3http_client_set_input_data_cb (S3HttpClient *http, S3HttpClient_on_input_data_cb on_input_data_cb);
 
 // connection is closed

@@ -34,7 +34,7 @@ void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino,
 
 
 typedef void (*dir_tree_read_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size);
-void dir_tree_read (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino, 
     size_t size, off_t off,
     dir_tree_read_cb getattr_cb, fuse_req_t req,
     struct fuse_file_info *fi);
@@ -44,12 +44,12 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_create_file_cb create_file_cb, fuse_req_t req, struct fuse_file_info *fi);
 
 typedef void (*dir_tree_write_cb) (fuse_req_t req, gboolean success, size_t count);
-void dir_tree_write (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino, 
     const char *buf, size_t size, off_t off, 
     dir_tree_write_cb write_cb, fuse_req_t req,
     struct fuse_file_info *fi);
 
-void dir_tree_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
-void dir_tree_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
+void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
+void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
 
 #endif

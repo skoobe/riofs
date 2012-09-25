@@ -2,7 +2,7 @@
 #include "include/s3fuse.h"
 #include "include/s3http_connection.h"
 #include "include/s3http_client.h"
-
+#include "include/s3http_client_pool.h"
 
 typedef struct {
     fuse_ino_t ino;
@@ -21,6 +21,8 @@ typedef struct {
     // for type == DET_dir
     char *dir_cache; // FUSE directory cache
     size_t dir_cache_size; // directory cache size
+    time_t dir_cache_created;
+
     GHashTable *h_dir_tree; // name -> data
 } DirEntry;
 
@@ -30,9 +32,11 @@ struct _DirTree {
     Application *app;
 
     S3HttpConnection *http_con;
+    S3HttpClientPool *http_pool;
 
     fuse_ino_t max_ino;
     guint64 current_age;
+    time_t dir_cache_max_time; // max time of dir cache in seconds
 };
 
 #define DIR_TREE_LOG "dir_tree"
@@ -49,9 +53,11 @@ DirTree *dir_tree_create (Application *app)
     dtree = g_new0 (DirTree, 1);
     dtree->app = app;
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
-    dtree->max_ino = 1;
+    dtree->max_ino = FUSE_ROOT_ID;
     dtree->current_age = 0;
     dtree->http_con = application_get_s3http_connection (app);
+    dtree->http_pool = application_get_s3http_client_pool (app);
+    dtree->dir_cache_max_time = 5;
 
     dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
 
@@ -113,6 +119,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     // cache is empty
     en->dir_cache = NULL;
     en->dir_cache_size = 0;
+    en->dir_cache_created = 0;
 
     LOG_debug (DIR_TREE_LOG, "Creating new DirEntry: %s, inode: %d, fullpath: %s, mode: %d", en->basename, en->ino, en->fullpath, en->mode);
     
@@ -181,6 +188,7 @@ void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
         if (en->dir_cache_size) {
             g_free (en->dir_cache);
             en->dir_cache_size = 0;
+            en->dir_cache_created = 0;
         }
     } else {
         // XXX: get parent, update dir cache
@@ -231,6 +239,9 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         // done, save as cache
         dir_fill_data->en->dir_cache_size = b.size;
         dir_fill_data->en->dir_cache = g_malloc (b.size);
+        dir_fill_data->en->dir_cache_created = time (NULL);
+
+
         memcpy (dir_fill_data->en->dir_cache, b.p, b.size);
         // send buffer to fuse
         dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, dir_fill_data->size, dir_fill_data->off, b.p, b.size);
@@ -250,6 +261,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
 {
     DirEntry *en;
     DirTreeFillDirData *dir_fill_data;
+    time_t t;
     
     LOG_debug (DIR_TREE_LOG, "Requesting directory buffer for dir ino %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
     
@@ -263,12 +275,21 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         return;
     }
     
+    t = time (NULL);
+
     // already have directory buffer in the cache
-    if (en->dir_cache_size) {
+    if (en->dir_cache_size && t >= en->dir_cache_created && t - en->dir_cache_created <= dtree->dir_cache_max_time) {
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %d) from cache !", ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
         return;
     }
+
+    LOG_debug (DIR_TREE_LOG, "cache time: %ld  now: %ld", en->dir_cache_created, t);
+    
+    // reset dir cache
+    g_free (en->dir_cache);
+    en->dir_cache_size = 0;
+    en->dir_cache_created = 0;
 
     dir_fill_data = g_new0 (DirTreeFillDirData, 1);
     dir_fill_data->dtree = dtree;
@@ -360,62 +381,6 @@ void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino,
 }
 /*}}}*/
 
-/*{{{ dir_tree_read*/
-
-typedef struct {
-    dir_tree_read_cb read_cb;
-    fuse_req_t req;
-    size_t size;
-    off_t off;
-} DirTreeReadData;
-
-static void dir_tree_read_callback (gpointer callback_data, gboolean success, struct evbuffer *in_data)
-{
-    DirTreeReadData *data = (DirTreeReadData *) callback_data;
-    char *buf;
-    size_t buf_len;
-
-    LOG_debug (DIR_TREE_LOG, "Read object callback  success: %s", success?"YES":"NO");
-
-    if (!success) {
-        data->read_cb (data->req, FALSE, data->size, data->off, NULL, 0);
-    } else {
-        // copy buffer
-  //      evbuffer_add_buffer_reference (data->fop->buf, in_data);
-
-        buf_len = evbuffer_get_length (in_data);
-        buf = evbuffer_pullup (in_data, buf_len);
-        data->read_cb (data->req, TRUE, data->size, data->off, buf, buf_len);
-    }
-
-    g_free (data);
-}
-
-// return entry's buffer
-void dir_tree_read (DirTree *dtree, fuse_ino_t ino, 
-    size_t size, off_t off,
-    dir_tree_read_cb read_cb, fuse_req_t req,
-    struct fuse_file_info *fi)
-{
-    DirEntry *en;
-    S3HttpConnection *con;
-    char full_name[1024];
-    DirTreeReadData *data;
-
-    
-    LOG_debug (DIR_TREE_LOG, "Read Object  inode %d, size: %zd, off: %d", ino, size, off);
-    
-    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
-
-    // if entry does not exist
-    // or it's not a directory type ?
-    if (!en) {
-        LOG_msg (DIR_TREE_LOG, "Entry (ino = %d) not found !", ino);
-        read_cb (req, FALSE, size, off, NULL, 0);
-        return;
-    }
-
-}/*}}}*/
 
 /*{{{ dir_tree_add_file */
 // add new file entry to directory, return new inode
@@ -457,43 +422,175 @@ void dir_tree_add_file (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 }
 /*}}}*/
 
-void dir_tree_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
-{
-
-    LOG_debug (DIR_TREE_LOG, "dir_tree_open  inode %d", ino);
-
-    
-}
-
 typedef struct {
+    DirTree *dtree;
+    DirEntry *en;
+    fuse_ino_t ino;
+    dir_tree_read_cb read_cb;
     dir_tree_write_cb write_cb;
     fuse_req_t req;
     size_t size;
     off_t off;
-} DirTreeWriteData;
+
+    size_t total_read;
+} DirTreeFileOpData;
+
+// existing file is opened, create context data
+void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    DirTreeFileOpData *op_data;
+
+    LOG_debug (DIR_TREE_LOG, "dir_tree_open  inode %"INO_FMT, ino);
+    
+    op_data = g_new0 (DirTreeFileOpData, 1);
+    op_data->dtree = dtree;
+    op_data->ino = ino;
+    op_data->total_read = 0;
+
+    fi->fh = op_data;
+
+}
+
+void dir_tree_file_create (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+}
+
+// file is closed, free context data
+void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
+    
+    LOG_debug (DIR_TREE_LOG, "dir_tree_release  inode %d", ino);
+    
+    g_free (op_data);
+}
+
+static void dir_tree_file_read_on_data_cb (S3HttpClient *http, struct evbuffer *input_buf, gboolean the_last_part, gpointer ctx)
+{
+    char *buf;
+    size_t buf_len;
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
+
+
+    buf_len = evbuffer_get_length (input_buf);
+    buf = evbuffer_pullup (input_buf, buf_len);
+    
+    //LOG_debug (DIR_TREE_LOG, "Read Object onData callback, in size: %zu", buf_len);
+    
+    if (!the_last_part) {
+        if (buf_len >= op_data->size) {
+            op_data->total_read += buf_len;
+           // LOG_debug (DIR_TREE_LOG, "TOTAL read: %zu, orig size: %zu", op_data->total_read, op_data->en->size);
+            op_data->read_cb (op_data->req, TRUE, op_data->size, op_data->off, buf, op_data->size);
+            evbuffer_drain (input_buf, op_data->size);
+        }
+    } else {
+            op_data->total_read += buf_len;
+            LOG_debug (DIR_TREE_LOG, "lTOTAL read: %zu, orig size: %zu", op_data->total_read, op_data->en->size);
+            op_data->read_cb (op_data->req, TRUE, op_data->size, op_data->off, buf, buf_len);
+            evbuffer_drain (input_buf, buf_len);
+    }
+}
+
+
+// S3HttpClient is ready for the new request execution
+// prepare and execute read object call
+static void dir_tree_file_read_on_http_client (S3HttpClient *http, gpointer pool_ctx)
+{
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) pool_ctx;
+    gchar *auth_str;
+    char time_str[100];
+    time_t t = time (NULL);
+    gchar res[1024];
+    gchar auth_key[300];
+    gchar *url;
+
+    LOG_debug (DIR_TREE_LOG, "S3HTTP client is ready for Read Object inode %"INO_FMT", size: %zd, off: %"OFF_FMT", path: %s", 
+        op_data->ino, op_data->size, op_data->off, op_data->en->fullpath);
+
+    s3http_client_set_cb_ctx (http, op_data);
+    s3http_client_set_input_data_cb (http, dir_tree_file_read_on_data_cb);
+    s3http_client_set_output_length (http, 1);
+    
+    strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+    // XXX
+    snprintf (res, sizeof (res), "/wizztest%s", op_data->en->fullpath);
+
+    auth_str = s3http_connection_get_auth_string (op_data->dtree->http_con, "GET", "", res);
+    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (op_data->dtree->app), auth_str);
+
+    s3http_client_add_output_header (http, 
+        "Authorization", auth_key);
+    s3http_client_add_output_header (http,
+        "Date", time_str);
+
+    url = g_strdup_printf ("http://wizztest.s3-external-3.amazonaws.com%s", op_data->en->fullpath);
+
+    s3http_client_start_request (http, S3Method_get, url);
+    //s3http_client_start_request (http, S3Method_get, "http://88.198.36.130");
+
+    g_free (auth_str);
+    g_free (url);
+}
+
+// return entry's buffer
+void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino, 
+    size_t size, off_t off,
+    dir_tree_read_cb read_cb, fuse_req_t req,
+    struct fuse_file_info *fi)
+{
+    DirEntry *en;
+    char full_name[1024];
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
+    
+    LOG_debug (DIR_TREE_LOG, "Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
+    
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
+
+    // if entry does not exist
+    // or it's not a directory type ?
+    if (!en) {
+        LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", ino);
+        read_cb (req, FALSE, size, off, NULL, 0);
+        return;
+    }
+
+    op_data->en = en;
+    op_data->size = size;
+    op_data->off = off;
+    op_data->read_cb = read_cb;
+    op_data->req = req;
+    
+    // get S3HttpClient from the pool
+    if (!s3http_client_pool_get_S3HttpClient (dtree->http_pool, dir_tree_file_read_on_http_client, op_data)) {
+        LOG_err (DIR_TREE_LOG, "Failed to get S3HTTPClient from the pool !");
+        read_cb (req, FALSE, size, off, NULL, 0);
+        return;
+    }
+
+}
 
 
 // buffer is sent
 static void dir_tree_write_on_data_sent (gpointer ctx)
 {
-    DirTreeWriteData *data = (DirTreeWriteData *) ctx;
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
 
     LOG_debug (DIR_TREE_LOG, "Buffer sent !");
-    data->write_cb (data->req, TRUE, data->size);
-    g_free (data);
+    op_data->write_cb (op_data->req, TRUE, op_data->size);
 }
 
 // write data to output buf
 // data will be sent in flush () function
 // XXX: add caching
-void dir_tree_write (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino, 
     const char *buf, size_t size, off_t off, 
     dir_tree_write_cb write_cb, fuse_req_t req,
     struct fuse_file_info *fi)
 {
     DirEntry *en;
     size_t out_buf_len;
-    DirTreeWriteData *data;
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
     
     LOG_debug (DIR_TREE_LOG, "Writing Object  inode %d, size: %zd, off: %d", ino, size, off);
 
@@ -512,9 +609,3 @@ void dir_tree_write (DirTree *dtree, fuse_ino_t ino,
     write_cb (req, TRUE,  size);
 }
 
-
-
-void dir_tree_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
-{
-    LOG_debug (DIR_TREE_LOG, "dir_tree_release  inode %d", ino);
-}

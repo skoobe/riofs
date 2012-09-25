@@ -327,7 +327,7 @@ static void s3fuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *
     
     LOG_debug (FUSE_LOG, "open  inode: %d, flags: %d", ino, fi->flags);
 
-    dir_tree_open (s3fuse->dir_tree, ino, fi);
+    dir_tree_file_open (s3fuse->dir_tree, ino, fi);
 
     fuse_reply_open (req, fi);
 }
@@ -370,6 +370,7 @@ static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_inode, const char *
     dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, NULL, req, fi);
 }
 /*}}}*/
+
 /*{{{ release operation */
 
 // FUSE lowlevel operation: release
@@ -380,7 +381,7 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 
     LOG_debug (FUSE_LOG, "release  inode: %d, flags: %d", ino, fi->flags);
 
-    dir_tree_release (s3fuse->dir_tree, ino, fi);
+    dir_tree_file_release (s3fuse->dir_tree, ino, fi);
 }
 /*}}}*/
 
@@ -390,7 +391,7 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 static void s3fuse_read_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size)
 {
 
-    LOG_debug (FUSE_LOG, "read_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "read_cb  success: %s ", success?"YES":"NO");
 
     if (!success) {
 		fuse_reply_err (req, ENOENT);
@@ -409,9 +410,9 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "read  inode: %d, size: %zd, off: %ld ", ino, size, off);
+    LOG_debug (FUSE_LOG, "read  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
 
-    dir_tree_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req, fi);
+    dir_tree_file_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req, fi);
 }
 /*}}}*/
 
@@ -435,7 +436,7 @@ static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_
     
     LOG_debug (FUSE_LOG, "write  inode: %d, size: %zd, off: %ld ", ino, size, off);
 
-    dir_tree_write (s3fuse->dir_tree, ino, buf, size, off, s3fuse_write_cb, req, fi);
+    dir_tree_file_write (s3fuse->dir_tree, ino, buf, size, off, s3fuse_write_cb, req, fi);
 }
 
 

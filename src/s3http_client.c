@@ -326,22 +326,30 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
         // add input data to the input buffer
         http->input_read += evbuffer_get_length (in_buf);
         evbuffer_add_buffer (http->input_buffer, in_buf);
-        LOG_debug (HTTP_LOG, "INPUT buf: %zd bytes", evbuffer_get_length (http->input_buffer));
+        // LOG_debug (HTTP_LOG, "INPUT buf: %zd bytes", evbuffer_get_length (http->input_buffer));
         
-        // inform client that a part of data is received
-        if (http->on_input_data_cb)
-            http->on_input_data_cb (http, http->input_buffer, http->cb_ctx);
 
         // request is fully downloaded
         if (http->input_read >= http->input_length) {
             LOG_debug (HTTP_LOG, "DONE downloading !");
+
+            // inform client that a end of data is received
+            if (http->on_input_data_cb)
+                http->on_input_data_cb (http, http->input_buffer, TRUE, http->cb_ctx);
+
             http->response_state = S3R_expected_first_line;
             // rest
             s3http_client_request_reset (http);
             // inform pool client
             if (http->on_request_done_pool_cb)
                 http->on_request_done_pool_cb (http, http->pool_cb_ctx);
-        }
+
+        // only the part of it
+        } else {
+            // inform client that a part of data is received
+            if (http->on_input_data_cb)
+                http->on_input_data_cb (http, http->input_buffer, FALSE, http->cb_ctx);
+            }
     }
 }
 
@@ -395,12 +403,20 @@ static void s3http_client_connection_event_cb (struct bufferevent *bev, short wh
 // connect to the remote server
 static void s3http_client_connect (S3HttpClient *http)
 {
+    int port;
+    
     if (http->connection_state == S3C_connecting)
         return;
+
+    port = evhttp_uri_get_port (http->http_uri);
+    // if no port is specified, libevent returns -1
+    if (port == -1) {
+        port = 80;
+    }
     
     LOG_debug (HTTP_LOG, "Connecting to %s:%d ..",
         evhttp_uri_get_host (http->http_uri),
-        evhttp_uri_get_port (http->http_uri)
+        port
     );
 
     http->connection_state = S3C_connecting;
@@ -414,7 +430,7 @@ static void s3http_client_connect (S3HttpClient *http)
     bufferevent_socket_connect_hostname (http->bev, http->dns_base, 
         AF_UNSPEC,
         evhttp_uri_get_host (http->http_uri),
-        evhttp_uri_get_port (http->http_uri)
+        port
     );
 }
 
@@ -512,10 +528,12 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     GList *l;
 
     // output length must be set !
+    /*
     if (!http->output_length) {
         LOG_err (HTTP_LOG, "Output length is not set !");
         return FALSE;
     }
+    */
 
     out_buf = evbuffer_new ();
 
@@ -531,10 +549,12 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     );
 
     // length
-    evbuffer_add_printf (out_buf, "Content-Length: %"G_GUINT64_FORMAT"\n",
-        http->output_length
-    );
-
+    // XXX:
+    if (http->output_length > 1) {
+        evbuffer_add_printf (out_buf, "Content-Length: %"G_GUINT64_FORMAT"\n",
+            http->output_length
+        );
+    }
 
     // add headers
     for (l = g_list_first (http->l_output_headers); l; l = g_list_next (l)) {
@@ -551,8 +571,14 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     evbuffer_add_buffer (out_buf, http->output_buffer);
     
     http->output_sent += evbuffer_get_length (out_buf);
+
+    LOG_debug (HTTP_LOG, "Request is sent !");
+    g_printf ("\n==============================\n%s\n======================\n",
+        evbuffer_pullup (out_buf, -1));
+
     // send it
     bufferevent_write_buffer (http->bev, out_buf);
+
 
     // free memory
     evbuffer_free (out_buf);

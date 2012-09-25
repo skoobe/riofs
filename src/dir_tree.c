@@ -428,12 +428,24 @@ typedef struct {
     fuse_ino_t ino;
     dir_tree_read_cb read_cb;
     dir_tree_write_cb write_cb;
-    fuse_req_t req;
+    fuse_req_t c_req;
+
+    size_t c_size;
+    off_t c_off;
+    S3HttpClient *http;
+
+
+    GQueue *q_ranges_requested;
+    off_t total_read;
+    
+    gboolean op_in_progress;
+} DirTreeFileOpData;
+
+typedef struct {
     size_t size;
     off_t off;
-
-    size_t total_read;
-} DirTreeFileOpData;
+    fuse_req_t c_req;
+} DirTreeFileRange;
 
 // existing file is opened, create context data
 void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -445,6 +457,8 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
     op_data = g_new0 (DirTreeFileOpData, 1);
     op_data->dtree = dtree;
     op_data->ino = ino;
+    op_data->op_in_progress = FALSE;
+    op_data->q_ranges_requested = g_queue_new ();
     op_data->total_read = 0;
 
     fi->fh = op_data;
@@ -460,36 +474,100 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_inf
 {
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
     
-    LOG_debug (DIR_TREE_LOG, "dir_tree_release  inode %d", ino);
+    LOG_debug (DIR_TREE_LOG, "dir_tree_file_release  inode %d", ino);
     
+    s3http_client_request_reset (op_data->http);
+
     g_free (op_data);
 }
 
-static void dir_tree_file_read_on_data_cb (S3HttpClient *http, struct evbuffer *input_buf, gboolean the_last_part, gpointer ctx)
+
+static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3HttpClient *http, off_t off, size_t size);
+
+static void dir_tree_file_read_on_last_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
 {
     char *buf;
     size_t buf_len;
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
 
+    buf_len = evbuffer_get_length (input_buf);
+    buf = evbuffer_pullup (input_buf, buf_len);
+    
+    op_data->total_read += buf_len;
+    LOG_debug (DIR_TREE_LOG, "%p lTOTAL read: %zu (req: %zu), orig size: %zu, TOTAL: %"OFF_FMT, 
+        op_data->c_req,
+        buf_len, op_data->c_size, op_data->en->size, op_data->total_read);
+
+    op_data->read_cb (op_data->c_req, TRUE, buf, buf_len);
+    evbuffer_drain (input_buf, buf_len);
+    
+    // if there are more pending chunk requests 
+    if (g_queue_get_length (op_data->q_ranges_requested) > 0) {
+        DirTreeFileRange *range;
+        range = g_queue_pop_head (op_data->q_ranges_requested);
+        op_data->c_size = range->size;
+        op_data->c_off = range->off;
+        op_data->c_req = range->c_req;
+
+        // perform the next chunk request
+        dir_tree_file_read_prepare_request (op_data, http, range->off, range->size);
+    } else {
+        LOG_debug (DIR_TREE_LOG, "Done downloading !!");
+        op_data->op_in_progress = FALSE;
+    }
+}
+
+// the part of chunk is received
+static void dir_tree_file_read_on_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
+{
+    char *buf;
+    size_t buf_len;
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
 
     buf_len = evbuffer_get_length (input_buf);
     buf = evbuffer_pullup (input_buf, buf_len);
     
-    //LOG_debug (DIR_TREE_LOG, "Read Object onData callback, in size: %zu", buf_len);
+    // LOG_debug (DIR_TREE_LOG, "Read Object onData callback, in size: %zu", buf_len);
+}
+
+// prepare HTTP request
+static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3HttpClient *http, off_t off, size_t size)
+{
+    gchar *auth_str;
+    char time_str[100];
+    time_t t = time (NULL);
+    gchar res[1024];
+    gchar auth_key[300];
+    gchar *url;
+    gchar range[300];
+
+    s3http_client_request_reset (http);
+
+    s3http_client_set_cb_ctx (http, op_data);
+    s3http_client_set_on_chunk_cb (http, dir_tree_file_read_on_chunk_cb);
+    s3http_client_set_on_last_chunk_cb (http, dir_tree_file_read_on_last_chunk_cb);
+    s3http_client_set_output_length (http, 1);
     
-    if (!the_last_part) {
-        if (buf_len >= op_data->size) {
-            op_data->total_read += buf_len;
-           // LOG_debug (DIR_TREE_LOG, "TOTAL read: %zu, orig size: %zu", op_data->total_read, op_data->en->size);
-            op_data->read_cb (op_data->req, TRUE, op_data->size, op_data->off, buf, op_data->size);
-            evbuffer_drain (input_buf, op_data->size);
-        }
-    } else {
-            op_data->total_read += buf_len;
-            LOG_debug (DIR_TREE_LOG, "lTOTAL read: %zu, orig size: %zu", op_data->total_read, op_data->en->size);
-            op_data->read_cb (op_data->req, TRUE, op_data->size, op_data->off, buf, buf_len);
-            evbuffer_drain (input_buf, buf_len);
-    }
+    strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+    snprintf (res, sizeof (res), "/%s%s", application_get_bucket_name (op_data->dtree->app), op_data->en->fullpath);
+
+    auth_str = s3http_connection_get_auth_string (op_data->dtree->http_con, "GET", "", res);
+    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (op_data->dtree->app), auth_str);
+    snprintf (range, sizeof (range), "bytes=%"OFF_FMT"-%"OFF_FMT, off, off+size - 1);
+
+    s3http_client_add_output_header (http, 
+        "Authorization", auth_key);
+    s3http_client_add_output_header (http,
+        "Date", time_str);
+    s3http_client_add_output_header (http,
+        "Range", range);
+
+    url = g_strdup_printf ("http://%s%s", application_get_bucket_url (op_data->dtree->app), op_data->en->fullpath);
+    
+    s3http_client_start_request (http, S3Method_get, url);
+
+    g_free (auth_str);
+    g_free (url);
 }
 
 
@@ -498,42 +576,22 @@ static void dir_tree_file_read_on_data_cb (S3HttpClient *http, struct evbuffer *
 static void dir_tree_file_read_on_http_client (S3HttpClient *http, gpointer pool_ctx)
 {
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) pool_ctx;
-    gchar *auth_str;
-    char time_str[100];
-    time_t t = time (NULL);
-    gchar res[1024];
-    gchar auth_key[300];
-    gchar *url;
+    DirTreeFileRange *range;
 
-    LOG_debug (DIR_TREE_LOG, "S3HTTP client is ready for Read Object inode %"INO_FMT", size: %zd, off: %"OFF_FMT", path: %s", 
-        op_data->ino, op_data->size, op_data->off, op_data->en->fullpath);
-
-    s3http_client_set_cb_ctx (http, op_data);
-    s3http_client_set_input_data_cb (http, dir_tree_file_read_on_data_cb);
-    s3http_client_set_output_length (http, 1);
+    LOG_debug (DIR_TREE_LOG, "S3HTTP client is ready for Read Object inode %"INO_FMT", path: %s", 
+        op_data->ino, op_data->en->fullpath);
     
-    strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-    // XXX
-    snprintf (res, sizeof (res), "/wizztest%s", op_data->en->fullpath);
-
-    auth_str = s3http_connection_get_auth_string (op_data->dtree->http_con, "GET", "", res);
-    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (op_data->dtree->app), auth_str);
-
-    s3http_client_add_output_header (http, 
-        "Authorization", auth_key);
-    s3http_client_add_output_header (http,
-        "Date", time_str);
-
-    url = g_strdup_printf ("http://wizztest.s3-external-3.amazonaws.com%s", op_data->en->fullpath);
-
-    s3http_client_start_request (http, S3Method_get, url);
-    //s3http_client_start_request (http, S3Method_get, "http://88.198.36.130");
-
-    g_free (auth_str);
-    g_free (url);
+    // get the first chunk request
+    range = g_queue_pop_head (op_data->q_ranges_requested);
+    op_data->c_size = range->size;
+    op_data->c_off = range->off;
+    op_data->c_req = range->c_req;
+    // perform the first request
+    op_data->http = http;
+    dir_tree_file_read_prepare_request (op_data, http, range->off, range->size);
 }
 
-// return entry's buffer
+// add new chunk range to the pending queue
 void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino, 
     size_t size, off_t off,
     dir_tree_read_cb read_cb, fuse_req_t req,
@@ -542,8 +600,22 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     DirEntry *en;
     char full_name[1024];
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
+    DirTreeFileRange *range;
     
-    LOG_debug (DIR_TREE_LOG, "Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
+    LOG_debug (DIR_TREE_LOG, "%p Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, req, ino, size, off);
+
+    op_data->read_cb = read_cb;
+
+    range = g_new0 (DirTreeFileRange, 1);
+    range->off = off;
+    range->size = size;
+    range->c_req = req;
+    g_queue_push_tail (op_data->q_ranges_requested, range);
+
+    // already reading data
+    if (op_data->op_in_progress) {
+        return;
+    }
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -551,23 +623,19 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     // or it's not a directory type ?
     if (!en) {
         LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", ino);
-        read_cb (req, FALSE, size, off, NULL, 0);
+        read_cb (req, FALSE, NULL, 0);
         return;
     }
 
     op_data->en = en;
-    op_data->size = size;
-    op_data->off = off;
-    op_data->read_cb = read_cb;
-    op_data->req = req;
+    op_data->op_in_progress = TRUE;
     
     // get S3HttpClient from the pool
     if (!s3http_client_pool_get_S3HttpClient (dtree->http_pool, dir_tree_file_read_on_http_client, op_data)) {
         LOG_err (DIR_TREE_LOG, "Failed to get S3HTTPClient from the pool !");
-        read_cb (req, FALSE, size, off, NULL, 0);
+        read_cb (req, FALSE, NULL, 0);
         return;
     }
-
 }
 
 
@@ -577,7 +645,7 @@ static void dir_tree_write_on_data_sent (gpointer ctx)
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
 
     LOG_debug (DIR_TREE_LOG, "Buffer sent !");
-    op_data->write_cb (op_data->req, TRUE, op_data->size);
+   // op_data->write_cb (op_data->req, TRUE, op_data->size);
 }
 
 // write data to output buf

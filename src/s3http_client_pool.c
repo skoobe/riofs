@@ -89,6 +89,8 @@ gboolean s3http_client_pool_get_S3HttpClient (S3HttpClientPool *pool, S3HttpClie
             return TRUE;
         }
     }
+
+    LOG_debug (HTTP_POOL, "all HTTP clients are busy ..");
     
     // add client to the end of queue
     data = g_new0 (RequestData, 1);

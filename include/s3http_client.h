@@ -13,6 +13,8 @@ typedef enum {
 S3HttpClient *s3http_client_create (struct event_base *evbase, struct evdns_base *dns_base);
 void s3http_client_destroy (S3HttpClient *http);
 
+void s3http_client_request_reset (S3HttpClient *http);
+
 void s3http_client_set_output_length (S3HttpClient *http, guint64 output_lenght);
 void s3http_client_add_output_header (S3HttpClient *http, const gchar *key, const gchar *value);
 void s3http_client_add_output_data (S3HttpClient *http, char *buf, size_t size);
@@ -30,9 +32,14 @@ void s3http_client_set_cb_ctx (S3HttpClient *http, gpointer ctx);
 // context data for pool callback functions
 void s3http_client_set_pool_cb_ctx (S3HttpClient *http, gpointer pool_ctx);
 
+
 // a chunk of data is received
-typedef void (*S3HttpClient_on_input_data_cb) (S3HttpClient *http, struct evbuffer *input_buf, gboolean the_last_part, gpointer ctx);
-void s3http_client_set_input_data_cb (S3HttpClient *http, S3HttpClient_on_input_data_cb on_input_data_cb);
+typedef void (*S3HttpClient_on_chunk_cb) (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx);
+void s3http_client_set_on_chunk_cb (S3HttpClient *http, S3HttpClient_on_chunk_cb on_chunk_cb);
+// last chunk of data is received
+void s3http_client_set_on_last_chunk_cb (S3HttpClient *http, S3HttpClient_on_chunk_cb on_last_chunk_cb);
+
+
 
 // connection is closed
 typedef void (*S3HttpClient_on_close_cb) (S3HttpClient *http, gpointer ctx);

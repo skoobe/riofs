@@ -55,7 +55,8 @@ struct _S3HttpClient {
     // context data for callback functions
     gpointer cb_ctx;
     gpointer pool_cb_ctx;
-    S3HttpClient_on_input_data_cb on_input_data_cb;
+    S3HttpClient_on_chunk_cb on_chunk_cb;
+    S3HttpClient_on_chunk_cb on_last_chunk_cb;
     S3HttpClient_on_close_cb on_close_cb;
     S3HttpClient_on_connection_cb on_connection_cb;
     S3HttpClient_on_request_done_pool_cb on_request_done_pool_cb;
@@ -74,7 +75,6 @@ static void s3http_client_write_cb (struct bufferevent *bev, void *ctx);
 static void s3http_client_event_cb (struct bufferevent *bev, short what, void *ctx);
 static gboolean s3http_client_send_initial_request (S3HttpClient *http);
 static void s3http_client_free_headers (GList *l_headers);
-static void s3http_client_request_reset (S3HttpClient *http);
 
 /*}}}*/
 
@@ -130,7 +130,7 @@ void s3http_client_destroy (S3HttpClient *http)
 
 // resets all http request values, 
 // set initial request state
-static void s3http_client_request_reset (S3HttpClient *http)
+void s3http_client_request_reset (S3HttpClient *http)
 {   
     http->response_state = S3R_expected_first_line;
 
@@ -256,7 +256,7 @@ static gboolean s3http_client_parse_headers (S3HttpClient *http, struct evbuffer
 			return TRUE;
 		}
 
-        LOG_debug (HTTP_LOG, "HEADER line: %s\n", line);
+     //   LOG_debug (HTTP_LOG, "HEADER line: %s\n", line);
 
 		svalue = line;
 		skey = strsep (&svalue, ":");
@@ -334,21 +334,23 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
             LOG_debug (HTTP_LOG, "DONE downloading !");
 
             // inform client that a end of data is received
-            if (http->on_input_data_cb)
-                http->on_input_data_cb (http, http->input_buffer, TRUE, http->cb_ctx);
+            if (http->on_last_chunk_cb)
+                http->on_last_chunk_cb (http, http->input_buffer, http->cb_ctx);
 
             http->response_state = S3R_expected_first_line;
             // rest
             s3http_client_request_reset (http);
             // inform pool client
+            // XXX:
+            /*
             if (http->on_request_done_pool_cb)
                 http->on_request_done_pool_cb (http, http->pool_cb_ctx);
-
+            */
         // only the part of it
         } else {
             // inform client that a part of data is received
-            if (http->on_input_data_cb)
-                http->on_input_data_cb (http, http->input_buffer, FALSE, http->cb_ctx);
+            if (http->on_chunk_cb)
+                http->on_chunk_cb (http, http->input_buffer, http->cb_ctx);
             }
     }
 }
@@ -380,7 +382,7 @@ static void s3http_client_connection_event_cb (struct bufferevent *bev, short wh
         return;
     }
     
-    LOG_debug (HTTP_LOG, "Connected to the server !");
+    LOG_debug (HTTP_LOG, "Connected to the server ! %p", http);
 
     http->connection_state = S3C_connected;
     
@@ -414,9 +416,9 @@ static void s3http_client_connect (S3HttpClient *http)
         port = 80;
     }
     
-    LOG_debug (HTTP_LOG, "Connecting to %s:%d ..",
+    LOG_debug (HTTP_LOG, "Connecting to %s:%d .. %p",
         evhttp_uri_get_host (http->http_uri),
-        port
+        port, http
     );
 
     http->connection_state = S3C_connecting;
@@ -573,8 +575,8 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     http->output_sent += evbuffer_get_length (out_buf);
 
     LOG_debug (HTTP_LOG, "Request is sent !");
-    g_printf ("\n==============================\n%s\n======================\n",
-        evbuffer_pullup (out_buf, -1));
+   // g_printf ("\n==============================\n%s\n======================\n",
+   //     evbuffer_pullup (out_buf, -1));
 
     // send it
     bufferevent_write_buffer (http->bev, out_buf);
@@ -602,7 +604,10 @@ gboolean s3http_client_start_request (S3HttpClient *http, S3HttpClientRequestMet
         LOG_err (HTTP_LOG, "Failed to parse URL string: %s", url);
         return FALSE;
     }
+    g_free (http->url);
     http->url = g_strdup (url);
+
+    LOG_msg (HTTP_LOG, "Start Req: %s %s", http->url, evhttp_uri_get_path (http->http_uri));
 
     // connect if it's not
     if (!s3http_client_is_connected (http)) {
@@ -627,9 +632,14 @@ void s3http_client_set_pool_cb_ctx (S3HttpClient *http, gpointer pool_ctx)
 }
 
 
-void s3http_client_set_input_data_cb (S3HttpClient *http,  S3HttpClient_on_input_data_cb on_input_data_cb)
+void s3http_client_set_on_chunk_cb (S3HttpClient *http, S3HttpClient_on_chunk_cb on_chunk_cb)
 {
-    http->on_input_data_cb = on_input_data_cb;
+    http->on_chunk_cb = on_chunk_cb;
+}
+
+void s3http_client_set_on_last_chunk_cb (S3HttpClient *http, S3HttpClient_on_chunk_cb on_last_chunk_cb)
+{
+    http->on_last_chunk_cb = on_last_chunk_cb;
 }
 
 void s3http_client_set_close_cb (S3HttpClient *http, S3HttpClient_on_close_cb on_close_cb)

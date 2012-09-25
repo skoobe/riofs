@@ -33,7 +33,7 @@ void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino,
     dir_tree_setattr_cb setattr_cb, fuse_req_t req, void *fi);
 
 
-typedef void (*dir_tree_read_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size);
+typedef void (*dir_tree_read_cb) (fuse_req_t req, gboolean success, const char *buf, size_t buf_size);
 void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino, 
     size_t size, off_t off,
     dir_tree_read_cb getattr_cb, fuse_req_t req,

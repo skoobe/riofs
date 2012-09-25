@@ -1,3 +1,10 @@
+Requirements:
+* glib-2.0 >= 2.32
+* fuse >= 2.9.1
+* libevent >= 2.1
+* libxml-2.0 >= 2.6
+* libcrypto >= 0.9
+
 How to start using s3ffs (S3 Fast File System):
 
 ./configure

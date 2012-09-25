@@ -14,6 +14,7 @@ struct _S3Fuse {
     struct fuse_chan *chan;
     // the event that we use to receive requests
     struct event *ev;
+    struct event *ev_timer;
     // what our receive-message length is
     size_t recv_size;
     // the buffer that we use to receive events
@@ -33,6 +34,7 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_inode, const char *name, mode_t mode, struct fuse_file_info *fi);
+static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg);
 
 static struct fuse_lowlevel_ops s3fuse_opers = {
 	.readdir	= s3fuse_readdir,
@@ -55,6 +57,7 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
 {
     S3Fuse *s3fuse;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
+    struct timeval tv;
 
     s3fuse = g_new0 (S3Fuse, 1);
     s3fuse->app = app;
@@ -104,6 +107,21 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
         LOG_err (FUSE_LOG, "event_add");
         return NULL;
     }
+    /*
+    s3fuse->ev_timer = evtimer_new (application_get_evbase (app), 
+        &s3fuse_on_timer, 
+        s3fuse
+    );
+    
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    LOG_err (FUSE_LOG, "event_add");
+    if (event_add (s3fuse->ev_timer, &tv)) {
+        LOG_err (FUSE_LOG, "event_add");
+        return NULL;
+    }
+    */
+
 
     return s3fuse;
 }
@@ -118,6 +136,28 @@ void s3fuse_destroy (S3Fuse *s3fuse)
     g_free (s3fuse);
 }
 
+static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg)
+{
+    struct timeval tv;
+    S3Fuse *s3fuse = (S3Fuse *)arg;
+
+    LOG_msg (FUSE_LOG, ">>>>>>>> On timer !!! :%d", event_pending (s3fuse->ev, EV_TIMEOUT|EV_READ|EV_WRITE|EV_SIGNAL, NULL));
+    event_base_dump_events (application_get_evbase (s3fuse->app), stdout);
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
+    if (fuse_session_exited (s3fuse->session)) {
+        LOG_err (FUSE_LOG, "No FUSE session !");
+        return;
+    }
+/*
+    if (event_add (s3fuse->ev_timer, &tv)) {
+        LOG_err (FUSE_LOG, "event_add");
+        return NULL;
+    }
+*/
+}
+
 // low level fuse reading operations
 static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
 {
@@ -126,9 +166,15 @@ static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
     int res;
 
     if (!ch) {
-        LOG_err (FUSE_LOG, "OPS");
+        LOG_err (FUSE_LOG, "No FUSE channel !");
         return;
     }
+
+    if (fuse_session_exited (s3fuse->session)) {
+        LOG_err (FUSE_LOG, "No FUSE session !");
+        return;
+    }
+
     
     // loop until we complete a recv
     do {
@@ -382,26 +428,25 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     LOG_debug (FUSE_LOG, "release  inode: %d, flags: %d", ino, fi->flags);
 
     dir_tree_file_release (s3fuse->dir_tree, ino, fi);
+
+    fuse_reply_err (req, 0);
 }
 /*}}}*/
 
 /*{{{ read operation */
 
 // read callback
-static void s3fuse_read_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size)
+static void s3fuse_read_cb (fuse_req_t req, gboolean success, const char *buf, size_t buf_size)
 {
 
-    LOG_debug (FUSE_LOG, "read_cb  success: %s ", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "<<<<< read_cb  success: %s IN buf: %zu", success?"YES":"NO", buf_size);
 
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
     }
 
-	if (off < buf_size)
-		fuse_reply_buf (req, buf + off, min (buf_size - off, max_size));
-	else
-	    fuse_reply_buf (req, NULL, 0);
+	fuse_reply_buf (req, buf, buf_size);
 }
 
 // FUSE lowlevel operation: read
@@ -410,7 +455,7 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "read  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
+    LOG_debug (FUSE_LOG, ">>>> read  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
 
     dir_tree_file_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req, fi);
 }

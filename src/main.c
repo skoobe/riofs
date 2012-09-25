@@ -20,7 +20,8 @@ struct _Application {
 
     gchar *bucket_name;
     struct evhttp_uri *url;
-    gchar *s_url; // original uri string
+
+    gchar *s_s3_url; // full path to S3 bucket
 };
 
 struct event_base *application_get_evbase (Application *app)
@@ -57,6 +58,17 @@ S3HttpConnection *application_get_s3http_client_pool (Application *app)
 {
     return app->s3http_client_pool;
 }
+
+const gchar *application_get_bucket_url (Application *app)
+{
+    return app->s_s3_url;
+}
+
+const gchar *application_get_bucket_name (Application *app)
+{
+    return app->bucket_name;
+}
+
 
 
 /*{{{ signal handlers */
@@ -187,8 +199,8 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Failed to parse URL, please use s3ffs [http://s3.amazonaws.com] [bucketname] [FUSE params] [mountpoint]");
         return -1;
     }
-    app->s_url = g_strdup (argv[1]);
     app->bucket_name = g_strdup (argv[2]);
+    app->s_s3_url = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->url));
     
     // create S3HTTPClientPool
     app->s3http_client_pool = s3http_client_pool_create (app->evbase, app->dns_base, 10);

@@ -251,7 +251,7 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
     in_buf = evbuffer_new ();
 
     s3http_client_set_cb_ctx (http, in_buf);
-    s3http_client_set_input_data_cb (http, on_input_data_cb);
+    s3http_client_set_on_chunk_cb (http, on_input_data_cb);
     s3http_client_set_output_length (http, 1);
 
     s3http_client_start_request (http, S3Method_get, "http://127.0.0.1:8080/index.html");

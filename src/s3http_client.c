@@ -52,14 +52,18 @@ struct _S3HttpClient {
     // data sent so far
     guint64 output_sent;
 
+    // is taken by high level
+    gboolean is_acquired;
+
     // context data for callback functions
     gpointer cb_ctx;
-    gpointer pool_cb_ctx;
     S3HttpClient_on_chunk_cb on_chunk_cb;
     S3HttpClient_on_chunk_cb on_last_chunk_cb;
     S3HttpClient_on_close_cb on_close_cb;
     S3HttpClient_on_connection_cb on_connection_cb;
-    S3HttpClient_on_request_done_pool_cb on_request_done_pool_cb;
+
+    gpointer pool_cb_ctx;
+    S3HttpClient_on_released on_released_cb;
 };
 
 // HTTP header: key, value
@@ -95,18 +99,15 @@ S3HttpClient *s3http_client_create (struct event_base *evbase, struct evdns_base
     http = g_new0 (S3HttpClient, 1);
     http->evbase = evbase;
     http->dns_base = dns_base;
+    http->is_acquired = FALSE;
   
     // default state
     http->connection_state = S3C_disconnected;
     
     http->output_buffer = evbuffer_new ();
     http->input_buffer = evbuffer_new ();
-
-    http->bev = bufferevent_socket_new (evbase, -1, 0);
-    if (!http->bev) {
-        LOG_err (HTTP_LOG, "Failed to create HTTP object!");
-        return NULL;
-    }
+    
+    http->bev = NULL;
 
     s3http_client_request_reset (http);
 
@@ -360,7 +361,7 @@ static void s3http_client_event_cb (struct bufferevent *bev, short what, void *c
 {
     S3HttpClient *http = (S3HttpClient *) ctx;
     
-    LOG_debug (HTTP_LOG, "Disconnection event !");
+    LOG_debug (HTTP_LOG, "Disconnection event: %d !", what);
 
     http->connection_state = S3C_disconnected;
     // XXX: reset
@@ -368,6 +369,8 @@ static void s3http_client_event_cb (struct bufferevent *bev, short what, void *c
     // inform client that we are disconnected
     if (http->on_close_cb)
         http->on_close_cb (http, http->cb_ctx);
+    
+    s3http_client_release (http);
 }
 
 // socket event during connection
@@ -379,12 +382,20 @@ static void s3http_client_connection_event_cb (struct bufferevent *bev, short wh
         // XXX: reset
         http->connection_state = S3C_disconnected;
         LOG_msg (HTTP_LOG, "Failed to establish connection !");
+        // inform client that we are disconnected
+        if (http->on_close_cb)
+            http->on_close_cb (http, http->cb_ctx);
+
+        s3http_client_release (http);
         return;
     }
     
     LOG_debug (HTTP_LOG, "Connected to the server ! %p", http);
 
     http->connection_state = S3C_connected;
+    evbuffer_drain (bufferevent_get_input (bev), -1);
+    evbuffer_drain (bufferevent_get_output (bev), -1);
+    http->response_state = S3R_expected_first_line;
     
     bufferevent_enable (http->bev, EV_READ);
     bufferevent_setcb (http->bev, 
@@ -409,6 +420,17 @@ static void s3http_client_connect (S3HttpClient *http)
     
     if (http->connection_state == S3C_connecting)
         return;
+
+    if (http->bev)
+        bufferevent_free (http->bev);
+
+    http->bev = bufferevent_socket_new (http->evbase, -1, 0);
+    if (!http->bev) {
+        LOG_err (HTTP_LOG, "Failed to create HTTP object!");
+    }
+    // XXX: 
+    // bufferevent_set_timeouts (http->bev, 
+
 
     port = evhttp_uri_get_port (http->http_uri);
     // if no port is specified, libevent returns -1
@@ -540,36 +562,39 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     out_buf = evbuffer_new ();
 
     // first line
-    evbuffer_add_printf (out_buf, "%s %s HTTP/1.1\n", 
+    evbuffer_add_printf (out_buf, "%s %s HTTP/1.1\r\n", 
         s3http_client_method_to_string (http->method),
         evhttp_uri_get_path (http->http_uri)
     );
 
     // host
-    evbuffer_add_printf (out_buf, "Host: %s\n",
+    evbuffer_add_printf (out_buf, "Host: %s\r\n",
         evhttp_uri_get_host (http->http_uri)
     );
 
     // length
     // XXX:
-    if (http->output_length > 1) {
-        evbuffer_add_printf (out_buf, "Content-Length: %"G_GUINT64_FORMAT"\n",
+    
+    // must be set by the user !!!
+   // if (http->output_length > 0) {
+        evbuffer_add_printf (out_buf, "Content-Length: %"G_GUINT64_FORMAT"\r\n",
             http->output_length
         );
-    }
+    //}
 
     // add headers
     for (l = g_list_first (http->l_output_headers); l; l = g_list_next (l)) {
         S3HttpClientHeader *header = (S3HttpClientHeader *) l->data;
-        evbuffer_add_printf (out_buf, "%s: %s\n",
+        evbuffer_add_printf (out_buf, "%s: %s\r\n",
             header->key, header->value
         );
     }
 
     // end line
-    evbuffer_add_printf (out_buf, "\n");
+    evbuffer_add_printf (out_buf, "\r\n");
 
     // add current data in the output buffer
+    LOG_debug (HTTP_LOG, "OUTPUT len: %zd", evbuffer_get_length (http->output_buffer));
     evbuffer_add_buffer (out_buf, http->output_buffer);
     
     http->output_sent += evbuffer_get_length (out_buf);
@@ -586,12 +611,6 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     evbuffer_free (out_buf);
 
     return TRUE;
-}
-
-// return TRUE if http client is ready to execute a new request
-gboolean s3http_client_is_ready (S3HttpClient *http)
-{
-    return (http->response_state == S3R_expected_first_line);
 }
 
 // connect (if necessary) to the server and send an HTTP request
@@ -620,6 +639,24 @@ gboolean s3http_client_start_request (S3HttpClient *http, S3HttpClientRequestMet
 }
 /*}}}*/
 
+// return TRUE if http client is ready to execute a new request
+gboolean s3http_client_is_ready (S3HttpClient *http)
+{
+    return !http->is_acquired;
+}
+
+gboolean s3http_client_acquire (S3HttpClient *http)
+{
+    http->is_acquired = TRUE;
+}
+
+gboolean s3http_client_release (S3HttpClient *http)
+{
+    http->is_acquired = FALSE;
+
+    if (http->on_released_cb)
+        http->on_released_cb (http, http->pool_cb_ctx);
+}
 
 void s3http_client_set_cb_ctx (S3HttpClient *http, gpointer ctx)
 {
@@ -652,7 +689,7 @@ void s3http_client_set_connection_cb (S3HttpClient *http, S3HttpClient_on_connec
     http->on_connection_cb = on_connection_cb;
 }
 
-void s3http_client_set_request_done_pool_cb (S3HttpClient *http, S3HttpClient_on_request_done_pool_cb on_request_done_pool_cb)
+void s3http_client_set_on_released_cb (S3HttpClient *http, S3HttpClient_on_released on_released_cb)
 {
-    http->on_request_done_pool_cb = on_request_done_pool_cb;
+    http->on_released_cb = on_released_cb;
 }

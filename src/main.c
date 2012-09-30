@@ -12,16 +12,18 @@ struct _Application {
     
     S3Fuse *s3fuse;
     DirTree *dir_tree;
-    S3HttpClientPool *s3http_client_pool;
-    S3HttpConnection *s3http_connection;
+    S3ClientPool *write_client_pool;
+    S3ClientPool *read_client_pool;
 
     gchar *aws_access_key_id;
     gchar *aws_secret_access_key;
 
     gchar *bucket_name;
-    struct evhttp_uri *url;
+    struct evhttp_uri *uri;
 
-    gchar *s_s3_url; // full path to S3 bucket
+    gchar *uri_str; // full path to S3 bucket
+
+    gchar *tmp_dir;
 };
 
 struct event_base *application_get_evbase (Application *app)
@@ -49,19 +51,19 @@ const gchar *application_get_secret_access_key (Application *app)
     return (const gchar *) app->aws_secret_access_key;
 }
 
-S3HttpConnection *application_get_s3http_connection (Application *app)
+S3ClientPool *application_get_write_client_pool (Application *app)
 {
-    return app->s3http_connection;
+    return app->write_client_pool;
 }
 
-S3HttpConnection *application_get_s3http_client_pool (Application *app)
+S3ClientPool *application_get_read_client_pool (Application *app)
 {
-    return app->s3http_client_pool;
+    return app->read_client_pool;
 }
 
-const gchar *application_get_bucket_url (Application *app)
+const gchar *application_get_bucket_uri_str (Application *app)
 {
-    return app->s_s3_url;
+    return app->uri_str;
 }
 
 const gchar *application_get_bucket_name (Application *app)
@@ -69,7 +71,15 @@ const gchar *application_get_bucket_name (Application *app)
     return app->bucket_name;
 }
 
+struct evhttp_uri *application_get_bucket_uri (Application *app)
+{
+    return app->uri;
+}
 
+const gchar *application_get_tmp_dir (Application *app)
+{
+    return app->tmp_dir;
+}
 
 /*{{{ signal handlers */
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
@@ -167,6 +177,9 @@ int main (int argc, char *argv[])
     app = g_new0 (Application, 1);
     app->evbase = event_base_new ();
 
+    //XXX: fix it
+    app->tmp_dir = g_strdup ("/tmp");
+
     if (!app->evbase) {
         LOG_err (APP_LOG, "Failed to create event base !");
         return -1;
@@ -177,7 +190,7 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Failed to create DNS base !");
         return -1;
     }
-
+/*{{{ cmd line args */
     // get access parameters from the enviorment
     // XXX: extend it
     app->aws_access_key_id = getenv("AWSACCESSKEYID");
@@ -194,36 +207,42 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    app->url = evhttp_uri_parse (argv[1]);
+    app->uri = evhttp_uri_parse (argv[1]);
     if (!app->url) {
         LOG_err (APP_LOG, "Failed to parse URL, please use s3ffs [http://s3.amazonaws.com] [bucketname] [FUSE params] [mountpoint]");
         return -1;
     }
     app->bucket_name = g_strdup (argv[2]);
-    app->s_s3_url = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->url));
+    app->uri_str = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->url));
+    /*}}}*/
     
-    // create S3HTTPClientPool
-    app->s3http_client_pool = s3http_client_pool_create (app->evbase, app->dns_base, 10);
-    if (!app->s3http_client_pool) {
-        LOG_err (APP_LOG, "Failed to create S3HTTPClientPool !");
+    // create S3ClientPool for reading operations
+    app->read_client_pool = s3client_pool_create (app, 2,
+        s3http_connection_create,
+        );
+    if (!app->s3client_pool) {
+        LOG_err (APP_LOG, "Failed to create S3ClientPool !");
         return -1;
     }
-
-    // create S3HttpConnection
-    app->s3http_connection = s3http_connection_create (app, app->url, app->bucket_name);
-    if (!app->s3http_connection) {
-        LOG_err (APP_LOG, "Failed to create S3HttpConnection !");
+    
+    // create S3ClientPool for writing operations
+    /*
+    app->write_client_pool = s3client_pool_create (app, 2, s3http_connection_create);
+    if (!app->s3client_pool) {
+        LOG_err (APP_LOG, "Failed to create S3ClientPool !");
         return -1;
     }
+    */
 
-    // create DirTree
+/*{{{ DirTree*/
     app->dir_tree = dir_tree_create (app);
     if (!app->dir_tree) {
         LOG_err (APP_LOG, "Failed to create DirTree !");
         return -1;
     }
+/*}}}*/
 
-    // create FUSE
+    /*{{{ FUSE*/
     argv += 2;
     argc -= 2;
     app->s3fuse = s3fuse_new (app, argc, argv);
@@ -231,8 +250,9 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Failed to create FUSE fs !");
         return -1;
     }
+/*}}}*/
 
-	// install signal handlers
+/*{{{ signal handlers*/
 	// SIGINT
 	sigint_ev = evsignal_new (app->evbase, SIGINT, sigint_cb, app);
 	event_add (sigint_ev, NULL);
@@ -258,7 +278,7 @@ int main (int argc, char *argv[])
     // SIGUSR1
 	sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
 	event_add (sigusr1_ev, NULL);
-
+/*}}}*/
 
     // start the loop
     event_base_dispatch (app->evbase);

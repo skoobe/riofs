@@ -32,6 +32,9 @@ typedef struct {
 
     struct evbuffer *in_file;
     off_t in_file_size;
+
+    struct evhttp *evhttp;
+    S3HttpClient *http;
 } OutData;
 
 #define HTTP_TEST "http_test"
@@ -235,9 +238,9 @@ void on_input_data_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer 
 
 static void run_responce_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
 {
-    S3HttpClient *http;
     OutData *out;
     struct evbuffer *in_buf;
+    S3HttpClient *http;
 
     LOG_debug (HTTP_TEST, "===================== TEST ID : %d  =======================", test_id);
     out = g_new0 (OutData, 1);
@@ -274,9 +277,83 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
     g_free (out);
     LOG_debug (HTTP_TEST, "===================== END TEST ID : %d  =======================", test_id);
 }
+static void on_request_gencb (struct evhttp_request *req, void *ctx)
+{
+    OutData *out = (OutData *)ctx;
+    LOG_debug (HTTP_TEST, "SRV: on request ! %p", out);
+
+    evhttp_cancel_request (req);
+/*
+    s3http_client_request_reset (out->http);
+    
+    s3http_client_set_output_length (out->http, 0);
+    s3http_client_add_output_header (out->http, 
+        "Content-Length", "0");
+
+    s3http_client_start_request (out->http, S3Method_get, "http://127.0.0.1:8080/index.html");
+*/
+}
+
+static void on_http_close (S3HttpClient *http, void *ctx)
+{
+    char c = 'x';
+    OutData *out = (OutData *)ctx;
+    LOG_debug (HTTP_TEST, "CLI: on close ! %p", out);
+    
+    s3http_client_request_reset (out->http);
+    
+ //   s3http_client_set_output_length (out->http, 1);
+ //   s3http_client_add_output_data (out->http, &c, 1);
+
+    s3http_client_start_request (out->http, S3Method_get, "http://127.0.0.1:80/index.html");
+}
 
 static void run_request_test (struct event_base *evbase, struct evdns_base *dns_base, TestID test_id)
 {
+    OutData *out;
+    struct evbuffer *in_buf;
+    char c = 'x';
+
+    LOG_debug (HTTP_TEST, "===================== TEST ID : %d  =======================", test_id);
+    out = g_new0 (OutData, 1);
+    out->evbase = evbase;
+    out->test_id = test_id;
+
+    out->evhttp = evhttp_new (evbase);
+    evhttp_bind_socket (out->evhttp, "127.0.0.1", 8080);
+    evhttp_set_gencb (out->evhttp, on_request_gencb, out);
+    
+    out->http = s3http_client_create (evbase, dns_base);
+    in_buf = evbuffer_new ();
+
+    s3http_client_set_cb_ctx (out->http, out);
+    s3http_client_set_on_chunk_cb (out->http, on_input_data_cb);
+    s3http_client_set_close_cb (out->http, on_http_close);
+
+
+    //s3http_client_set_output_length (out->http, 1);
+    //s3http_client_add_output_data (out->http, &c, 1);
+
+    s3http_client_start_request (out->http, S3Method_get, "http://127.0.0.1:80/index.html");
+    
+    event_base_dispatch (evbase);
+    
+    s3http_client_destroy (out->http);
+
+    LOG_debug (HTTP_TEST, "Resulting buff: %zd", evbuffer_get_length (in_buf));
+    evbuffer_free (in_buf);
+
+    g_free (out->first_line);
+    g_free (out->header_line);
+    evconnlistener_free (out->listener);
+    evtimer_del (out->timeout);
+    event_free (out->timeout);
+    evbuffer_free (out->out_buf);
+    evbuffer_free (out->in_file);
+
+    g_free (out);
+    LOG_debug (HTTP_TEST, "===================== END TEST ID : %d  =======================", test_id);
+
 }
 
 int main (int argc, char *argv[])
@@ -295,7 +372,8 @@ int main (int argc, char *argv[])
         test_id = atoi (argv[1]);
 
     if (test_id >= 0)
-        run_responce_test (evbase, dns_base, test_id);
+        // run_responce_test (evbase, dns_base, test_id);
+        run_request_test (evbase, dns_base, test_id);
     else {
         for (i = 0; i < TID_last_test; i++) {
             run_responce_test (evbase, dns_base, i);

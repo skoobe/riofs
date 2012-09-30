@@ -22,6 +22,10 @@ void s3http_client_add_output_data (S3HttpClient *http, char *buf, size_t size);
 const gchar *s3http_client_get_input_header (S3HttpClient *http, const gchar *key);
 gint64 s3http_client_get_input_length (S3HttpClient *http);
 
+
+gboolean s3http_client_acquire (S3HttpClient *http);
+gboolean s3http_client_release (S3HttpClient *http);
+
 // return TRUE if http client is ready to execute a new request
 gboolean s3http_client_is_ready (S3HttpClient *http);
 // try to connect to the server
@@ -50,9 +54,9 @@ typedef void (*S3HttpClient_on_connection_cb) (S3HttpClient *http, gpointer ctx)
 void s3http_client_set_connection_cb (S3HttpClient *http, S3HttpClient_on_connection_cb on_connection_cb);
 
 // request is done
-typedef void (*S3HttpClient_on_request_done_pool_cb) (S3HttpClient *http, gpointer pool_ctx);
-void s3http_client_set_request_done_pool_cb (S3HttpClient *http, 
-    S3HttpClient_on_request_done_pool_cb on_request_done_pool_cb);
+typedef void (*S3HttpClient_on_released) (S3HttpClient *http, gpointer pool_ctx);
+void s3http_client_set_on_released_cb (S3HttpClient *http, 
+    S3HttpClient_on_released on_released_cb);
 
 
 #endif

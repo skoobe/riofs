@@ -34,6 +34,8 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi);
 static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_inode, const char *name, mode_t mode, struct fuse_file_info *fi);
+static void s3fuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup);
+static void s3fuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name);
 static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg);
 
 static struct fuse_lowlevel_ops s3fuse_opers = {
@@ -46,6 +48,8 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
 	.read		= s3fuse_read,
 	.write		= s3fuse_write,
 	.create		= s3fuse_create,
+    .forget     = s3fuse_forget,
+    .unlink     = s3fuse_unlink,
 };
 /*}}}*/
 
@@ -412,8 +416,7 @@ static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_inode, const char *
     
     LOG_debug (FUSE_LOG, "create  parent_inode: %d, name: %s, mode: %d ", parent_inode, name, mode);
 
-    //dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_create_file_cb, req, fi);
-    dir_tree_add_file (s3fuse->dir_tree, parent_inode, name, mode, NULL, req, fi);
+    dir_tree_file_create (s3fuse->dir_tree, parent_inode, name, mode, s3fuse_create_cb, req, fi);
 }
 /*}}}*/
 
@@ -461,6 +464,7 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 }
 /*}}}*/
 
+/*{{{ write operation */
 // write callback
 static void s3fuse_write_cb (fuse_req_t req, gboolean success, size_t count)
 {
@@ -479,9 +483,29 @@ static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "write  inode: %d, size: %zd, off: %ld ", ino, size, off);
+    LOG_debug (FUSE_LOG, "write  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
 
     dir_tree_file_write (s3fuse->dir_tree, ino, buf, size, off, s3fuse_write_cb, req, fi);
 }
+/*}}}*/
 
 
+static void s3fuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup)
+{
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+    
+    LOG_debug (FUSE_LOG, "forget  inode: %"INO_FMT", nlookup: %lu", ino, nlookup);
+
+    dir_tree_file_remove (s3fuse->dir_tree, ino);
+
+    fuse_reply_none (req);
+}
+
+static void s3fuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name)
+{
+    LOG_debug (FUSE_LOG, "unlink  parent_ino: %"INO_FMT", name: %s", parent, name);
+
+    // 
+
+    fuse_reply_err (req, 0);
+}

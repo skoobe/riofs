@@ -63,16 +63,19 @@ typedef struct _Application Application;
 typedef struct _S3HttpConnection S3HttpConnection;
 typedef struct _DirTree DirTree;
 typedef struct _S3Fuse S3Fuse;
+typedef struct _S3ClientPool S3ClientPool;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
-DirTree *application_get_dir_tree (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
-const gchar *application_get_bucket_url (Application *app);
+const gchar *application_get_bucket_uri_str (Application *app);
+struct evhttp_uri *application_get_bucket_uri (Application *app);
 const gchar *application_get_bucket_name (Application *app);
-S3HttpConnection *application_get_s3http_connection (Application *app);
-S3HttpConnection *application_get_s3http_client_pool (Application *app);
+const gchar *application_get_tmp_dir (Application *app);
+S3ClientPool *application_get_read_client_pool (Application *app);
+S3ClientPool *application_get_write_client_pool (Application *app);
+DirTree *application_get_dir_tree (Application *app);
 
 #include "include/log.h" 
 #define OFF_FMT "ju"

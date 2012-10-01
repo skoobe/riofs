@@ -37,7 +37,24 @@ typedef struct {
     S3HttpClient *http;
 } OutData;
 
+struct _Application {
+    struct event_base *evbase;
+    struct evdns_base *dns_base;
+};
+
 #define HTTP_TEST "http_test"
+
+struct event_base *application_get_evbase (Application *app)
+{
+    return app->evbase;
+}
+
+struct evdns_base *application_get_dnsbase (Application *app)
+{
+    return app->dns_base;
+}
+
+
 
 static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 {
@@ -241,6 +258,7 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
     OutData *out;
     struct evbuffer *in_buf;
     S3HttpClient *http;
+    Application *app;
 
     LOG_debug (HTTP_TEST, "===================== TEST ID : %d  =======================", test_id);
     out = g_new0 (OutData, 1);
@@ -250,7 +268,7 @@ static void run_responce_test (struct event_base *evbase, struct evdns_base *dns
 
     start_srv (out);
     
-    http = s3http_client_create (evbase, dns_base);
+    //http = s3http_client_create (app);
     in_buf = evbuffer_new ();
 
     s3http_client_set_cb_ctx (http, in_buf);
@@ -323,7 +341,7 @@ static void run_request_test (struct event_base *evbase, struct evdns_base *dns_
     evhttp_bind_socket (out->evhttp, "127.0.0.1", 8080);
     evhttp_set_gencb (out->evhttp, on_request_gencb, out);
     
-    out->http = s3http_client_create (evbase, dns_base);
+    //out->http = s3http_client_create (evbase, dns_base);
     in_buf = evbuffer_new ();
 
     s3http_client_set_cb_ctx (out->http, out);

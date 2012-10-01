@@ -1,6 +1,7 @@
 #include "include/global.h"
 #include "include/s3http_client.h"
-#include "include/s3http_client_pool.h"
+#include "include/s3http_connection.h"
+#include "include/s3client_pool.h"
 
 #define POOL_TEST "pool_test"
 
@@ -15,9 +16,9 @@ static void on_get_http_client (S3HttpClient *http, gpointer pool_ctx)
 static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 {
     gint i;
-    S3HttpClientPool *pool = (S3HttpClientPool *)ctx;
+    S3ClientPool *pool = (S3ClientPool *)ctx;
     for (i = 0; i < 10; i++)
-        g_assert (s3http_client_pool_get_S3HttpClient (pool, on_get_http_client, NULL) != NULL);
+        g_assert (s3client_pool_get_client (pool, on_get_http_client, NULL) != NULL);
 }
 
 
@@ -38,31 +39,50 @@ static void start_srv (struct event_base *base)
     evhttp_set_gencb (http, on_srv_request, NULL);
 }
 
-int main (int argc, char *argv[])
-{
+struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
-    S3HttpClientPool *pool;
+};
+
+struct event_base *application_get_evbase (Application *app)
+{
+    return app->evbase;
+}
+
+struct evdns_base *application_get_dnsbase (Application *app)
+{
+    return app->dns_base;
+}
+
+int main (int argc, char *argv[])
+{
+    S3ClientPool *pool;
     struct event *timeout;
     struct timeval tv;
+    Application *app;
 
     event_set_mem_functions (g_malloc, g_realloc, g_free);
 
-    evbase = event_base_new ();
-	dns_base = evdns_base_new (evbase, 1);
+    app = g_new0 (Application, 1);
+    app->evbase = event_base_new ();
+	app->dns_base = evdns_base_new (app->evbase, 1);
     // start server
-    start_srv (evbase);
-
-    pool = s3http_client_pool_create (evbase, dns_base, 10);
-
-    timeout = evtimer_new (evbase, on_output_timer, pool);
+    start_srv (app->evbase);
+/*
+    pool = s3client_pool_create (app, 10,
+        s3http_connection_create,
+        s3http_connection_set_on_released_cb,
+        s3http_connection_check_rediness
+    );
+*/
+    timeout = evtimer_new (app->evbase, on_output_timer, pool);
 
     evutil_timerclear(&tv);
     tv.tv_sec = 0;
     tv.tv_usec = 500;
-    event_add(timeout, &tv);
+    event_add (timeout, &tv);
 
-    event_base_dispatch (evbase);
+    event_base_dispatch (app->evbase);
 
     return 0;
 }

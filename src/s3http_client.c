@@ -17,6 +17,7 @@ typedef enum {
 
 // HTTP structure
 struct _S3HttpClient {
+    Application *app;
     struct event_base *evbase;
     struct evdns_base *dns_base;
     
@@ -62,8 +63,8 @@ struct _S3HttpClient {
     S3HttpClient_on_close_cb on_close_cb;
     S3HttpClient_on_connection_cb on_connection_cb;
 
-    gpointer pool_cb_ctx;
-    S3HttpClient_on_released on_released_cb;
+    gpointer pool_ctx;
+    S3ClientPool_on_released_cb client_on_released_cb;
 };
 
 // HTTP header: key, value
@@ -92,13 +93,14 @@ url: string which contains S3 server's URL
 Returns: new S3HttpClient object
 or NULL if failed
  */
-S3HttpClient *s3http_client_create (struct event_base *evbase, struct evdns_base *dns_base)
+gpointer s3http_client_create (Application *app)
 {
     S3HttpClient *http;
 
     http = g_new0 (S3HttpClient, 1);
-    http->evbase = evbase;
-    http->dns_base = dns_base;
+    http->app = app;
+    http->evbase = application_get_evbase (app);
+    http->dns_base = application_get_dnsbase (app);
     http->is_acquired = FALSE;
   
     // default state
@@ -111,7 +113,7 @@ S3HttpClient *s3http_client_create (struct event_base *evbase, struct evdns_base
 
     s3http_client_request_reset (http);
 
-    return http;
+    return (gpointer) http;
 }
 
 // destroy S3HttpClient object
@@ -332,7 +334,7 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
 
         // request is fully downloaded
         if (http->input_read >= http->input_length) {
-            LOG_debug (HTTP_LOG, "DONE downloading !");
+            LOG_debug (HTTP_LOG, "DONE downloading last chunk, in buf size: %zd !", evbuffer_get_length (http->input_buffer));
 
             // inform client that a end of data is received
             if (http->on_last_chunk_cb)
@@ -640,34 +642,47 @@ gboolean s3http_client_start_request (S3HttpClient *http, S3HttpClientRequestMet
 /*}}}*/
 
 // return TRUE if http client is ready to execute a new request
-gboolean s3http_client_is_ready (S3HttpClient *http)
+gboolean s3http_client_check_rediness (gpointer client)
 {
+    S3HttpClient *http = (S3HttpClient *) client;
+
     return !http->is_acquired;
 }
 
-gboolean s3http_client_acquire (S3HttpClient *http)
+gboolean s3http_client_acquire (gpointer client)
 {
+    S3HttpClient *http = (S3HttpClient *) client;
+    
     http->is_acquired = TRUE;
+
+    return TRUE;
 }
 
-gboolean s3http_client_release (S3HttpClient *http)
+gboolean s3http_client_release (gpointer client)
 {
+    S3HttpClient *http = (S3HttpClient *) client;
+    
     http->is_acquired = FALSE;
 
-    if (http->on_released_cb)
-        http->on_released_cb (http, http->pool_cb_ctx);
+    if (http->client_on_released_cb)
+        http->client_on_released_cb (http, http->pool_ctx);
+    
+    return TRUE;
 }
+
+void s3http_client_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx)
+{
+    S3HttpClient *http = (S3HttpClient *) client;
+
+    http->pool_ctx = ctx;
+    http->client_on_released_cb = client_on_released_cb;
+}
+
 
 void s3http_client_set_cb_ctx (S3HttpClient *http, gpointer ctx)
 {
     http->cb_ctx = ctx;
 }
-
-void s3http_client_set_pool_cb_ctx (S3HttpClient *http, gpointer pool_ctx)
-{
-    http->pool_cb_ctx = pool_ctx;
-}
-
 
 void s3http_client_set_on_chunk_cb (S3HttpClient *http, S3HttpClient_on_chunk_cb on_chunk_cb)
 {
@@ -689,7 +704,3 @@ void s3http_client_set_connection_cb (S3HttpClient *http, S3HttpClient_on_connec
     http->on_connection_cb = on_connection_cb;
 }
 
-void s3http_client_set_on_released_cb (S3HttpClient *http, S3HttpClient_on_released on_released_cb)
-{
-    http->on_released_cb = on_released_cb;
-}

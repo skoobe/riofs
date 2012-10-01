@@ -5,15 +5,13 @@
 #define CON_LOG "con"
 
 static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
-static const gchar *s3http_connection_get_auth_string (S3HttpConnection *con, 
-        const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str);
 
 /*}}}*/
 
 /*{{{ create / destroy */
 // create S3HttpConnection object
 // establish HTTP connections to S3
-S3HttpConnection *s3http_connection_create (Application *app)
+gpointer s3http_connection_create (Application *app)
 {
     S3HttpConnection *con;
     int port;
@@ -25,8 +23,10 @@ S3HttpConnection *s3http_connection_create (Application *app)
     }
 
     con->app = app;
-    con->bucket_name = g_strdup (bucket_name);
+    con->bucket_name = g_strdup (application_get_bucket_name (app));
     con->s3_uri = application_get_bucket_uri (app);
+
+    con->is_acquired = FALSE;
 
     port = evhttp_uri_get_port (con->s3_uri);
     // if no port is specified, libevent returns -1
@@ -59,7 +59,7 @@ S3HttpConnection *s3http_connection_create (Application *app)
 
     evhttp_connection_set_closecb (con->evcon, s3http_connection_on_close, con);
 
-    return con;
+    return (gpointer)con;
 }
 
 // destory S3HttpConnection
@@ -70,10 +70,36 @@ void s3http_connection_destroy (S3HttpConnection *con)
 }
 /*}}}*/
 
-void s3http_connection_set_on_released_cb (S3HttpConnection *con, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx)
+void s3http_connection_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx)
 {
+    S3HttpConnection *con = (S3HttpConnection *) client;
+
     con->client_on_released_cb = client_on_released_cb;
     con->pool_ctx = ctx;
+}
+
+gboolean s3http_connection_check_rediness (gpointer client)
+{
+    S3HttpConnection *con = (S3HttpConnection *) client;
+
+    return !con->is_acquired;
+}
+
+gboolean s3http_connection_acquire (S3HttpConnection *con)
+{
+    con->is_acquired = TRUE;
+
+    return TRUE;
+}
+
+gboolean s3http_connection_release (S3HttpConnection *con)
+{
+    con->is_acquired = FALSE;
+
+    if (con->client_on_released_cb)
+        con->client_on_released_cb (con, con->pool_ctx);
+    
+    return TRUE;
 }
 
 // callback connection is closed
@@ -100,7 +126,7 @@ struct evhttp_connection *s3http_connection_get_evcon (S3HttpConnection *con)
 /*{{{ get_auth_string */
 // create S3 auth string
 // http://docs.amazonwebservices.com/AmazonS3/2006-03-01/dev/RESTAuthentication.html
-static const gchar *s3http_connection_get_auth_string (S3HttpConnection *con, 
+const gchar *s3http_connection_get_auth_string (Application *app, 
         const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str)
 {
     const gchar *string_to_sign;
@@ -112,7 +138,7 @@ static const gchar *s3http_connection_get_auth_string (S3HttpConnection *con,
     int ret;
     gchar *tmp;
 
-    tmp = g_strdup_printf ("/%s%s", application_get_bucket_name (con->app), resource);
+    tmp = g_strdup_printf ("/%s%s", application_get_bucket_name (app), resource);
 
     string_to_sign = g_strdup_printf (
         "%s\n"  // HTTP-Verb + "\n"
@@ -127,11 +153,11 @@ static const gchar *s3http_connection_get_auth_string (S3HttpConnection *con,
 
     g_free (tmp);
 
-    LOG_debug (CON_LOG, "%s", string_to_sign);
+   // LOG_debug (CON_LOG, "%s", string_to_sign);
 
     HMAC (EVP_sha1(), 
-        application_get_secret_access_key (con->app),
-        strlen (application_get_secret_access_key (con->app)),
+        application_get_secret_access_key (app),
+        strlen (application_get_secret_access_key (app)),
         (unsigned char *)string_to_sign, strlen (string_to_sign),
         md, &md_len
     );
@@ -176,10 +202,8 @@ struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (con->app), auth_str);
 
     req = evhttp_request_new (cb, arg);
-    evhttp_add_header (req->output_headers, 
-        "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, 
-        "Host", application_get_bucket_url (con->app));
+    evhttp_add_header (req->output_headers, "Authorization", auth_key);
+    evhttp_add_header (req->output_headers, "Host", application_get_bucket_uri_str (con->app));
 		
     if (strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S GMT", cur_p) != 0) {
 			evhttp_add_header (req->output_headers, "Date", date);
@@ -189,6 +213,7 @@ struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
 
 
 typedef struct {
+    S3HttpConnection *con;
     S3HttpConnection_responce_cb responce_cb;
     S3HttpConnection_error_cb error_cb;
     gpointer ctx;
@@ -201,10 +226,12 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     const char *buf;
     size_t buf_len;
 
+    LOG_debug (CON_LOG, "Got HTTP response from server !");
+
     if (!req) {
         LOG_err (CON_LOG, "Request failed !");
         if (data->error_cb)
-            data->error_cb (data->ctx);
+            data->error_cb (data->con, data->ctx);
         goto done;
     }
 
@@ -214,7 +241,7 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
         if (data->error_cb)
-            data->error_cb (data->ctx);
+            data->error_cb (data->con, data->ctx);
         goto done;
     }
 
@@ -223,7 +250,9 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     buf = (const char *) evbuffer_pullup (inbuf, buf_len);
     
     if (data->responce_cb)
-        data->responce_cb (data->ctx, buf, buf_len);
+        data->responce_cb (data->con, data->ctx, buf, buf_len);
+    else
+        LOG_msg (CON_LOG, ">>> NO callback function !");
 
 done:
     g_free (data);
@@ -237,7 +266,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     S3HttpConnection_error_cb error_cb,
     gpointer ctx)
 {
-    gchar *auth_str;
+    const gchar *auth_str;
     struct evhttp_request *req;
     gchar auth_key[300];
 	time_t t;
@@ -250,6 +279,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     data->responce_cb = responce_cb;
     data->error_cb = error_cb;
     data->ctx = ctx;
+    data->con = con;
     
     if (!strcasecmp (http_cmd, "GET")) {
         cmd_type = EVHTTP_REQ_GET;
@@ -264,7 +294,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     
     t = time (NULL);
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-    auth_str = s3http_connection_get_auth_string (con, http_cmd, "", resource_path, time_str);
+    auth_str = s3http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (con->app), auth_str);
 
     req = evhttp_request_new (s3http_connection_on_responce_cb, data);
@@ -274,12 +304,14 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     }
 
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, "Host", application_get_bucket_url (con->app));	
+    evhttp_add_header (req->output_headers, "Host", application_get_bucket_uri_str (con->app));	
 	evhttp_add_header (req->output_headers, "Date", time_str);
 
     if (out_buffer) {
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
+
+    LOG_msg (CON_LOG, "[%p] New request: %s", con, request_str);
 
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
 

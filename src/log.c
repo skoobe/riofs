@@ -13,6 +13,9 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
 	time_t t;
     struct tm *cur_p;
 
+    if (log_level < level)
+        return;
+
 	t = time (NULL);
 	gmtime_r (&t, &cur);
 	cur_p = &cur;

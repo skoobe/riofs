@@ -75,7 +75,10 @@ const gchar *application_get_bucket_name (Application *app);
 const gchar *application_get_tmp_dir (Application *app);
 S3ClientPool *application_get_read_client_pool (Application *app);
 S3ClientPool *application_get_write_client_pool (Application *app);
+S3ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
+
+gint log_level;
 
 #include "include/log.h" 
 #define OFF_FMT "ju"

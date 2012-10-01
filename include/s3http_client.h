@@ -2,6 +2,7 @@
 #define _S3_HTTP_CLIENT_H_
 
 #include "include/global.h"
+#include "include/s3client_pool.h"
 
 typedef struct _S3HttpClient S3HttpClient;
 
@@ -10,7 +11,7 @@ typedef enum {
     S3Method_put = 1,
 } S3HttpClientRequestMethod;
 
-S3HttpClient *s3http_client_create (struct event_base *evbase, struct evdns_base *dns_base);
+gpointer s3http_client_create (Application *app);
 void s3http_client_destroy (S3HttpClient *http);
 
 void s3http_client_request_reset (S3HttpClient *http);
@@ -23,8 +24,10 @@ const gchar *s3http_client_get_input_header (S3HttpClient *http, const gchar *ke
 gint64 s3http_client_get_input_length (S3HttpClient *http);
 
 
-gboolean s3http_client_acquire (S3HttpClient *http);
-gboolean s3http_client_release (S3HttpClient *http);
+gboolean s3http_client_check_rediness (gpointer client);
+gboolean s3http_client_acquire (gpointer client);
+gboolean s3http_client_release (gpointer client);
+void s3http_client_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx);
 
 // return TRUE if http client is ready to execute a new request
 gboolean s3http_client_is_ready (S3HttpClient *http);
@@ -33,8 +36,6 @@ gboolean s3http_client_start_request (S3HttpClient *http, S3HttpClientRequestMet
 
 // set context data for all callback functions
 void s3http_client_set_cb_ctx (S3HttpClient *http, gpointer ctx);
-// context data for pool callback functions
-void s3http_client_set_pool_cb_ctx (S3HttpClient *http, gpointer pool_ctx);
 
 
 // a chunk of data is received
@@ -52,11 +53,6 @@ void s3http_client_set_close_cb (S3HttpClient *http, S3HttpClient_on_close_cb on
 // connection is established
 typedef void (*S3HttpClient_on_connection_cb) (S3HttpClient *http, gpointer ctx);
 void s3http_client_set_connection_cb (S3HttpClient *http, S3HttpClient_on_connection_cb on_connection_cb);
-
-// request is done
-typedef void (*S3HttpClient_on_released) (S3HttpClient *http, gpointer pool_ctx);
-void s3http_client_set_on_released_cb (S3HttpClient *http, 
-    S3HttpClient_on_released on_released_cb);
 
 
 #endif

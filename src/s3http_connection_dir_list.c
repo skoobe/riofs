@@ -129,7 +129,7 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
 }
 
 // error, return error to fuse 
-static void s3http_connection_on_directory_listing_error (void *ctx)
+static void s3http_connection_on_directory_listing_error (S3HttpConnection *con, void *ctx)
 {
     DirListRequest *dir_req = (DirListRequest *) ctx;
     
@@ -141,11 +141,14 @@ static void s3http_connection_on_directory_listing_error (void *ctx)
     if (dir_req->directory_listing_callback)
         dir_req->directory_listing_callback (dir_req->callback_data, FALSE);
 
+    // release HTTP client
+    s3http_connection_release (con);
+    
     g_free (dir_req);
 }
 
 // Directory read callback function
-static void s3http_connection_on_directory_listing_data (void *ctx, const gchar *buf, size_t buf_len)
+static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, const gchar *buf, size_t buf_len)
 {   
     DirListRequest *dir_req = (DirListRequest *) ctx;
     const gchar *next_marker;
@@ -154,7 +157,7 @@ static void s3http_connection_on_directory_listing_data (void *ctx, const gchar 
    
     if (!buf_len) {
         LOG_err (CON_DIR_LOG, "Directory buffer is empty !");
-        s3http_connection_on_directory_listing_error ((void *) dir_req);
+        s3http_connection_on_directory_listing_error (con, (void *) dir_req);
         return;
     }
    
@@ -172,6 +175,9 @@ static void s3http_connection_on_directory_listing_data (void *ctx, const gchar 
         
         // we are done, stop updating
         dir_tree_stop_update (dir_req->dir_tree, dir_req->ino);
+        
+        // release HTTP client
+        s3http_connection_release (con);
 
         g_free (dir_req);
         return;
@@ -190,7 +196,7 @@ static void s3http_connection_on_directory_listing_data (void *ctx, const gchar 
 
     if (!res) {
         LOG_err (CON_DIR_LOG, "Failed to create HTTP request !");
-        s3http_connection_on_directory_listing_error ((void *) dir_req);
+        s3http_connection_on_directory_listing_error (con, (void *) dir_req);
         return;
     }
 }
@@ -214,6 +220,9 @@ gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const g
     dir_req->max_keys = 1000;
     dir_req->directory_listing_callback = directory_listing_callback;
     dir_req->callback_data = callback_data;
+
+    // acquire HTTP client
+    s3http_connection_acquire (con);
     
     // inform that we started to update the directory
     dir_tree_start_update (dir_req->dir_tree, dir_path);
@@ -242,7 +251,8 @@ gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const g
 
     if (!res) {
         LOG_err (CON_DIR_LOG, "Failed to create HTTP request !");
-        s3http_connection_on_directory_listing_error ((void *) dir_req);
+        s3http_connection_on_directory_listing_error (con, (void *) dir_req);
+
         return FALSE;
     }
 

@@ -14,6 +14,8 @@ typedef struct {
     // type of directory entry
     DirEntryType type;
 
+    gboolean is_modified; // do not show it
+
     off_t size;
     mode_t mode;
     time_t ctime;
@@ -24,6 +26,7 @@ typedef struct {
     time_t dir_cache_created;
 
     GHashTable *h_dir_tree; // name -> data
+    gpointer op_data;
 } DirEntry;
 
 struct _DirTree {
@@ -55,7 +58,7 @@ DirTree *dir_tree_create (Application *app)
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
     dtree->current_age = 0;
-    dtree->dir_cache_max_time = 5; //XXX
+    dtree->dir_cache_max_time = 0; //XXX
     dtree->current_write_ops = 0;
 
     dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
@@ -118,6 +121,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->parent_ino = parent_ino;
     en->type = type;
     en->ctime = ctime;
+    en->is_modified = FALSE;
 
     // cache is empty
     en->dir_cache = NULL;
@@ -154,7 +158,7 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
     DirEntry *en = (DirEntry *) value;
     const gchar *name = (const gchar *) key;
 
-    if (en->age < dtree->current_age) {
+    if (en->age < dtree->current_age && !en->is_modified) {
         if (en->type == DET_dir) {
             // XXX:
             LOG_debug (DIR_TREE_LOG, "Unsupported: %s", en->fullpath);
@@ -208,6 +212,7 @@ void dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType type
     en = g_hash_table_lookup (parent_en->h_dir_tree, entry_name);
     if (en) {
         en->age = dtree->current_age;
+        en->size = size;
     } else {
         mode_t mode;
 
@@ -312,6 +317,18 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     g_free (dir_fill_data);
 }
 
+static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
+{
+    S3HttpConnection *con = (S3HttpConnection *) client;
+    DirTreeFillDirData *dir_fill_data = (DirTreeFillDirData *) ctx;
+
+    //send HTTP request
+    s3http_connection_get_directory_listing (con, 
+        dir_fill_data->en->fullpath, dir_fill_data->ino,
+        dir_tree_fill_on_dir_buf_cb, dir_fill_data
+    );
+}
+
 // return directory buffer from the cache
 // or regenerate directory cache
 void dir_tree_fill_dir_buf (DirTree *dtree, 
@@ -329,7 +346,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     // if directory does not exist
     // or it's not a directory type ?
     if (!en || en->type != DET_dir) {
-        LOG_msg (DIR_TREE_LOG, "Directory (ino = %d) not found !", ino);
+        LOG_msg (DIR_TREE_LOG, "Directory (ino = %"INO_FMT") not found !", ino);
         readdir_cb (req, FALSE, size, off, NULL, 0);
         return;
     }
@@ -338,7 +355,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
 
     // already have directory buffer in the cache
     if (en->dir_cache_size && t >= en->dir_cache_created && t - en->dir_cache_created <= dtree->dir_cache_max_time) {
-        LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %d) from cache !", ino);
+        LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
         return;
     }
@@ -360,9 +377,12 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->req = req;
     dir_fill_data->en = en;
 
-    //send HTTP request
-    s3http_connection_get_directory_listing (dtree->http_con, en->fullpath, ino,
-        dir_tree_fill_on_dir_buf_cb, dir_fill_data);
+    if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
+        LOG_err (DIR_TREE_LOG, "Failed to get HTTP client !");
+        readdir_cb (req, FALSE, size, off, NULL, 0);
+        g_free (dir_fill_data);
+    }
+
 }
 /*}}}*/
 
@@ -388,6 +408,20 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     if (!en) {
         LOG_msg (DIR_TREE_LOG, "Entry '%s' not found !", name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
+        return;
+    }
+    
+    // file is removed
+    if (en->age == 0) {
+        LOG_msg (DIR_TREE_LOG, "Entry '%s' is removed !", name);
+        lookup_cb (req, FALSE, 0, 0, 0, 0);
+        return;
+    }
+    
+    // hide it
+    if (en->is_modified) {
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' is modified !", name);
+        lookup_cb (req, TRUE, en->ino, en->mode, 0, en->ctime);
         return;
     }
 
@@ -446,8 +480,9 @@ typedef struct {
     DirEntry *en;
     fuse_ino_t ino;
     DirTree_file_read_cb file_read_cb;
-    DirTree_file_write_cb file_write_cb;
+    DirTree_file_open_cb file_open_cb;
     fuse_req_t c_req;
+    struct fuse_file_info *c_fi;
 
     size_t c_size;
     off_t c_off;
@@ -459,6 +494,7 @@ typedef struct {
     off_t total_read;
     
     gboolean op_in_progress;
+    
 } DirTreeFileOpData;
 
 typedef struct {
@@ -469,6 +505,33 @@ typedef struct {
 } DirTreeFileRange;
 
 /*{{{ dir_tree_add_file */
+
+static DirTreeFileOpData *file_op_data_create (DirTree *dtree, fuse_ino_t ino)
+{
+    DirTreeFileOpData *op_data;
+    
+    op_data = g_new0 (DirTreeFileOpData, 1);
+    op_data->dtree = dtree;
+    op_data->ino = ino;
+    op_data->op_in_progress = FALSE;
+    op_data->q_ranges_requested = g_queue_new ();
+    op_data->total_read = 0;
+    op_data->tmp_write_fd = 0;
+    op_data->http = NULL;
+
+    return op_data;
+}
+
+static void file_op_data_destroy (DirTreeFileOpData *op_data)
+{
+    LOG_debug (DIR_TREE_LOG, "Destroying opdata !");
+
+    if (g_queue_get_length (op_data->q_ranges_requested) > 0)
+        g_queue_free_full (op_data->q_ranges_requested, g_free);
+    else
+        g_queue_free (op_data->q_ranges_requested);
+    g_free (op_data);
+}
 
 // add new file entry to directory, return new inode
 void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
@@ -495,99 +558,199 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
         file_create_cb (req, FALSE, 0, 0, 0, fi);
         return;
     }
+    //XXX: set as new 
+    en->is_modified = TRUE;
 
-    op_data = g_new0 (DirTreeFileOpData, 1);
-    op_data->dtree = dtree;
+    op_data = file_op_data_create (dtree, en->ino);
+    op_data->en = en;
     op_data->ino = en->ino;
-    op_data->op_in_progress = FALSE;
-    op_data->q_ranges_requested = g_queue_new ();
-    op_data->total_read = 0;
-    op_data->tmp_write_fd = 0;
-    op_data->http = NULL;
-
-    fi->fh = (uint64_t) op_data;
-
-    // create cb
+    en->op_data = (gpointer) op_data;
+        
     file_create_cb (req, TRUE, en->ino, en->mode, en->size, fi);
 }
 /*}}}*/
 
-static void dir_tree_file_op_on_S3HttpClient_cb (S3HttpClient *http, gpointer pool_ctx);
+static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3HttpClient *http, off_t off, size_t size);
+static void dir_tree_file_open_on_http_ready (gpointer client, gpointer ctx);
+
 // existing file is opened, create context data
-gboolean dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+gboolean dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi, 
+    DirTree_file_open_cb file_open_cb, fuse_req_t req)
 {
     DirTreeFileOpData *op_data;
+    DirEntry *en;
 
-    LOG_debug (DIR_TREE_LOG, "dir_tree_open  inode %"INO_FMT, ino);
-    
-    op_data = g_new0 (DirTreeFileOpData, 1);
-    op_data->dtree = dtree;
-    op_data->ino = ino;
-    op_data->op_in_progress = FALSE;
-    op_data->q_ranges_requested = g_queue_new ();
-    op_data->total_read = 0;
-    op_data->tmp_write_fd = 0;
-    op_data->http = NULL;
+    op_data = file_op_data_create (dtree, ino);
+    op_data->c_fi = fi;
+    op_data->c_req = req;
+    op_data->file_open_cb = file_open_cb;
 
-    fi->fh = (uint64_t) op_data;
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
-    // get S3HttpClient from the pool
-    if (!s3http_client_pool_get_S3HttpClient (dtree->http_pool, dir_tree_file_op_on_S3HttpClient_cb, op_data)) {
-        LOG_err (DIR_TREE_LOG, "Failed to get S3HTTPClient from the pool !");
+    // if entry does not exist
+    // or it's not a directory type ?
+    if (!en) {
+        LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", ino);
+        file_open_cb (op_data->c_req, FALSE, op_data->c_fi);
         return FALSE;
+    }
+
+    op_data->en = en;
+
+    
+    op_data->en->op_data = (gpointer) op_data;
+
+    LOG_debug (DIR_TREE_LOG, "[%p %p] dir_tree_open  inode %"INO_FMT, op_data, fi, ino);
+
+    if (!s3client_pool_get_client (application_get_read_client_pool (dtree->app), dir_tree_file_open_on_http_ready, op_data)) {
+        LOG_err (DIR_TREE_LOG, "Failed to get S3HttpConnection from the pool !");
     }
 
     return TRUE;
 }
 
+static void dir_tree_file_release_on_entry_sent_cb (gpointer ctx, gboolean success)
+{
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
+    // XXX: entry may be deleted
+    
+    op_data->en->is_modified = FALSE;
+
+    close (op_data->tmp_write_fd);
+
+    LOG_msg (DIR_TREE_LOG, "File is sent:  ino = %"INO_FMT")", op_data->ino);
+    
+    file_op_data_destroy (op_data);
+}
+
+// HTTP client is ready for a new request
+static void dir_tree_file_release_on_http_ready (gpointer client, gpointer ctx)
+{
+    S3HttpConnection *http_con = (S3HttpConnection *) client;
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
+
+    LOG_debug (DIR_TREE_LOG, "[%p] Acquired http client ! ino: %"INO_FMT, op_data, op_data->ino);
+
+    s3http_connection_acquire (http_con);
+
+    s3http_connection_file_send (http_con, op_data->tmp_write_fd, op_data->en->fullpath, 
+        dir_tree_file_release_on_entry_sent_cb, op_data);
+}
+
 // file is closed, free context data
 void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
 {
-    DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
+    DirEntry *en;
+    DirTreeFileOpData *op_data;
     
-    LOG_debug (DIR_TREE_LOG, "[%p] dir_tree_file_release  inode %d", op_data->http, ino);
+    LOG_debug (DIR_TREE_LOG, "[%p] dir_tree_file_release  inode %d", op_data, ino);
+
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
+
+    // if entry does not exist
+    // or it's not a directory type ?
+    if (!en) {
+        LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", ino);
+        //XXX
+        return FALSE;
+    }
+
+    op_data = (DirTreeFileOpData *) en->op_data;
+  //  op_data->en = en;
+  //  op_data->ino = ino;
     
     if (op_data->http)
         s3http_client_release (op_data->http);
     
     // releasing written file
     if (op_data->tmp_write_fd) {
-        s3http_connection_file_send (dtree->http_con, op_data->tmp_write_fd, op_data->en->fullpath);
-        close (op_data->tmp_write_fd);
-        //XXX: update dir Tree ?
+        if (!s3client_pool_get_client (application_get_write_client_pool (dtree->app), dir_tree_file_release_on_http_ready, op_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get S3HttpConnection from the pool !");
+        }
+    } else {
+        file_op_data_destroy (op_data);
     }
-
-    g_free (op_data);
 }
 
-static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3HttpClient *http, off_t off, size_t size);
+/*{{{ file read*/
+static void dir_tree_file_open_on_http_ready (gpointer client, gpointer ctx)
+{
+    S3HttpClient *http = (S3HttpClient *) client;
+    DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
+    DirTreeFileRange *range;
+
+    LOG_debug (DIR_TREE_LOG, "[%p] Acquired http client %s", op_data, op_data->en->fullpath);
+    
+    s3http_client_acquire (http);
+    op_data->http = http;
+    
+    if (op_data->file_open_cb)
+        op_data->file_open_cb (op_data->c_req, TRUE, op_data->c_fi);
+    
+    op_data->c_req = NULL;
+    op_data->c_size = 0;
+    op_data->c_req = 0;
+    op_data->op_in_progress = FALSE;
+
+    // get the first chunk request
+    range = g_queue_pop_head (op_data->q_ranges_requested);
+    if (range) {
+        op_data->c_size = range->size;
+        op_data->c_off = range->off;
+        op_data->c_req = range->c_req;
+        g_free (range);
+
+        LOG_debug (DIR_TREE_LOG, "[%p %p] S3HTTP client is ready for Read Object inode %"INO_FMT", path: %s", 
+            op_data->c_req, http, op_data->ino, op_data->en->fullpath);
+
+        op_data->op_in_progress = TRUE;
+
+        // perform the first request
+        dir_tree_file_read_prepare_request (op_data, http, op_data->c_off, op_data->c_size);
+    }
+}
+
 static void dir_tree_file_read_on_last_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
 {
     gchar *buf;
     size_t buf_len;
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
+    DirTreeFileRange *range;
 
     buf_len = evbuffer_get_length (input_buf);
     buf = (gchar *) evbuffer_pullup (input_buf, buf_len);
     
-    op_data->total_read += buf_len;
-    LOG_debug (DIR_TREE_LOG, "[%p %p] lTOTAL read: %zu (req: %zu), orig size: %zu, TOTAL: %"OFF_FMT, 
-        op_data->c_req, http,
-        buf_len, op_data->c_size, op_data->en->size, op_data->total_read);
+    /*
+    range = g_queue_pop_head (op_data->q_ranges_requested);
+    if (range) {
+        op_data->c_size = range->size;
+        op_data->c_off = range->off;
+        op_data->c_req = range->c_req;
+    }
+    */
 
-    op_data->file_read_cb (op_data->c_req, TRUE, buf, buf_len);
+    op_data->total_read += buf_len;
+    LOG_debug (DIR_TREE_LOG, "[%p %p] lTOTAL read: %zu (req: %zu), orig size: %zu, TOTAL: %"OFF_FMT", Qsize: %zu", 
+        op_data->c_req, http,
+        buf_len, op_data->c_size, op_data->en->size, op_data->total_read, g_queue_get_length (op_data->q_ranges_requested));
+    
+    if (op_data->file_read_cb)
+        op_data->file_read_cb (op_data->c_req, TRUE, buf, buf_len);
+
     evbuffer_drain (input_buf, buf_len);
     
     // if there are more pending chunk requests 
     if (g_queue_get_length (op_data->q_ranges_requested) > 0) {
-        DirTreeFileRange *range;
         range = g_queue_pop_head (op_data->q_ranges_requested);
+        LOG_debug (DIR_TREE_LOG, "[%p] more data: %zd", range->c_req, range->size);
         op_data->c_size = range->size;
         op_data->c_off = range->off;
         op_data->c_req = range->c_req;
+        g_free (range);
 
+        op_data->op_in_progress = TRUE;
         // perform the next chunk request
-        dir_tree_file_read_prepare_request (op_data, http, range->off, range->size);
+        dir_tree_file_read_prepare_request (op_data, http, op_data->c_off, op_data->c_size);
     } else {
         LOG_debug (DIR_TREE_LOG, "Done downloading !!");
         op_data->op_in_progress = FALSE;
@@ -613,7 +776,6 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     gchar *auth_str;
     char time_str[100];
     time_t t = time (NULL);
-    gchar res[1024];
     gchar auth_key[300];
     gchar *url;
     gchar range[300];
@@ -626,11 +788,11 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     s3http_client_set_output_length (http, 0);
     
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-    snprintf (res, sizeof (res), "/%s%s", application_get_bucket_name (op_data->dtree->app), op_data->en->fullpath);
 
- //   auth_str = s3http_connection_get_auth_string (op_data->dtree->http_con, "GET", "", res);
+    auth_str = s3http_connection_get_auth_string (op_data->dtree->app, "GET", "", op_data->en->fullpath, time_str);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (op_data->dtree->app), auth_str);
     snprintf (range, sizeof (range), "bytes=%"OFF_FMT"-%"OFF_FMT, off, off+size - 1);
+    LOG_debug (DIR_TREE_LOG, "range: %s", range);
 
     s3http_client_add_output_header (http, 
         "Authorization", auth_key);
@@ -639,50 +801,12 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     s3http_client_add_output_header (http,
         "Range", range);
 
-    url = g_strdup_printf ("http://%s%s", application_get_bucket_url (op_data->dtree->app), op_data->en->fullpath);
+    url = g_strdup_printf ("http://%s%s", application_get_bucket_uri_str (op_data->dtree->app), op_data->en->fullpath);
     
     s3http_client_start_request (http, S3Method_get, url);
 
     g_free (auth_str);
     g_free (url);
-}
-
-
-// S3HttpClient is ready for the new request execution
-// prepare and execute read object call
-static void dir_tree_file_op_on_S3HttpClient_cb (S3HttpClient *http, gpointer pool_ctx)
-{
-    DirTreeFileOpData *op_data = (DirTreeFileOpData *) pool_ctx;
-    DirTreeFileRange *range;
-
-    op_data->http = http;
-    s3http_client_acquire (op_data->http);
-    
-    // get the first chunk request
-    range = g_queue_pop_head (op_data->q_ranges_requested);
-    if (range && op_data->file_read_cb) {
-        op_data->c_size = range->size;
-        op_data->c_off = range->off;
-        op_data->c_req = range->c_req;
-
-    LOG_debug (DIR_TREE_LOG, "[%p %p] S3HTTP client is ready for Read Object inode %"INO_FMT", path: %s", 
-        op_data->c_req, http, op_data->ino, op_data->en->fullpath);
-
-        // perform the first request
-        dir_tree_file_read_prepare_request (op_data, http, range->off, range->size);
-    } else if (range && op_data->file_write_cb) {
-    LOG_debug (DIR_TREE_LOG, "[%p] S3HTTP client is ready for Write Object inode %"INO_FMT", path: %s", 
-         http, op_data->ino, op_data->en->fullpath);
-
-        ssize_t out_size;
-        //XXX: here decide if switch to multi part upload
-        out_size = pwrite (op_data->tmp_write_fd, range->write_buf, range->size, range->off);
-        if (out_size < 0) {
-            op_data->file_write_cb (range->c_req, FALSE, 0);
-            return;
-        } else
-            op_data->file_write_cb (range->c_req, TRUE, out_size);
-    }
 }
 
 // add new chunk range to the chunks pending queue
@@ -693,23 +817,8 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
 {
     DirEntry *en;
     char full_name[1024];
-    DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
+    DirTreeFileOpData *op_data;
     DirTreeFileRange *range;
-    
-    LOG_debug (DIR_TREE_LOG, "[%p] Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, req, ino, size, off);
-
-    op_data->file_read_cb = file_read_cb;
-
-    range = g_new0 (DirTreeFileRange, 1);
-    range->off = off;
-    range->size = size;
-    range->c_req = req;
-    g_queue_push_tail (op_data->q_ranges_requested, range);
-
-    // already reading data
-    if (op_data->op_in_progress) {
-        return;
-    }
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -720,10 +829,46 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
         file_read_cb (req, FALSE, NULL, 0);
         return;
     }
-
+    
+    op_data = (DirTreeFileOpData *) en->op_data;
+    
+    LOG_debug (DIR_TREE_LOG, "[%p %p] Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, req, op_data, ino, size, off);
+    
+    op_data->file_read_cb = file_read_cb;
     op_data->en = en;
-    op_data->op_in_progress = TRUE;
+    op_data->dtree = dtree;
+
+    range = g_new0 (DirTreeFileRange, 1);
+    range->off = off;
+    range->size = size;
+    range->c_req = req;
+    g_queue_push_tail (op_data->q_ranges_requested, range);
+    LOG_debug (DIR_TREE_LOG, "[%p] more data b: %zd", range->c_req, range->size);
+
+    // already reading data
+    if (op_data->op_in_progress) {
+        return;
+    }
+
+    if (op_data->http) {
+        LOG_debug (DIR_TREE_LOG, "Adding from main");
+        range = g_queue_pop_head (op_data->q_ranges_requested);
+        if (range) {
+            op_data->c_size = range->size;
+            op_data->c_off = range->off;
+            op_data->c_req = range->c_req;
+            g_free (range);
+            
+            // perform the next chunk request
+            op_data->op_in_progress = TRUE;
+            dir_tree_file_read_prepare_request (op_data, op_data->http, op_data->c_off, op_data->c_size);
+        }
+        
+        return;
+    }
+
 }
+/*}}}*/
 
 /*{{{ file write */
 
@@ -734,10 +879,8 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     struct fuse_file_info *fi)
 {
     DirEntry *en;
-    DirTreeFileOpData *op_data = (DirTreeFileOpData *) fi->fh;
+    DirTreeFileOpData *op_data;
     ssize_t out_size;
-    
-    LOG_debug (DIR_TREE_LOG, "Writing Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
 
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -748,9 +891,12 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
         file_write_cb (req, FALSE,  0);
         return;
     }
+    
+    op_data = (DirTreeFileOpData *) en->op_data;
+    
+    LOG_debug (DIR_TREE_LOG, "[%p] Writing Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, op_data, ino, size, off);
 
-    op_data->file_write_cb = file_write_cb;
-
+    // if tmp file is not opened
     if (!op_data->tmp_write_fd) {
         char filename[1024];
 
@@ -764,6 +910,10 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
             return;
         }
     }
+
+    // if http client is not acquired yet
+    //if (!op_data->con_http) {
+    //}
     
     //XXX: here decide if switch to multi part upload
     out_size = pwrite (op_data->tmp_write_fd, buf, size, off);
@@ -776,11 +926,78 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
 }
 /*}}}*/
 
-gboolean dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino)
-{
+/*{{{ file remove*/
+
+typedef struct {
+    DirTree *dtree;
     DirEntry *en;
+    fuse_ino_t ino;
+    DirTree_file_remove_cb file_remove_cb;
+    fuse_req_t req;
+} FileRemoveData;
+
+// file is removed
+static void dir_tree_file_remove_on_http_client_data_cb (S3HttpConnection *http_con, gpointer ctx, const gchar *buf, size_t buf_len)
+{
+    FileRemoveData *data = (FileRemoveData *) ctx;
+    
+    data->en->age = 0;
+    dir_tree_entry_modified (data->dtree, data->en);
+    data->file_remove_cb (data->req, TRUE);
+
+    g_free (data);
+    
+    s3http_connection_release (http_con);
+}
+
+// error 
+static void dir_tree_file_remove_on_http_client_error_cb (S3HttpConnection *http_con, gpointer ctx)
+{
+    FileRemoveData *data = (FileRemoveData *) ctx;
+    
+    data->file_remove_cb (data->req, FALSE);
+
+    g_free (data);
+    
+    s3http_connection_release (http_con);
+}
+
+// HTTP client is ready for a new request
+static void dir_tree_file_remove_on_http_client_cb (gpointer client, gpointer ctx)
+{
+    S3HttpConnection *http_con = (S3HttpConnection *) client;
+    FileRemoveData *data = (FileRemoveData *) ctx;
     gchar *req_path;
     gboolean res;
+
+    s3http_connection_acquire (http_con);
+
+    req_path = g_strdup_printf ("%s", data->en->fullpath);
+
+    res = s3http_connection_make_request (http_con, 
+        req_path, req_path, "DELETE", 
+        NULL,
+        dir_tree_file_remove_on_http_client_data_cb,
+        dir_tree_file_remove_on_http_client_error_cb,
+        data
+    );
+
+    g_free (req_path);
+
+    if (!res) {
+        LOG_err (DIR_TREE_LOG, "Failed to create HTTP request !");
+        data->file_remove_cb (data->req, FALSE);
+        
+        s3http_connection_release (http_con);
+        g_free (data);
+    }
+}
+
+// remove file
+gboolean dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remove_cb file_remove_cb, fuse_req_t req)
+{
+    DirEntry *en;
+    FileRemoveData *data;
     
     LOG_debug (DIR_TREE_LOG, "Removing  inode %"INO_FMT, ino);
 
@@ -790,34 +1007,60 @@ gboolean dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino)
     // or it's not a directory type ?
     if (!en) {
         LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", ino);
+        file_remove_cb (req, FALSE);
         return FALSE;
     }
 
     if (en->type != DET_file) {
         LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") is not a file !", ino);
+        file_remove_cb (req, FALSE);
         return FALSE;
     }
 
-    req_path = g_strdup_printf ("%s", en->fullpath);
+    data = g_new0 (FileRemoveData, 1);
+    data->dtree = dtree;
+    data->ino = ino;
+    data->en = en;
+    data->file_remove_cb = file_remove_cb;
+    data->req = req;
 
-    res = s3http_connection_make_request (dtree->http_con, 
-        req_path, req_path, "DELETE", 
-        NULL,
-        NULL,
-        NULL,
-        NULL
-    );
-
-    g_free (req_path);
-
-    if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create HTTP request !");
-        return FALSE;
-    }
-
-    //
-    en->age = 0;
-    dir_tree_entry_modified (dtree, en);
-
+    s3client_pool_get_client (application_get_ops_client_pool (dtree->app),
+        dir_tree_file_remove_on_http_client_cb, data);
+        
     return TRUE;
+}
+/*}}}*/
+
+void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
+     dir_tree_mkdir_cb mkdir_cb, fuse_req_t req)
+{
+    DirEntry *dir_en, *en;
+    DirTreeFileOpData *op_data;
+    
+    LOG_debug (DIR_TREE_LOG, "Creating dir: %s", name);
+    
+    dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
+    
+    // entry not found
+    if (!dir_en || dir_en->type != DET_dir) {
+        LOG_msg (DIR_TREE_LOG, "Directory (%"INO_FMT") not found !", parent_ino);
+        mkdir_cb (req, FALSE, 0, 0, 0, 0);
+        return;
+    }
+    
+    // create a new entry
+    en = dir_tree_add_entry (dtree, name, mode, DET_dir, parent_ino, 10, time (NULL));
+    if (!en) {
+        LOG_msg (DIR_TREE_LOG, "Failed to create dir: %s !", name);
+        mkdir_cb (req, FALSE, 0, 0, 0, 0);
+        return;
+    }
+
+    //XXX: set as new 
+    en->is_modified = FALSE;
+    // do not delete it
+    en->age = G_MAXUINT32;
+    en->mode = DIR_DEFAULT_MODE;
+
+    mkdir_cb (req, TRUE, en->ino, en->mode, en->size, en->ctime);
 }

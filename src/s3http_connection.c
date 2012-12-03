@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,10 +57,9 @@ gpointer s3http_connection_create (Application *app)
     );
 
     // XXX: implement SSL
-    con->evcon = evhttp_connection_base_bufferevent_new (
+    con->evcon = evhttp_connection_base_new (
         application_get_evbase (app),
         application_get_dnsbase (app),
-        NULL,
         evhttp_uri_get_host (con->s3_uri),
         port
     );

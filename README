@@ -1,7 +1,7 @@
-Requirements:
+Requirements (all libraries and versions are compatible with Ubuntu 12.04 LTS):
 * glib-2.0 >= 2.32
-* fuse >= 2.9.1
-* libevent >= 2.1
+* fuse >= 2.8.4
+* libevent >= 2.0
 * libxml-2.0 >= 2.6
 * libcrypto >= 0.9
 

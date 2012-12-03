@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
 #ifndef _GLOBAL_H_
 #define _GLOBAL_H_
 
@@ -64,6 +80,7 @@ typedef struct _S3HttpConnection S3HttpConnection;
 typedef struct _DirTree DirTree;
 typedef struct _S3Fuse S3Fuse;
 typedef struct _S3ClientPool S3ClientPool;
+typedef enum _LogLevel LogLevel;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
@@ -78,9 +95,10 @@ S3ClientPool *application_get_write_client_pool (Application *app);
 S3ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 
-gint log_level;
+#include "log.h" 
 
-#include "include/log.h" 
+LogLevel log_level;
+
 #define OFF_FMT "ju"
 #define INO_FMT "llu"
 

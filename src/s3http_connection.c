@@ -1,4 +1,20 @@
-#include "include/s3http_connection.h"
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+#include "s3http_connection.h"
 
 /*{{{ struct*/
 
@@ -63,9 +79,12 @@ gpointer s3http_connection_create (Application *app)
 }
 
 // destory S3HttpConnection
-void s3http_connection_destroy (S3HttpConnection *con)
+void s3http_connection_destroy (gpointer data)
 {
+    S3HttpConnection *con = (S3HttpConnection *) data;
+
     evhttp_connection_free (con->evcon);
+    g_free (con->bucket_name);
     g_free (con);
 }
 /*}}}*/
@@ -126,10 +145,10 @@ struct evhttp_connection *s3http_connection_get_evcon (S3HttpConnection *con)
 /*{{{ get_auth_string */
 // create S3 auth string
 // http://docs.amazonwebservices.com/AmazonS3/2006-03-01/dev/RESTAuthentication.html
-const gchar *s3http_connection_get_auth_string (Application *app, 
+gchar *s3http_connection_get_auth_string (Application *app, 
         const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str)
 {
-    const gchar *string_to_sign;
+    gchar *string_to_sign;
     unsigned int md_len;
     unsigned char md[EVP_MAX_MD_SIZE];
     gchar *res;
@@ -161,6 +180,7 @@ const gchar *s3http_connection_get_auth_string (Application *app,
         (unsigned char *)string_to_sign, strlen (string_to_sign),
         md, &md_len
     );
+    g_free (string_to_sign);
     
     b64 = BIO_new (BIO_f_base64 ());
     bmem = BIO_new (BIO_s_mem ());
@@ -223,7 +243,7 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
 {
     RequestData *data = (RequestData *) ctx;
     struct evbuffer *inbuf;
-    const char *buf;
+    const char *buf = NULL;
     size_t buf_len;
 
     LOG_debug (CON_LOG, "Got HTTP response from server !");
@@ -266,7 +286,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     S3HttpConnection_error_cb error_cb,
     gpointer ctx)
 {
-    const gchar *auth_str;
+    gchar *auth_str;
     struct evhttp_request *req;
     gchar auth_key[300];
 	time_t t;
@@ -296,6 +316,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
     auth_str = s3http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (con->app), auth_str);
+    g_free (auth_str);
 
     req = evhttp_request_new (s3http_connection_on_responce_cb, data);
     if (!req) {

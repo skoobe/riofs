@@ -1,5 +1,21 @@
-#include "include/s3http_connection.h"
-#include "include/dir_tree.h"
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+#include "s3http_connection.h"
+#include "dir_tree.h"
 
 typedef struct {
     Application *app;
@@ -7,6 +23,7 @@ typedef struct {
     S3HttpConnection *con;
     gchar *resource_path;
     gchar *dir_path;
+    gchar *dir_path_orig; // save ptr
     fuse_ino_t ino;
     gint max_keys;
     S3HttpConnection_directory_listing_callback directory_listing_callback;
@@ -49,23 +66,27 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         key = xmlXPathEvalExpression ((xmlChar *) "s3:Key", ctx);
         key_nodes = key->nodesetval;
         name = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
+        xmlXPathFreeObject (key);
         
         key = xmlXPathEvalExpression ((xmlChar *) "s3:Size", ctx);
         key_nodes = key->nodesetval;
         size = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
+        xmlXPathFreeObject (key);
         
-        if (!strcmp (name, dir_list->dir_path))
+        if (!strcmp (name, dir_list->dir_path)) {
+            xmlFree (size);
+            xmlFree (name);
             continue;
-
-        bname = strstr (name, dir_list->dir_path);
-        bname = bname + strlen (dir_list->dir_path);
+        }
 
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
         dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino, bname, atoll (size));
-
-        xmlXPathFreeObject(key);
+        
+        xmlFree (size);
+        xmlFree (name);
     }
+
     xmlXPathFreeObject (contents_xp);
 
     // directories
@@ -80,7 +101,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         key = xmlXPathEvalExpression((xmlChar *) "s3:Prefix", ctx);
         key_nodes = key->nodesetval;
         name = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
-            
+        xmlXPathFreeObject(key);
 
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
@@ -91,7 +112,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         
         dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_dir, dir_list->ino, bname, 0);
 
-        xmlXPathFreeObject(key);
+        xmlFree (name);
     }
 
     xmlXPathFreeObject (subdirs_xp);
@@ -107,7 +128,7 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
     xmlXPathContextPtr ctx;
     xmlXPathObjectPtr marker_xp;
     xmlNodeSetPtr nodes;
-    char *next_marker;
+    char *next_marker = NULL;
 
     doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
     ctx = xmlXPathNewContext (doc);
@@ -121,9 +142,9 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
         next_marker = (char *) xmlNodeListGetString (doc, nodes->nodeTab[0]->xmlChildrenNode, 1);
     }
 
-    xmlXPathFreeObject(marker_xp);
-    xmlXPathFreeContext(ctx);
-    xmlFreeDoc(doc);
+    xmlXPathFreeObject (marker_xp);
+    xmlXPathFreeContext (ctx);
+    xmlFreeDoc (doc);
 
     return next_marker;
 }
@@ -144,6 +165,8 @@ static void s3http_connection_on_directory_listing_error (S3HttpConnection *con,
     // release HTTP client
     s3http_connection_release (con);
     
+    g_free (dir_req->dir_path_orig);
+    g_free (dir_req->resource_path);
     g_free (dir_req);
 }
 
@@ -151,13 +174,16 @@ static void s3http_connection_on_directory_listing_error (S3HttpConnection *con,
 static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, const gchar *buf, size_t buf_len)
 {   
     DirListRequest *dir_req = (DirListRequest *) ctx;
-    const gchar *next_marker;
+    const gchar *next_marker = NULL;
     gchar *req_path;
     gboolean res;
    
-    if (!buf_len) {
+    if (!buf_len || !buf) {
         LOG_err (CON_DIR_LOG, "Directory buffer is empty !");
         s3http_connection_on_directory_listing_error (con, (void *) dir_req);
+        g_free (dir_req->dir_path_orig);
+        g_free (dir_req->resource_path);
+        g_free (dir_req);
         return;
     }
    
@@ -178,7 +204,9 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
         
         // release HTTP client
         s3http_connection_release (con);
-
+        
+        g_free (dir_req->dir_path_orig);
+        g_free (dir_req->resource_path);
         g_free (dir_req);
         return;
     }
@@ -186,6 +214,8 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
     // execute HTTP request
     req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%d&marker=%s", dir_req->dir_path, dir_req->max_keys, next_marker);
     
+    xmlFree ((void *) next_marker);
+
     res = s3http_connection_make_request (dir_req->con, 
         dir_req->resource_path, req_path, "GET", NULL,
         s3http_connection_on_directory_listing_data,
@@ -231,9 +261,11 @@ gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const g
     //XXX: fix dir_path
     if (!strcmp (dir_path, "/")) {
         dir_req->dir_path = g_strdup ("");
+        dir_req->dir_path_orig = dir_req->dir_path;
         dir_req->resource_path = g_strdup_printf ("/");
     } else {
         dir_req->dir_path = g_strdup_printf ("%s/", dir_path);
+        dir_req->dir_path_orig = dir_req->dir_path;
         dir_req->dir_path = dir_req->dir_path + 1;
         dir_req->resource_path = g_strdup_printf ("/");
     }

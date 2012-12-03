@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir)/include
+AM_CPPFLAGS = -I$(top_srcdir)/include -D_FILE_OFFSET_BITS=64 
 bin_PROGRAMS = s3ffs
 s3ffs_SOURCES = log.c
 s3ffs_SOURCES += dir_tree.c  

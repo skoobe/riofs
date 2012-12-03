@@ -1,5 +1,21 @@
-#include "include/global.h"
-#include "include/s3client_pool.h"
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+#include "global.h"
+#include "s3client_pool.h"
 
 struct _S3ClientPool {
     Application *app;
@@ -13,6 +29,7 @@ struct _S3ClientPool {
 typedef struct {
     S3ClientPool *pool;
     S3ClientPool_client_check_rediness client_check_rediness; // is client ready for a new request
+    S3ClientPool_client_destroy client_destroy;
     gpointer client;
 } PoolClient;
 
@@ -31,6 +48,7 @@ static void s3client_pool_on_client_released (gpointer client, gpointer ctx);
 S3ClientPool *s3client_pool_create (Application *app, 
     gint client_count,
     S3ClientPool_client_create client_create, 
+    S3ClientPool_client_destroy client_destroy, 
     S3ClientPool_client_set_on_released_cb client_set_on_released_cb,
     S3ClientPool_client_check_rediness client_check_rediness)
 {
@@ -51,6 +69,7 @@ S3ClientPool *s3client_pool_create (Application *app,
         pc->pool = pool;
         pc->client = client_create (app);
         pc->client_check_rediness = client_check_rediness;
+        pc->client_destroy = client_destroy;
         // add to the list
         pool->l_clients = g_list_append (pool->l_clients, pc);
         // add callback
@@ -68,6 +87,7 @@ void s3client_pool_destroy (S3ClientPool *pool)
     g_queue_free_full (pool->q_requests, g_free);
     for (l = g_list_first (pool->l_clients); l; l = g_list_next (l)) {
         pc = (PoolClient *) l->data;
+        pc->client_destroy (pc->client);
         g_free (pc);
     }
     g_list_free (pool->l_clients);

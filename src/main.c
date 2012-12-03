@@ -1,9 +1,25 @@
-#include "include/global.h"
-#include "include/s3http_connection.h"
-#include "include/dir_tree.h"
-#include "include/s3fuse.h"
-#include "include/s3client_pool.h"
-#include "include/s3http_client.h"
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+#include "global.h"
+#include "s3http_connection.h"
+#include "dir_tree.h"
+#include "s3fuse.h"
+#include "s3client_pool.h"
+#include "s3http_client.h"
 
 #define APP_LOG "main"
 
@@ -29,6 +45,7 @@ struct _Application {
     gchar *tmp_dir;
 };
 
+/*{{{ getters */
 struct event_base *application_get_evbase (Application *app)
 {
     return app->evbase;
@@ -69,7 +86,6 @@ S3ClientPool *application_get_ops_client_pool (Application *app)
     return app->ops_client_pool;
 }
 
-
 const gchar *application_get_bucket_uri_str (Application *app)
 {
     return app->uri_str;
@@ -89,6 +105,7 @@ const gchar *application_get_tmp_dir (Application *app)
 {
     return app->tmp_dir;
 }
+/*}}}*/
 
 /*{{{ signal handlers */
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
@@ -225,13 +242,14 @@ int main (int argc, char *argv[])
     app->bucket_name = g_strdup (argv[2]);
     app->uri_str = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->uri));
 
-    log_level = 1;
-    //log_level = 10;
+    //log_level = 1;
+    log_level = 10;
     /*}}}*/
     
     // create S3ClientPool for reading operations
     app->read_client_pool = s3client_pool_create (app, 1,
         s3http_client_create,
+        s3http_client_destroy,
         s3http_client_set_on_released_cb,
         s3http_client_check_rediness
         );
@@ -240,9 +258,10 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    // create S3ClientPool for reading operations
+    // create S3ClientPool for writing operations
     app->write_client_pool = s3client_pool_create (app, 2,
         s3http_connection_create,
+        s3http_connection_destroy,
         s3http_connection_set_on_released_cb,
         s3http_connection_check_rediness
         );
@@ -251,10 +270,10 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-
     // create S3ClientPool for various operations
     app->ops_client_pool = s3client_pool_create (app, 4,
         s3http_connection_create,
+        s3http_connection_destroy,
         s3http_connection_set_on_released_cb,
         s3http_connection_check_rediness
         );
@@ -262,16 +281,6 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Failed to create S3ClientPool !");
         return -1;
     }
-
-    
-    // create S3ClientPool for writing operations
-    /*
-    app->write_client_pool = s3client_pool_create (app, 2, s3http_connection_create);
-    if (!app->s3client_pool) {
-        LOG_err (APP_LOG, "Failed to create S3ClientPool !");
-        return -1;
-    }
-    */
 
 /*{{{ DirTree*/
     app->dir_tree = dir_tree_create (app);
@@ -281,7 +290,7 @@ int main (int argc, char *argv[])
     }
 /*}}}*/
 
-    /*{{{ FUSE*/
+/*{{{ FUSE*/
     argv += 2;
     argc -= 2;
     app->s3fuse = s3fuse_new (app, argc, argv);
@@ -325,5 +334,31 @@ int main (int argc, char *argv[])
     // destroy S3Fuse 
     s3fuse_destroy (app->s3fuse);
 
+    s3client_pool_destroy (app->read_client_pool);
+    s3client_pool_destroy (app->write_client_pool);
+    s3client_pool_destroy (app->ops_client_pool);
+
+    dir_tree_destroy (app->dir_tree);
+
+    event_free (sigint_ev);
+    event_free (sigpipe_ev);
+    event_free (sigusr1_ev);
+
+    evdns_base_free (app->dns_base, 0);
+    event_base_free (app->evbase);
+
+    g_free (app->tmp_dir);
+    g_free (app->bucket_name);
+    g_free (app->uri_str);
+    evhttp_uri_free (app->uri);
+
+    g_free (app);
+    
+    ENGINE_cleanup ();
+    CRYPTO_cleanup_all_ex_data ();
+	ERR_free_strings ();
+	ERR_remove_thread_state (NULL);
+	CRYPTO_mem_leaks_fp (stderr);
+    
     return 0;
 }

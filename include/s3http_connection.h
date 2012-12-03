@@ -1,8 +1,24 @@
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
 #ifndef _S3_HTTP_CONNECTION_H_
 #define _S3_HTTP_CONNECTION_H_
 
-#include "include/global.h"
-#include "include/s3client_pool.h"
+#include "global.h"
+#include "s3client_pool.h"
 
 typedef enum {
     RT_list = 0,
@@ -24,9 +40,9 @@ struct _S3HttpConnection {
 
 
 gpointer s3http_connection_create (Application *app);
-void s3http_connection_destroy (S3HttpConnection *con);
+void s3http_connection_destroy (gpointer data);
 
-const gchar *s3http_connection_get_auth_string (Application *app, 
+gchar *s3http_connection_get_auth_string (Application *app, 
         const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str);
 
 void s3http_connection_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx);

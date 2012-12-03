@@ -1,8 +1,24 @@
-#include "include/dir_tree.h"
-#include "include/s3fuse.h"
-#include "include/s3http_connection.h"
-#include "include/s3http_client.h"
-#include "include/s3client_pool.h"
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+#include "dir_tree.h"
+#include "s3fuse.h"
+#include "s3http_connection.h"
+#include "s3http_client.h"
+#include "s3client_pool.h"
 
 typedef struct {
     fuse_ino_t ino;
@@ -48,6 +64,7 @@ struct _DirTree {
 static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode_t mode, 
     DirEntryType type, fuse_ino_t parent_ino, off_t size, time_t ctime);
 static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en);
+static void dir_entry_destroy (gpointer data);
 
 DirTree *dir_tree_create (Application *app)
 {
@@ -55,6 +72,7 @@ DirTree *dir_tree_create (Application *app)
 
     dtree = g_new0 (DirTree, 1);
     dtree->app = app;
+    // children entries are destroyed by parent directory entries
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
     dtree->current_age = 0;
@@ -70,6 +88,8 @@ DirTree *dir_tree_create (Application *app)
 
 void dir_tree_destroy (DirTree *dtree)
 {
+    g_hash_table_destroy (dtree->h_inodes);
+    dir_entry_destroy (dtree->root);
     g_free (dtree);
 }
 
@@ -77,9 +97,15 @@ void dir_tree_destroy (DirTree *dtree)
 static void dir_entry_destroy (gpointer data)
 {
     DirEntry *en = (DirEntry *) data;
+
+    if (!en)
+        return;
+
     // recursively delete entries
     if (en->h_dir_tree)
         g_hash_table_destroy (en->h_dir_tree);
+    if (en->dir_cache)
+        g_free (en->dir_cache);
     g_free (en->basename);
     g_free (en->fullpath);
     g_free (en);
@@ -643,7 +669,7 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_inf
     DirEntry *en;
     DirTreeFileOpData *op_data;
     
-    LOG_debug (DIR_TREE_LOG, "[%p] dir_tree_file_release  inode %d", op_data, ino);
+    LOG_debug (DIR_TREE_LOG, "dir_tree_file_release  inode %d", ino);
 
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -652,7 +678,7 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_inf
     if (!en) {
         LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", ino);
         //XXX
-        return FALSE;
+        return;
     }
 
     op_data = (DirTreeFileOpData *) en->op_data;
@@ -712,7 +738,7 @@ static void dir_tree_file_open_on_http_ready (gpointer client, gpointer ctx)
 
 static void dir_tree_file_read_on_last_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
 {
-    gchar *buf;
+    gchar *buf = NULL;
     size_t buf_len;
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
     DirTreeFileRange *range;
@@ -758,6 +784,7 @@ static void dir_tree_file_read_on_last_chunk_cb (S3HttpClient *http, struct evbu
 }
 
 // the part of chunk is received
+/* unused for now
 static void dir_tree_file_read_on_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
 {
     gchar *buf;
@@ -769,6 +796,7 @@ static void dir_tree_file_read_on_chunk_cb (S3HttpClient *http, struct evbuffer 
     
     // LOG_debug (DIR_TREE_LOG, "Read Object onData callback, in size: %zu", buf_len);
 }
+*/
 
 // prepare HTTP request
 static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3HttpClient *http, off_t off, size_t size)
@@ -783,14 +811,15 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     s3http_client_request_reset (http);
 
     s3http_client_set_cb_ctx (http, op_data);
-    s3http_client_set_on_chunk_cb (http, dir_tree_file_read_on_chunk_cb);
+//    s3http_client_set_on_chunk_cb (http, dir_tree_file_read_on_chunk_cb);
     s3http_client_set_on_last_chunk_cb (http, dir_tree_file_read_on_last_chunk_cb);
     s3http_client_set_output_length (http, 0);
     
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 
-    auth_str = s3http_connection_get_auth_string (op_data->dtree->app, "GET", "", op_data->en->fullpath, time_str);
+    auth_str = (gchar *)s3http_connection_get_auth_string (op_data->dtree->app, "GET", "", op_data->en->fullpath, time_str);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (op_data->dtree->app), auth_str);
+    g_free (auth_str);
     snprintf (range, sizeof (range), "bytes=%"OFF_FMT"-%"OFF_FMT, off, off+size - 1);
     LOG_debug (DIR_TREE_LOG, "range: %s", range);
 

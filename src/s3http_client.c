@@ -1,4 +1,20 @@
-#include "include/s3http_client.h"
+/*
+ * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+#include "s3http_client.h"
 
 /*{{{ declaration */
 
@@ -110,6 +126,9 @@ gpointer s3http_client_create (Application *app)
     http->input_buffer = evbuffer_new ();
     
     http->bev = NULL;
+    http->http_uri = NULL;
+    http->l_input_headers = NULL;
+    http->l_output_headers = NULL;
 
     s3http_client_request_reset (http);
 
@@ -117,14 +136,20 @@ gpointer s3http_client_create (Application *app)
 }
 
 // destroy S3HttpClient object
-void s3http_client_destroy (S3HttpClient *http)
+void s3http_client_destroy (gpointer data)
 {
-    bufferevent_free (http->bev);
-    evhttp_uri_free (http->http_uri);
+    S3HttpClient *http = (S3HttpClient *) data;
+    
+    if (http->bev)
+        bufferevent_free (http->bev);
+    if (http->http_uri)
+        evhttp_uri_free (http->http_uri);
     evbuffer_free (http->output_buffer);
     evbuffer_free (http->input_buffer);
-    s3http_client_free_headers (http->l_input_headers);
-    s3http_client_free_headers (http->l_output_headers);
+    if (http->l_input_headers)
+        s3http_client_free_headers (http->l_input_headers);
+    if (http->l_output_headers)
+        s3http_client_free_headers (http->l_output_headers);
     if (http->response_code_line)
         g_free (http->response_code_line);
     g_free (http->url);

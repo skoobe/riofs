@@ -1,1 +1,2 @@
-SUBDIRS=src tests
+SUBDIRS=src include tests
+EXTRA_DIST = autogen.sh

@@ -71,7 +71,8 @@ typedef void (*S3HttpConnection_on_entry_sent_cb) (gpointer ctx, gboolean succes
 gboolean s3http_connection_file_send (S3HttpConnection *con, int fd, const gchar *resource_path, 
     S3HttpConnection_on_entry_sent_cb on_entry_sent_cb, gpointer ctx);
 
-typedef void (*S3HttpConnection_responce_cb) (S3HttpConnection *con, gpointer ctx, const gchar *buf, size_t buf_len);
+typedef void (*S3HttpConnection_responce_cb) (S3HttpConnection *con, gpointer ctx, 
+        const gchar *buf, size_t buf_len, struct evkeyvalq *headers);
 typedef void (*S3HttpConnection_error_cb) (S3HttpConnection *con, gpointer ctx);
 
 gboolean s3http_connection_make_request (S3HttpConnection *con, 

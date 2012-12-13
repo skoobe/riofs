@@ -31,6 +31,9 @@ struct _Application {
     S3Fuse *s3fuse;
     DirTree *dir_tree;
 
+    S3HttpConnection *service_con;
+    gint service_con_redirects;
+
     S3ClientPool *write_client_pool;
     S3ClientPool *read_client_pool;
     S3ClientPool *ops_client_pool;
@@ -44,6 +47,13 @@ struct _Application {
     gchar *uri_str; // full path to S3 bucket
 
     gchar *tmp_dir;
+
+    gboolean foreground;
+    gchar *mountpoint;
+
+    struct event *sigint_ev;
+    struct event *sigpipe_ev;
+    struct event *sigusr1_ev;
 };
 
 /*{{{ getters */
@@ -188,108 +198,10 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
 }
 /*}}}*/
 
-static void print_usage (const char *progname)
+static gint application_finish_initialization_and_run (Application *app)
 {
-    g_fprintf (stderr, "Usage: %s [http://s3.amazonaws.com] [bucketname] [-v] [mountpoint]\n", progname);
-    g_fprintf (stderr, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !\n");
-}
-
-int main (int argc, char *argv[])
-{
-    Application *app;
-    struct event *sigint_ev = NULL;
-    struct event *sigpipe_ev = NULL;
-    struct event *sigusr1_ev = NULL;
     struct sigaction sigact;
-    gchar **s_mountpoint = NULL;
-    gboolean verbose = FALSE;
-    GError *error = NULL;
-    GOptionContext *context;
-    gchar *mountpoint;
-    gchar *progname;
-    gboolean foreground = FALSE;
 
-    GOptionEntry entries[] = {
-	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &s_mountpoint, "Mountpoint", NULL },
-        { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Do not daemonize process", NULL },
-        { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output", NULL },
-        { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
-    };
-
-    // init libraries
-    ENGINE_load_builtin_engines ();
-    ENGINE_register_all_complete ();
-
-    progname = argv[0];
-
-    // init main app structure
-    app = g_new0 (Application, 1);
-    app->evbase = event_base_new ();
-
-    //XXX: fix it
-    app->tmp_dir = g_strdup ("/tmp");
-
-    if (!app->evbase) {
-        LOG_err (APP_LOG, "Failed to create event base !");
-        return -1;
-    }
-
-    app->dns_base = evdns_base_new (app->evbase, 1);
-    if (!app->dns_base) {
-        LOG_err (APP_LOG, "Failed to create DNS base !");
-        return -1;
-    }
-
-/*{{{ cmd line args */
-    // get access parameters from the enviorment
-    // XXX: extend it
-    app->aws_access_key_id = getenv("AWSACCESSKEYID");
-    app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
-
-    if (!app->aws_access_key_id || !app->aws_secret_access_key) {
-        print_usage (progname);
-        return -1;
-    }
-
-    // XXX: parse command line
-    if (argc < 3) {
-        print_usage (progname);
-        return -1;
-    }
-
-    app->uri = evhttp_uri_parse (argv[1]);
-    if (!app->uri) {
-        print_usage (progname);
-        return -1;
-    }
-    app->bucket_name = g_strdup (argv[2]);
-    app->uri_str = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->uri));
-
-    argv += 2;
-    argc -= 2;
-
-    // parse command line options
-    context = g_option_context_new (NULL);
-    g_option_context_add_main_entries (context, entries, NULL);
-    if (!g_option_context_parse (context, &argc, &argv, &error)) {
-        g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
-        return FALSE;
-    }
-    
-    if (!s_mountpoint || g_strv_length (s_mountpoint) < 1) {
-        print_usage (progname);
-        return -1;
-    }
-    mountpoint = g_strdup (s_mountpoint[0]);
-    g_strfreev (s_mountpoint);
-
-    if (verbose)
-        log_level = LOG_debug;
-    else
-        log_level = LOG_msg;
-    
-    /*}}}*/
-    
     // create S3ClientPool for reading operations
     app->read_client_pool = s3client_pool_create (app, 1,
         s3http_client_create,
@@ -335,18 +247,17 @@ int main (int argc, char *argv[])
 /*}}}*/
 
 /*{{{ FUSE*/
-    app->s3fuse = s3fuse_new (app, mountpoint);
+    app->s3fuse = s3fuse_new (app, app->mountpoint);
     if (!app->s3fuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs !");
         return -1;
     }
-    g_free (mountpoint);
 /*}}}*/
 
 /*{{{ signal handlers*/
 	// SIGINT
-	sigint_ev = evsignal_new (app->evbase, SIGINT, sigint_cb, app);
-	event_add (sigint_ev, NULL);
+	app->sigint_ev = evsignal_new (app->evbase, SIGINT, sigint_cb, app);
+	event_add (app->sigint_ev, NULL);
 	// SIGSEGV
     sigact.sa_sigaction = sigsegv_cb;
     sigact.sa_flags = (int)SA_RESETHAND | SA_SIGINFO;
@@ -364,36 +275,113 @@ int main (int argc, char *argv[])
 		return 1;
     }
 	// SIGPIPE
-	sigpipe_ev = evsignal_new (app->evbase, SIGPIPE, sigpipe_cb, app);
-	event_add (sigpipe_ev, NULL);
+	app->sigpipe_ev = evsignal_new (app->evbase, SIGPIPE, sigpipe_cb, app);
+	event_add (app->sigpipe_ev, NULL);
     // SIGUSR1
-	sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
-	event_add (sigusr1_ev, NULL);
+	app->sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
+	event_add (app->sigusr1_ev, NULL);
 /*}}}*/
     
-    if (!foreground)
+    if (!app->foreground)
         fuse_daemonize (0);
 
-    // start the loop
-    event_base_dispatch (app->evbase);
+    return 0;
+}
+
+// S3 replies with error on initial HEAD request
+static void application_get_service_on_error (S3HttpConnection *con, void *ctx)
+{
+    Application *app = (Application *)ctx;
+
+    LOG_err (APP_LOG, "Failed to access S3 bucket URL !");
+
+    s3http_connection_destroy (con);
     
-    // destroy S3Fuse 
-    s3fuse_destroy (app->s3fuse);
+    event_base_loopexit (app->evbase, NULL);
+}
 
-    s3client_pool_destroy (app->read_client_pool);
-    s3client_pool_destroy (app->write_client_pool);
-    s3client_pool_destroy (app->ops_client_pool);
+// S3 replies on initial HEAD request
+static void application_get_service_on_done (S3HttpConnection *con, void *ctx, 
+        G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, struct evkeyvalq *headers)
+{
+    Application *app = (Application *)ctx;
+    const char *loc;
+    
+    // make sure it breaks infinite redirect loop
+    if (app->service_con_redirects > 20) {
+        LOG_err (APP_LOG, "Too many redirects !");
+        event_base_loopexit (app->evbase, NULL);
+        return;
+    }
+    app->service_con_redirects ++;
 
-    dir_tree_destroy (app->dir_tree);
+    loc = evhttp_find_header (headers, "Location");
+    // redirect detected, use new location
+    if (loc) {
+        s3http_connection_destroy (con);
+        
+        g_free (app->uri_str);
+        evhttp_uri_free (app->uri);
 
-    event_free (sigint_ev);
-    event_free (sigpipe_ev);
-    event_free (sigusr1_ev);
+        app->uri = evhttp_uri_parse (loc);
+        if (!app->uri) {
+            LOG_err (APP_LOG, "Invalid S3 service URL !");
+            event_base_loopexit (app->evbase, NULL);
+            return;
+        }
+        app->uri_str = g_strdup (evhttp_uri_get_host (app->uri));
+        LOG_debug (APP_LOG, "New service URL: %s", app->uri_str);
+        
+        // perform a new request
+        app->service_con = s3http_connection_create (app);
+        if (!app->service_con) {
+            LOG_err (APP_LOG, "Failed to execute a request !");
+            event_base_loopexit (app->evbase, NULL);
+            return;
+        }
+
+        if (!s3http_connection_make_request (app->service_con, "/", "/", "HEAD", NULL,
+            application_get_service_on_done, application_get_service_on_error, app)) {
+
+            LOG_err (APP_LOG, "Failed to execute a request !");
+            event_base_loopexit (app->evbase, NULL);
+            return;
+        }
+    } else {
+        application_finish_initialization_and_run (app);
+    }
+}
+
+static void application_destroy (Application *app)
+{
+    // destroy S3Fuse
+    if (app->s3fuse)
+        s3fuse_destroy (app->s3fuse);
+
+    if (app->read_client_pool)
+        s3client_pool_destroy (app->read_client_pool);
+    if (app->write_client_pool)
+        s3client_pool_destroy (app->write_client_pool);
+    if (app->ops_client_pool)
+        s3client_pool_destroy (app->ops_client_pool);
+
+    if (app->dir_tree)
+        dir_tree_destroy (app->dir_tree);
+
+    if (app->sigint_ev)
+        event_free (app->sigint_ev);
+    if (app->sigpipe_ev)
+        event_free (app->sigpipe_ev);
+    if (app->sigusr1_ev)
+        event_free (app->sigusr1_ev);
+    
+    if (app->service_con)
+        s3http_connection_destroy (app->service_con);
 
     evdns_base_free (app->dns_base, 0);
     event_base_free (app->evbase);
 
-    g_option_context_free (context);
+    g_free (app->mountpoint);
     g_free (app->tmp_dir);
     g_free (app->bucket_name);
     g_free (app->uri_str);
@@ -406,6 +394,120 @@ int main (int argc, char *argv[])
 	ERR_free_strings ();
 	ERR_remove_thread_state (NULL);
 	CRYPTO_mem_leaks_fp (stderr);
+}
+
+static void print_usage (const char *progname)
+{
+    g_fprintf (stderr, "Usage: %s [http://s3.amazonaws.com] [bucketname] [-v] [mountpoint]\n", progname);
+    g_fprintf (stderr, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !\n");
+}
+
+int main (int argc, char *argv[])
+{
+    Application *app;
+    gboolean verbose = FALSE;
+    GError *error = NULL;
+    GOptionContext *context;
+    gchar **s_mountpoint = NULL;
+    gchar *progname;
+    gboolean foreground = FALSE;
+
+    GOptionEntry entries[] = {
+	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &s_mountpoint, "Mountpoint", NULL },
+        { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Do not daemonize process", NULL },
+        { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output", NULL },
+        { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
+    };
+
+    // init libraries
+    ENGINE_load_builtin_engines ();
+    ENGINE_register_all_complete ();
+
+    progname = argv[0];
+
+    // init main app structure
+    app = g_new0 (Application, 1);
+    app->service_con_redirects = 0;
+    app->evbase = event_base_new ();
+
+    //XXX: fix it
+    app->tmp_dir = g_strdup ("/tmp");
+
+    if (!app->evbase) {
+        LOG_err (APP_LOG, "Failed to create event base !");
+        return -1;
+    }
+
+    app->dns_base = evdns_base_new (app->evbase, 1);
+    if (!app->dns_base) {
+        LOG_err (APP_LOG, "Failed to create DNS base !");
+        return -1;
+    }
+
+/*{{{ cmd line args */
+    // get access parameters from the enviorment
+    app->aws_access_key_id = getenv("AWSACCESSKEYID");
+    app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
+
+    if (!app->aws_access_key_id || !app->aws_secret_access_key) {
+        print_usage (progname);
+        return -1;
+    }
+
+    if (argc < 3) {
+        print_usage (progname);
+        return -1;
+    }
+
+    app->uri = evhttp_uri_parse (argv[1]);
+    if (!app->uri) {
+        print_usage (progname);
+        return -1;
+    }
+    app->bucket_name = g_strdup (argv[2]);
+    app->uri_str = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->uri));
+
+    argv += 2;
+    argc -= 2;
+
+    // parse command line options
+    context = g_option_context_new (NULL);
+    g_option_context_add_main_entries (context, entries, NULL);
+    if (!g_option_context_parse (context, &argc, &argv, &error)) {
+        g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
+        return FALSE;
+    }
     
+    if (!s_mountpoint || g_strv_length (s_mountpoint) < 1) {
+        print_usage (progname);
+        return -1;
+    }
+    app->mountpoint = g_strdup (s_mountpoint[0]);
+    g_strfreev (s_mountpoint);
+
+    app->foreground = foreground;
+
+    if (verbose)
+        log_level = LOG_debug;
+    else
+        log_level = LOG_msg;
+    
+    g_option_context_free (context);
+    /*}}}*/
+    
+    // perform the initial request to get S3 service URL (in case of redirect)
+    app->service_con = s3http_connection_create (app);
+    if (!app->service_con) 
+        return -1;
+
+    if (!s3http_connection_make_request (app->service_con, "/", "/", "HEAD", NULL,
+        application_get_service_on_done, application_get_service_on_error, app))
+        return -1;
+
+    // start the loop
+    event_base_dispatch (app->evbase);
+
+    application_destroy (app);
+
     return 0;
 }

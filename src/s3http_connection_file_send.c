@@ -40,7 +40,8 @@ static void s3http_connection_on_file_send_error (S3HttpConnection *con, void *c
 }
 
 
-static void s3http_connection_on_file_send_done (S3HttpConnection *con, void *ctx, const gchar *buf, size_t buf_len)
+static void s3http_connection_on_file_send_done (S3HttpConnection *con, void *ctx, 
+        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileSendData *data = (FileSendData *) ctx;
 

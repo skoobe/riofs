@@ -686,6 +686,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
+enable_debug_mode
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1321,6 +1322,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking  speeds up one-time build
   --enable-dependency-tracking   do not reject slow dependency extractors
+  --enable-debug-mode     enable support for running in debug mode
 
 Some influential environment variables:
   CC          C compiler command
@@ -3851,7 +3853,20 @@ $as_echo "yes" >&6; }
 
 fi
 
-CFLAGS="$CFLAGS -Wall -Wextra -march=native -O1 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3"
+# Check whether --enable-debug-mode was given.
+if test "${enable_debug_mode+set}" = set; then :
+  enableval=$enable_debug_mode;
+else
+  enable_debug_mode=no
+fi
+
+
+# check if we should enable verbose debugging
+if test x$enable_debug_mode = xyes; then
+    CFLAGS="$CFLAGS -Wall -Wextra -march=native -O1 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE"
+else
+    CFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -O2 -march=native"
+fi
 
 ac_config_files="$ac_config_files Makefile src/Makefile include/Makefile tests/Makefile"
 

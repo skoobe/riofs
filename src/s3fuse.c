@@ -137,6 +137,7 @@ S3Fuse *s3fuse_new (Application *app, const gchar *mountpoint)
     }
     */
 
+
     return s3fuse;
 }
 

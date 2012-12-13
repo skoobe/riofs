@@ -967,7 +967,8 @@ typedef struct {
 } FileRemoveData;
 
 // file is removed
-static void dir_tree_file_remove_on_http_client_data_cb (S3HttpConnection *http_con, gpointer ctx, const gchar *buf, size_t buf_len)
+static void dir_tree_file_remove_on_http_client_data_cb (S3HttpConnection *http_con, gpointer ctx, 
+        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileRemoveData *data = (FileRemoveData *) ctx;
     

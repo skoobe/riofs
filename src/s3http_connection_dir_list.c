@@ -172,7 +172,8 @@ static void s3http_connection_on_directory_listing_error (S3HttpConnection *con,
 }
 
 // Directory read callback function
-static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, const gchar *buf, size_t buf_len)
+static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, 
+        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     DirListRequest *dir_req = (DirListRequest *) ctx;
     const gchar *next_marker = NULL;

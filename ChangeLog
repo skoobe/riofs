@@ -1,0 +1,7 @@
+2012-12-13	Paul Ionkin   <paul.ionkin@gmail.com>
+
+	* Perform initial HEAD request to make sure bucket exists 
+	and we have permissions to access it.
+	* Handle initial redirect response to get a new S3 service URL.
+	* Delay application initialization until we get valid service URL.
+	* Add "--enable-debug-mode" configure flag to enable debug build.

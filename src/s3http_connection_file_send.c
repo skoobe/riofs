@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -49,7 +49,7 @@ static void s3http_connection_on_file_send_done (S3HttpConnection *con, void *ct
     if (data->on_entry_sent_cb)
         data->on_entry_sent_cb (data->ctx, TRUE);
     else
-        LOG_msg (CON_SEND_LOG, "No callback function !");
+        LOG_debug (CON_SEND_LOG, "No callback function !");
 
     s3http_connection_release (con);
     

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -433,14 +433,14 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
     en = g_hash_table_lookup (dir_en->h_dir_tree, name);
     if (!en) {
-        LOG_msg (DIR_TREE_LOG, "Entry '%s' not found !", name);
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found !", name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }
     
     // file is removed
     if (en->age == 0) {
-        LOG_msg (DIR_TREE_LOG, "Entry '%s' is removed !", name);
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' is removed !", name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }
@@ -645,7 +645,7 @@ static void dir_tree_file_release_on_entry_sent_cb (gpointer ctx, gboolean succe
 
     close (op_data->tmp_write_fd);
 
-    LOG_msg (DIR_TREE_LOG, "File is sent:  ino = %"INO_FMT")", op_data->ino);
+    LOG_debug (DIR_TREE_LOG, "File is sent:  ino = %"INO_FMT")", op_data->ino);
     
     file_op_data_destroy (op_data);
 }

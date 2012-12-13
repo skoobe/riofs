@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,13 +19,12 @@
 #include "dir_tree.h"
 
 /*{{{ struct */
+
 struct _S3Fuse {
     Application *app;
     DirTree *dir_tree;
+    gchar *mountpoint;
     
-    char *mountpoint;
-    int multithreaded;
-    int foreground;
     // the session that we use to process the fuse stuff
     struct fuse_session *session;
     struct fuse_chan *chan;
@@ -78,26 +77,17 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
 
 // create S3Fuse object
 // create fuse handle and add it to libevent polling
-S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
+S3Fuse *s3fuse_new (Application *app, const gchar *mountpoint)
 {
     S3Fuse *s3fuse;
-    struct fuse_args fuse_args = FUSE_ARGS_INIT(argc, argv);
     struct timeval tv;
 
     s3fuse = g_new0 (S3Fuse, 1);
     s3fuse->app = app;
     s3fuse->dir_tree = application_get_dir_tree (app);
+    s3fuse->mountpoint = g_strdup (mountpoint);
     
-    if (fuse_parse_cmdline (&fuse_args, &s3fuse->mountpoint, &s3fuse->multithreaded, &s3fuse->foreground) == -1) {
-        LOG_err (FUSE_LOG, "fuse_parse_cmdline");
-        return NULL;
-    }
-
-    LOG_debug (FUSE_LOG, "FUSE params: mountpoint: %s, multithreaded: %d, foreground: %d", 
-        s3fuse->mountpoint, s3fuse->multithreaded, s3fuse->foreground);
-
-    if ((s3fuse->chan = fuse_mount (s3fuse->mountpoint, &fuse_args)) == NULL) {
-        LOG_err (FUSE_LOG, "fuse_mount_common");
+    if ((s3fuse->chan = fuse_mount (s3fuse->mountpoint, NULL)) == NULL) {
         return NULL;
     }
 
@@ -111,7 +101,7 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
     }
     
     // allocate a low-level session
-    s3fuse->session = fuse_lowlevel_new (&fuse_args, &s3fuse_opers, sizeof (s3fuse_opers), s3fuse);
+    s3fuse->session = fuse_lowlevel_new (NULL, &s3fuse_opers, sizeof (s3fuse_opers), s3fuse);
     if (!s3fuse->session) {
         LOG_err (FUSE_LOG, "fuse_lowlevel_new");
         return NULL;
@@ -147,14 +137,13 @@ S3Fuse *s3fuse_new (Application *app, int argc, char *argv[])
     }
     */
 
-
     return s3fuse;
 }
 
 void s3fuse_destroy (S3Fuse *s3fuse)
 {
     fuse_unmount (s3fuse->mountpoint, s3fuse->chan);
-    free (s3fuse->mountpoint);
+    g_free (s3fuse->mountpoint);
     g_free (s3fuse->recv_buf);
     event_free (s3fuse->ev);
     fuse_session_destroy (s3fuse->session);
@@ -166,7 +155,7 @@ static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg)
     struct timeval tv;
     S3Fuse *s3fuse = (S3Fuse *)arg;
 
-    LOG_msg (FUSE_LOG, ">>>>>>>> On timer !!! :%d", event_pending (s3fuse->ev, EV_TIMEOUT|EV_READ|EV_WRITE|EV_SIGNAL, NULL));
+    LOG_debug (FUSE_LOG, ">>>>>>>> On timer !!! :%d", event_pending (s3fuse->ev, EV_TIMEOUT|EV_READ|EV_WRITE|EV_SIGNAL, NULL));
     event_base_dump_events (application_get_evbase (s3fuse->app), stdout);
     tv.tv_sec = 1;
     tv.tv_usec = 0;
@@ -199,7 +188,6 @@ static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
         LOG_err (FUSE_LOG, "No FUSE session !");
         return;
     }
-
     
     // loop until we complete a recv
     do {

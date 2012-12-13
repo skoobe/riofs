@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -272,7 +272,7 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     if (data->responce_cb)
         data->responce_cb (data->con, data->ctx, buf, buf_len);
     else
-        LOG_msg (CON_LOG, ">>> NO callback function !");
+        LOG_debug (CON_LOG, ">>> NO callback function !");
 
 done:
     g_free (data);
@@ -332,7 +332,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
 
-    LOG_msg (CON_LOG, "[%p] New request: %s", con, request_str);
+    LOG_debug (CON_LOG, "[%p] New request: %s", con, request_str);
 
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
 

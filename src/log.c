@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -44,9 +44,9 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
         g_vsnprintf (out_str, sizeof (out_str), format, args);
     va_end (args);
 
-//#ifdef DEBUG
-    g_fprintf (stdout, "%s %s %s:%d \t%s\n", ts, func, file, line, out_str);
-//#else
-//    g_fprintf (stdout, "[%s][%s]\t%s\n", ts, subsystem, out_str);
-//#endif
+    if (log_level == LOG_debug)
+        g_fprintf (stdout, "%s [%s] (%s %s:%d) %s\n", ts, subsystem, func, file, line, out_str);
+    else
+        g_fprintf (stdout, "%s\n", out_str);
+
 }

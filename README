@@ -6,8 +6,9 @@ Requirements:
 * libcrypto >= 0.9
 
 All libraries and versions are compatible with Ubuntu 12.04 LTS.
-This is a command line to install all requirements on Ubuntu:
-    sudo apt-get build-essential gcc make libglib2.0-dev libfuse-dev libxml2-dev libevent-dev
+
+This is a command line to install all requirements to buid this project on Ubuntu:
+    sudo apt-get build-essential gcc make autoconf libglib2.0-dev libfuse-dev libxml2-dev libevent-dev
 
 
 How to start using s3ffs (S3 Fast File System):

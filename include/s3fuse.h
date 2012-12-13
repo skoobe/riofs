@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -25,7 +25,7 @@ struct dirbuf {
 	size_t size;
 };
 
-S3Fuse *s3fuse_new (Application *app, int argc, char *argv[]);
+S3Fuse *s3fuse_new (Application *app, const gchar *mountpoint);
 void s3fuse_destroy (S3Fuse *s3fuse);
 
 void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino);

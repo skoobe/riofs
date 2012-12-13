@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -188,6 +188,12 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
 }
 /*}}}*/
 
+static void print_usage (const char *progname)
+{
+    g_fprintf (stderr, "Usage: %s [http://s3.amazonaws.com] [bucketname] [-v] [mountpoint]\n", progname);
+    g_fprintf (stderr, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !\n");
+}
+
 int main (int argc, char *argv[])
 {
     Application *app;
@@ -195,10 +201,26 @@ int main (int argc, char *argv[])
     struct event *sigpipe_ev = NULL;
     struct event *sigusr1_ev = NULL;
     struct sigaction sigact;
+    gchar **s_mountpoint = NULL;
+    gboolean verbose = FALSE;
+    GError *error = NULL;
+    GOptionContext *context;
+    gchar *mountpoint;
+    gchar *progname;
+    gboolean foreground = FALSE;
+
+    GOptionEntry entries[] = {
+	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &s_mountpoint, "Mountpoint", NULL },
+        { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Do not daemonize process", NULL },
+        { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output", NULL },
+        { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
+    };
 
     // init libraries
     ENGINE_load_builtin_engines ();
     ENGINE_register_all_complete ();
+
+    progname = argv[0];
 
     // init main app structure
     app = g_new0 (Application, 1);
@@ -225,26 +247,47 @@ int main (int argc, char *argv[])
     app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
 
     if (!app->aws_access_key_id || !app->aws_secret_access_key) {
-        LOG_err (APP_LOG, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !");
+        print_usage (progname);
         return -1;
     }
 
     // XXX: parse command line
     if (argc < 3) {
-        LOG_err (APP_LOG, "Please use s3ffs [http://s3.amazonaws.com] [bucketname] [FUSE params] [mountpoint]");
+        print_usage (progname);
         return -1;
     }
 
     app->uri = evhttp_uri_parse (argv[1]);
     if (!app->uri) {
-        LOG_err (APP_LOG, "Failed to parse URL, please use s3ffs [http://s3.amazonaws.com] [bucketname] [FUSE params] [mountpoint]");
+        print_usage (progname);
         return -1;
     }
     app->bucket_name = g_strdup (argv[2]);
     app->uri_str = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->uri));
 
-    //log_level = 1;
-    log_level = 10;
+    argv += 2;
+    argc -= 2;
+
+    // parse command line options
+    context = g_option_context_new (NULL);
+    g_option_context_add_main_entries (context, entries, NULL);
+    if (!g_option_context_parse (context, &argc, &argv, &error)) {
+        g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
+        return FALSE;
+    }
+    
+    if (!s_mountpoint || g_strv_length (s_mountpoint) < 1) {
+        print_usage (progname);
+        return -1;
+    }
+    mountpoint = g_strdup (s_mountpoint[0]);
+    g_strfreev (s_mountpoint);
+
+    if (verbose)
+        log_level = LOG_debug;
+    else
+        log_level = LOG_msg;
+    
     /*}}}*/
     
     // create S3ClientPool for reading operations
@@ -292,13 +335,12 @@ int main (int argc, char *argv[])
 /*}}}*/
 
 /*{{{ FUSE*/
-    argv += 2;
-    argc -= 2;
-    app->s3fuse = s3fuse_new (app, argc, argv);
+    app->s3fuse = s3fuse_new (app, mountpoint);
     if (!app->s3fuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs !");
         return -1;
     }
+    g_free (mountpoint);
 /*}}}*/
 
 /*{{{ signal handlers*/
@@ -328,6 +370,9 @@ int main (int argc, char *argv[])
 	sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
 	event_add (sigusr1_ev, NULL);
 /*}}}*/
+    
+    if (!foreground)
+        fuse_daemonize (0);
 
     // start the loop
     event_base_dispatch (app->evbase);
@@ -348,6 +393,7 @@ int main (int argc, char *argv[])
     evdns_base_free (app->dns_base, 0);
     event_base_free (app->evbase);
 
+    g_option_context_free (context);
     g_free (app->tmp_dir);
     g_free (app->bucket_name);
     g_free (app->uri_str);

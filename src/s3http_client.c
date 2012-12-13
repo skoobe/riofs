@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012  Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
  * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -654,7 +654,7 @@ gboolean s3http_client_start_request (S3HttpClient *http, S3HttpClientRequestMet
     g_free (http->url);
     http->url = g_strdup (url);
 
-    LOG_msg (HTTP_LOG, "Start Req: %s %s", http->url, evhttp_uri_get_path (http->http_uri));
+    LOG_debug (HTTP_LOG, "Start Req: %s %s", http->url, evhttp_uri_get_path (http->http_uri));
 
     // connect if it's not
     if (!s3http_client_is_connected (http)) {

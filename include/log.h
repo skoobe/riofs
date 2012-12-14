@@ -30,6 +30,8 @@ void logger_log_msg (const gchar *file, gint line, const gchar *func,
         LogLevel level, const gchar *subsystem,
         const gchar *format, ...);
 
+void logger_set_syslog (gboolean use);
+
 #define LOG_debug(subsystem, x...) \
 G_STMT_START { \
     logger_log_msg (__FILE__, __LINE__, __func__, LOG_debug, subsystem, x); \

@@ -30,5 +30,16 @@ This is a command line to install all requirements to buid this project on Ubunt
     Where options could be:
     -v: Verbose output
     -f: Do not daemonize process
+    -c path:  Path to configuration file
 
     Please note, that you can specify default S3 service URL (http://s3.amazonaws.com).
+
+
+* Configuration file:
+    
+    Configuration file (s3ffs.conf) is located in $(prefix)/etc directory.
+
+* Bug reporting:
+    
+    Please include version of s3ffs and libraries by running:
+    s3ffs --version

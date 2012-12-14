@@ -56,6 +56,9 @@ S3ClientPool *s3client_pool_create (Application *app,
     S3ClientPool *pool;
     gint i;
     PoolClient *pc;
+    AppConf *conf;
+
+    conf = application_get_conf (app);
 
     pool = g_new0 (S3ClientPool, 1);
     pool->app = app;
@@ -63,7 +66,7 @@ S3ClientPool *s3client_pool_create (Application *app,
     pool->dns_base = application_get_dnsbase (app);
     pool->l_clients = NULL;
     pool->q_requests = g_queue_new ();
-    pool->max_requests = 100; // XXX: configure it !
+    pool->max_requests = conf->max_requests_per_pool;
    
     for (i = 0; i < client_count; i++) {
         pc = g_new0 (PoolClient, 1);

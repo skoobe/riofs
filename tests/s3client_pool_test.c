@@ -59,6 +59,7 @@ static void start_srv (struct event_base *base)
 struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
+    AppConf *conf;
 };
 
 struct event_base *application_get_evbase (Application *app)
@@ -69,6 +70,11 @@ struct event_base *application_get_evbase (Application *app)
 struct evdns_base *application_get_dnsbase (Application *app)
 {
     return app->dns_base;
+}
+
+AppConf *application_get_conf (Application *app)
+{
+    return app->conf;
 }
 
 int main (int argc, char *argv[])

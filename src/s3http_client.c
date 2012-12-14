@@ -445,9 +445,12 @@ static void s3http_client_connection_event_cb (struct bufferevent *bev, short wh
 static void s3http_client_connect (S3HttpClient *http)
 {
     int port;
+    AppConf *conf;
     
     if (http->connection_state == S3C_connecting)
         return;
+
+    conf = application_get_conf (http->app);
 
     if (http->bev)
         bufferevent_free (http->bev);
@@ -463,7 +466,7 @@ static void s3http_client_connect (S3HttpClient *http)
     port = evhttp_uri_get_port (http->http_uri);
     // if no port is specified, libevent returns -1
     if (port == -1) {
-        port = 80;
+        port = conf->http_port;
     }
     
     LOG_debug (HTTP_LOG, "Connecting to %s:%d .. %p",

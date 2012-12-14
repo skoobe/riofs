@@ -70,14 +70,16 @@ static void dir_entry_destroy (gpointer data);
 DirTree *dir_tree_create (Application *app)
 {
     DirTree *dtree;
+    AppConf *conf;
 
+    conf = application_get_conf (app);
     dtree = g_new0 (DirTree, 1);
     dtree->app = app;
     // children entries are destroyed by parent directory entries
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
     dtree->current_age = 0;
-    dtree->dir_cache_max_time = 0; //XXX
+    dtree->dir_cache_max_time = conf->dir_cache_max_time; //XXX
     dtree->current_write_ops = 0;
 
     dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
@@ -623,7 +625,6 @@ gboolean dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_in
     }
 
     op_data->en = en;
-
     
     op_data->en->op_data = (gpointer) op_data;
 
@@ -831,6 +832,7 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     s3http_client_add_output_header (http,
         "Range", range);
 
+    // XXX: HTTPS
     url = g_strdup_printf ("http://%s%s", application_get_bucket_uri_str (op_data->dtree->app), op_data->en->fullpath);
     
     s3http_client_start_request (http, S3Method_get, url);

@@ -32,13 +32,15 @@ gpointer s3http_connection_create (Application *app)
 {
     S3HttpConnection *con;
     int port;
+    AppConf *conf;
 
     con = g_new0 (S3HttpConnection, 1);
     if (!con) {
         LOG_err (CON_LOG, "Failed to create S3HttpConnection !");
         return NULL;
     }
-
+    
+    conf = application_get_conf (app);
     con->app = app;
     con->bucket_name = g_strdup (application_get_bucket_name (app));
     con->s3_uri = application_get_bucket_uri (app);
@@ -48,7 +50,7 @@ gpointer s3http_connection_create (Application *app)
     port = evhttp_uri_get_port (con->s3_uri);
     // if no port is specified, libevent returns -1
     if (port == -1) {
-        port = 80;
+        port = conf->http_port;
     }
 
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
@@ -69,9 +71,8 @@ gpointer s3http_connection_create (Application *app)
         return NULL;
     }
     
-    // XXX: config these
-    evhttp_connection_set_timeout (con->evcon, 20);
-    evhttp_connection_set_retries (con->evcon, -1);
+    evhttp_connection_set_timeout (con->evcon, conf->timeout);
+    evhttp_connection_set_retries (con->evcon, conf->retries);
 
     evhttp_connection_set_closecb (con->evcon, s3http_connection_on_close, con);
 

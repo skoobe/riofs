@@ -15,7 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+#include <syslog.h>
 #include "log.h"
+
+static gboolean use_syslog = FALSE;
 
 // prints a message string to stdout
 // XXX: extend it (syslog, etc)
@@ -46,7 +49,16 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
 
     if (log_level == LOG_debug)
         g_fprintf (stdout, "%s [%s] (%s %s:%d) %s\n", ts, subsystem, func, file, line, out_str);
-    else
-        g_fprintf (stdout, "%s\n", out_str);
+    else {
+        if (use_syslog)
+            syslog (log_level == LOG_msg ? LOG_INFO : LOG_ERR, out_str);
+        else
+            g_fprintf (stdout, "%s\n", out_str);
+    }
 
+}
+
+void logger_set_syslog (gboolean use)
+{
+    use_syslog = use;
 }

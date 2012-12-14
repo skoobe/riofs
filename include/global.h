@@ -76,6 +76,20 @@
 #define FUSE_USE_VERSION 26
 #include <fuse/fuse_lowlevel.h>
 
+#include "config.h" 
+
+typedef struct {
+    gint writers;
+    gint readers;
+    gint ops;
+    gint timeout;
+    gint retries;
+    gint http_port;
+    gint dir_cache_max_time;
+    gint max_requests_per_pool;
+    gboolean use_syslog;
+} AppConf;
+
 typedef struct _Application Application;
 typedef struct _S3HttpConnection S3HttpConnection;
 typedef struct _DirTree DirTree;
@@ -91,6 +105,8 @@ const gchar *application_get_bucket_uri_str (Application *app);
 struct evhttp_uri *application_get_bucket_uri (Application *app);
 const gchar *application_get_bucket_name (Application *app);
 const gchar *application_get_tmp_dir (Application *app);
+AppConf *application_get_conf (Application *app);
+
 S3ClientPool *application_get_read_client_pool (Application *app);
 S3ClientPool *application_get_write_client_pool (Application *app);
 S3ClientPool *application_get_ops_client_pool (Application *app);

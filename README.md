@@ -17,20 +17,26 @@ All libraries and versions are compatible with Ubuntu 12.04 LTS.
 
 This is a command line to install all requirements to buid this project on Ubuntu:
 
-> sudo apt-get install build-essential gcc make autoconf libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
+```
+sudo apt-get install build-essential gcc make autoconf libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
+```
 
 How to start using s3ffs
 ------------------------
 
-> export AWSACCESSKEYID="your AWS access key"
-> export AWSSECRETACCESSKEY="your AWS secret access key"
-> s3ffs [http://s3.amazonaws.com] [bucketname] [options] [mountpoint]
+```
+export AWSACCESSKEYID="your AWS access key"
+export AWSSECRETACCESSKEY="your AWS secret access key"
+s3ffs [http://s3.amazonaws.com] [bucketname] [options] [mountpoint]
+```
 
 Where options could be:
 
-> -v: Verbose output
-> -f: Do not daemonize process
-> -c path:  Path to configuration file
+```
+-v: Verbose output
+-f: Do not daemonize process
+-c path:  Path to configuration file
+```
 
 Please note, that you can specify default S3 service URL (http://s3.amazonaws.com).
 
@@ -44,4 +50,6 @@ Bug reporting
     
 Please include version of s3ffs and libraries by running:
 
-> s3ffs --version
+```
+s3ffs --version
+```

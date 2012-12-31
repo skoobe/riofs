@@ -1,3 +1,5 @@
+[![Build Status](https://secure.travis-ci.org/skoobe/s3ffs.png)](http://secure.travis-ci.org/skoobe/s3ffs)
+
 Requirements:
 * glib-2.0 >= 2.32
 * fuse >= 2.8.4

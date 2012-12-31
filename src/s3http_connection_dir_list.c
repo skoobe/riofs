@@ -34,7 +34,7 @@ typedef struct {
 #define CON_DIR_LOG "con_dir"
 
 // parses S3 directory XML 
-// reutrns TRUE if ok
+// returns TRUE if ok
 static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t xml_len)
 {
     xmlDocPtr doc;

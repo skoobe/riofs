@@ -33,7 +33,6 @@ struct _S3HttpConnection {
 
     struct evhttp_connection *evcon;
     gchar *bucket_name;
-    struct evhttp_uri *s3_uri;
 
     // is taken by high level
     gboolean is_acquired;

@@ -43,18 +43,17 @@ gpointer s3http_connection_create (Application *app)
     conf = application_get_conf (app);
     con->app = app;
     con->bucket_name = g_strdup (application_get_bucket_name (app));
-    con->s3_uri = application_get_bucket_uri (app);
 
     con->is_acquired = FALSE;
 
-    port = evhttp_uri_get_port (con->s3_uri);
+    port = application_get_port (app);
     // if no port is specified, libevent returns -1
     if (port == -1) {
         port = conf->http_port;
     }
 
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
-        evhttp_uri_get_host (con->s3_uri),
+        application_get_host (app),
         port
     );
 
@@ -62,7 +61,7 @@ gpointer s3http_connection_create (Application *app)
     con->evcon = evhttp_connection_base_new (
         application_get_evbase (app),
         application_get_dnsbase (app),
-        evhttp_uri_get_host (con->s3_uri),
+        application_get_host (app),
         port
     );
 
@@ -224,7 +223,7 @@ struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
 
     req = evhttp_request_new (cb, arg);
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, "Host", application_get_bucket_uri_str (con->app));
+    evhttp_add_header (req->output_headers, "Host", application_get_host_header (con->app));
 		
     if (strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S GMT", cur_p) != 0) {
 			evhttp_add_header (req->output_headers, "Date", date);
@@ -296,7 +295,8 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     RequestData *data;
     int res;
     enum evhttp_cmd_type cmd_type;
-    
+    AppConf *conf;
+
     data = g_new0 (RequestData, 1);
     data->responce_cb = responce_cb;
     data->error_cb = error_cb;
@@ -329,14 +329,19 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     }
 
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, "Host", application_get_bucket_uri_str (con->app));	
+    evhttp_add_header (req->output_headers, "Host", application_get_host_header (con->app));
 	evhttp_add_header (req->output_headers, "Date", time_str);
 
     if (out_buffer) {
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
 
-    LOG_debug (CON_LOG, "[%p] New request: %s", con, request_str);
+    conf = application_get_conf (con->app);
+    if (conf->path_style) {
+        request_str = g_strdup_printf("/%s%s", application_get_bucket_name (con->app), request_str);
+    }
+
+    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s", con, application_get_bucket_name (con->app), request_str);
 
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
 

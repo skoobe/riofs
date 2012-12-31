@@ -43,9 +43,8 @@ struct _Application {
     gchar *aws_secret_access_key;
 
     gchar *bucket_name;
+    gchar *host_header;
     struct evhttp_uri *uri;
-
-    gchar *uri_str; // full path to S3 bucket
 
     gchar *tmp_dir;
 
@@ -99,19 +98,24 @@ S3ClientPool *application_get_ops_client_pool (Application *app)
     return app->ops_client_pool;
 }
 
-const gchar *application_get_bucket_uri_str (Application *app)
-{
-    return app->uri_str;
-}
-
 const gchar *application_get_bucket_name (Application *app)
 {
     return app->bucket_name;
 }
 
-struct evhttp_uri *application_get_bucket_uri (Application *app)
+const gchar *application_get_host (Application *app)
 {
-    return app->uri;
+    return evhttp_uri_get_host (app->uri);
+}
+
+const gchar *application_get_host_header (Application *app)
+{
+    return app->host_header;
+}
+
+const int application_get_port (Application *app)
+{
+    return evhttp_uri_get_port (app->uri);
 }
 
 const gchar *application_get_tmp_dir (Application *app)
@@ -205,6 +209,16 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
     event_base_loopexit (app->evbase, NULL);
 }
 /*}}}*/
+
+const gchar *application_host_header_create (Application *app)
+{
+    AppConf *conf = application_get_conf (app);
+    if (conf->path_style) {
+        return g_strdup_printf("s3.amazonaws.com");
+    } else {
+        return g_strdup_printf("%s.s3.amazonaws.com", app->bucket_name);
+    }
+}
 
 static gint application_finish_initialization_and_run (Application *app)
 {
@@ -328,18 +342,20 @@ static void application_get_service_on_done (S3HttpConnection *con, void *ctx,
     if (loc) {
         s3http_connection_destroy (con);
         
-        g_free (app->uri_str);
         evhttp_uri_free (app->uri);
 
         app->uri = evhttp_uri_parse (loc);
         if (!app->uri) {
-            LOG_err (APP_LOG, "Invalid S3 service URL !");
+            LOG_err (APP_LOG, "Invalid S3 service URL: %s", loc);
             event_base_loopexit (app->evbase, NULL);
             return;
         }
-        app->uri_str = g_strdup (evhttp_uri_get_host (app->uri));
-        LOG_debug (APP_LOG, "New service URL: %s", app->uri_str);
-        
+        LOG_debug (APP_LOG, "New service URL: %s", evhttp_uri_get_host (app->uri));
+
+        // update host header
+        g_free (app->host_header);
+        app->host_header = application_host_header_create (app);
+
         // perform a new request
         app->service_con = s3http_connection_create (app);
         if (!app->service_con) {
@@ -392,7 +408,7 @@ static void application_destroy (Application *app)
     g_free (app->mountpoint);
     g_free (app->tmp_dir);
     g_free (app->bucket_name);
-    g_free (app->uri_str);
+    g_free (app->host_header);
     evhttp_uri_free (app->uri);
 
     g_free (app->conf);
@@ -457,6 +473,7 @@ int main (int argc, char *argv[])
     app->conf->http_port = 80;
     app->conf->dir_cache_max_time = 5;
     app->conf->max_requests_per_pool = 100;
+    app->conf->path_style = TRUE;
     app->conf->use_syslog = TRUE;
 
     //XXX: fix it
@@ -509,7 +526,7 @@ int main (int argc, char *argv[])
         return -1;
     }
     app->bucket_name = g_strdup (argv[2]);
-    app->uri_str = g_strdup_printf ("%s.%s", app->bucket_name, evhttp_uri_get_host (app->uri));
+    app->host_header = application_host_header_create (app);
 
     argv += 2;
     argc -= 2;
@@ -549,7 +566,7 @@ int main (int argc, char *argv[])
     }
 
     if (access (conf_path, R_OK) == 0) {
-        LOG_msg (APP_LOG, "Configuration file's found.");
+        LOG_msg (APP_LOG, "Using config file: %s", conf_path);
         
         key_file = g_key_file_new ();
         if (!g_key_file_load_from_file (key_file, conf_path, G_KEY_FILE_NONE, &error)) {
@@ -600,6 +617,12 @@ int main (int argc, char *argv[])
         }
 
         app->conf->max_requests_per_pool = g_key_file_get_integer (key_file, "connections", "max_requests_per_pool", &error);
+        if (error) {
+            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
+            return -1;
+        }
+
+        app->conf->path_style = g_key_file_get_boolean (key_file, "connections", "path_style", &error);
         if (error) {
             LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
             return -1;

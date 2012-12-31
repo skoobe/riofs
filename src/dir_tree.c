@@ -809,6 +809,7 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     gchar auth_key[300];
     gchar *url;
     gchar range[300];
+    AppConf *conf;
 
     s3http_client_request_reset (http);
 
@@ -825,15 +826,21 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     snprintf (range, sizeof (range), "bytes=%"OFF_FMT"-%"OFF_FMT, off, off+size - 1);
     LOG_debug (DIR_TREE_LOG, "range: %s", range);
 
-    s3http_client_add_output_header (http, 
-        "Authorization", auth_key);
-    s3http_client_add_output_header (http,
-        "Date", time_str);
-    s3http_client_add_output_header (http,
-        "Range", range);
+    s3http_client_add_output_header (http, "Authorization", auth_key);
+    s3http_client_add_output_header (http, "Date", time_str);
+    s3http_client_add_output_header (http, "Range", range);
+    s3http_client_add_output_header (http, "Host", application_get_host_header (op_data->dtree->app));
 
     // XXX: HTTPS
-    url = g_strdup_printf ("http://%s%s", application_get_bucket_uri_str (op_data->dtree->app), op_data->en->fullpath);
+    conf = application_get_conf (op_data->dtree->app);
+    if (conf->path_style) {
+        url = g_strdup_printf ("http://%s/%s%s", application_get_host (op_data->dtree->app),
+                                                    application_get_bucket_name (op_data->dtree->app),
+                                                    op_data->en->fullpath);
+    } else {
+        url = g_strdup_printf ("http://%s%s", application_get_host (op_data->dtree->app),
+                                                 op_data->en->fullpath);
+    }
     
     s3http_client_start_request (http, S3Method_get, url);
 

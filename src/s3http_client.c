@@ -599,9 +599,9 @@ static gboolean s3http_client_send_initial_request (S3HttpClient *http)
     );
 
     // host
-    evbuffer_add_printf (out_buf, "Host: %s\r\n",
-        evhttp_uri_get_host (http->http_uri)
-    );
+    // evbuffer_add_printf (out_buf, "Host: %s\r\n",
+    //     evhttp_uri_get_host (http->http_uri)
+    // );
 
     // length
     // XXX:

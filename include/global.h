@@ -88,6 +88,7 @@ typedef struct {
     gint dir_cache_max_time;
     gint max_requests_per_pool;
     gboolean use_syslog;
+    gboolean path_style;
 } AppConf;
 
 typedef struct _Application Application;
@@ -101,9 +102,8 @@ struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
 const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
-const gchar *application_get_bucket_uri_str (Application *app);
-struct evhttp_uri *application_get_bucket_uri (Application *app);
 const gchar *application_get_bucket_name (Application *app);
+const gchar *application_get_host (Application *app);
 const gchar *application_get_tmp_dir (Application *app);
 AppConf *application_get_conf (Application *app);
 

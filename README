@@ -21,6 +21,17 @@ This is a command line to install all requirements to buid this project on Ubunt
 sudo apt-get install build-essential gcc make autoconf libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
 ```
 
+How to build s3ffs
+------------------
+
+```
+./configure
+make
+make install
+```
+
+Provide configure script with --enable-debug-mode flag if you want to get a debug build.
+
 How to start using s3ffs
 ------------------------
 

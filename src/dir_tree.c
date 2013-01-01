@@ -834,12 +834,14 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     // XXX: HTTPS
     conf = application_get_conf (op_data->dtree->app);
     if (conf->path_style) {
-        url = g_strdup_printf ("http://%s/%s%s", application_get_host (op_data->dtree->app),
+        url = g_strdup_printf ("http://%s:%d/%s%s", application_get_host (op_data->dtree->app),
+                                                    application_get_port (op_data->dtree->app),
                                                     application_get_bucket_name (op_data->dtree->app),
                                                     op_data->en->fullpath);
     } else {
-        url = g_strdup_printf ("http://%s%s", application_get_host (op_data->dtree->app),
-                                                 op_data->en->fullpath);
+        url = g_strdup_printf ("http://%s%d%s", application_get_host (op_data->dtree->app),
+                                                application_get_port (op_data->dtree->app),
+                                                op_data->en->fullpath);
     }
     
     s3http_client_start_request (http, S3Method_get, url);

@@ -318,7 +318,10 @@ static void application_get_service_on_error (S3HttpConnection *con, void *ctx)
     LOG_err (APP_LOG, "Failed to access S3 bucket URL !");
 
     s3http_connection_destroy (con);
-    
+    if (app->service_con == con) { // should be always identical?
+        app->service_con = NULL;
+    }
+
     event_base_loopexit (app->evbase, NULL);
 }
 

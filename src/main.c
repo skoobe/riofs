@@ -113,7 +113,7 @@ const gchar *application_get_host_header (Application *app)
     return app->host_header;
 }
 
-const int application_get_port (Application *app)
+int application_get_port (Application *app)
 {
     return evhttp_uri_get_port (app->uri);
 }

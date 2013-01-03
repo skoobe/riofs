@@ -104,6 +104,8 @@ const gchar *application_get_access_key_id (Application *app);
 const gchar *application_get_secret_access_key (Application *app);
 const gchar *application_get_bucket_name (Application *app);
 const gchar *application_get_host (Application *app);
+int application_get_port (Application *app);
+const gchar *application_get_host_header (Application *app);
 const gchar *application_get_tmp_dir (Application *app);
 AppConf *application_get_conf (Application *app);
 

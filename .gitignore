@@ -15,3 +15,8 @@ src/valgrind*
 src/core
 tests/s3client_pool_test
 tests/s3http_client_test
+Makefile
+include/Makefile
+src/Makefile
+tests/Makefile
+src/run.sh

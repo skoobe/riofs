@@ -258,7 +258,7 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     // XXX: handle redirect
     // 200 and 204 (No Content) are ok
     if (evhttp_request_get_response_code (req) != 200 && evhttp_request_get_response_code (req) != 204
-        && evhttp_request_get_response_code (req) != 307) {
+        && evhttp_request_get_response_code (req) != 307 && evhttp_request_get_response_code (req) != 301) {
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
         if (data->error_cb)

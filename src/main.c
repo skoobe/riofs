@@ -57,6 +57,10 @@ struct _Application {
 
 };
 
+// global variable, used by signals handlers
+static Application *_app = NULL;
+
+
 /*{{{ getters */
 struct event_base *application_get_evbase (Application *app)
 {
@@ -181,19 +185,26 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 	free (messages);
 
 	LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
-//	continue execution, default handler will create core file
-//	exit (EXIT_FAILURE);
+
+    // try to unmount FUSE mountpoint
+    if (_app && _app->s3fuse)
+        s3fuse_destroy (_app->s3fuse);
 }
 
+// ignore SIGPIPE
 static void sigpipe_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
 	LOG_msg (APP_LOG, "Got SIGPIPE");
 }
 
-// terminate application without calling destruction functions
+// XXX: re-read config or do some useful work here
 static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
 	LOG_err (APP_LOG, "Got SIGUSR1");
+
+    // try to unmount FUSE mountpoint
+    if (_app && _app->s3fuse)
+        s3fuse_destroy (_app->s3fuse);
     
     exit (1);
 }
@@ -275,6 +286,9 @@ static gint application_finish_initialization_and_run (Application *app)
         return -1;
     }
 /*}}}*/
+
+    // set global App variable
+    _app = app;
 
 /*{{{ signal handlers*/
 	// SIGINT

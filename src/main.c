@@ -424,34 +424,33 @@ static void application_destroy (Application *app)
 	CRYPTO_mem_leaks_fp (stderr);
 }
 
-static void print_usage (const char *progname)
-{
-    g_fprintf (stderr, "Usage: %s [http://s3.amazonaws.com] [bucketname] [options] [mountpoint]\n", progname);
-    g_fprintf (stderr, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables !\n");
-}
-
 int main (int argc, char *argv[])
 {
     Application *app;
     gboolean verbose = FALSE;
+    gboolean version = FALSE;
+    gboolean path_style = FALSE;
     GError *error = NULL;
     GOptionContext *context;
-    gchar **s_mountpoint = NULL;
+    gchar **s_params = NULL;
     gchar **s_config = NULL;
     gchar *progname;
     gboolean foreground = FALSE;
     GKeyFile *key_file;
     gchar conf_str[1023];
     gchar *conf_path;
+    struct stat st;
 
     conf_path = g_build_filename (SYSCONFDIR, "s3ffs.conf", NULL); 
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
 
     GOptionEntry entries[] = {
-	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &s_mountpoint, "Mountpoint", NULL },
-	    { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL },
-        { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Do not daemonize process.", NULL },
+	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &s_params, NULL, NULL },
+	    { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
+        { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
+        { "path_style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
+        { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
         { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
     };
 
@@ -476,7 +475,7 @@ int main (int argc, char *argv[])
     app->conf->http_port = 80;
     app->conf->dir_cache_max_time = 5;
     app->conf->max_requests_per_pool = 100;
-    app->conf->path_style = TRUE;
+    app->conf->path_style = path_style;
     app->conf->use_syslog = TRUE;
 
     //XXX: fix it
@@ -494,19 +493,18 @@ int main (int argc, char *argv[])
     }
 
 /*{{{ cmd line args */
-    // get access parameters from the enviorment
-    app->aws_access_key_id = getenv("AWSACCESSKEYID");
-    app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
 
-    if (!app->aws_access_key_id || !app->aws_secret_access_key) {
-        print_usage (progname);
-        return -1;
+    // parse command line options
+    context = g_option_context_new ("[http://s3.amazonaws.com] [bucketname] [mountpoint]");
+    g_option_context_add_main_entries (context, entries, NULL);
+    g_option_context_set_description (context, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables!");
+    if (!g_option_context_parse (context, &argc, &argv, &error)) {
+        g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
+        return FALSE;
     }
 
-    if (argc < 3) {
-        // check if --version is specified
-        if (argc > 1 && !strcmp (argv[1], "--version")) {
-            g_fprintf (stdout, "\n");
+    // check if --version is specified
+    if (version) {
             g_fprintf (stdout, "S3 Fast File System v%s\n", VERSION);
             g_fprintf (stdout, "Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>\n");
             g_fprintf (stdout, "Copyright (C) 2012 Skoobe GmbH. All rights reserved.\n");
@@ -517,37 +515,49 @@ int main (int argc, char *argv[])
                     FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION,
                     gnu_get_libc_version ()
             );
-            g_fprintf (stdout, "\n");
-        } else
-            print_usage (progname);
-        return -1;
-    }
-
-    app->uri = evhttp_uri_parse (argv[1]);
-    if (!app->uri) {
-        print_usage (progname);
-        return -1;
-    }
-    app->bucket_name = g_strdup (argv[2]);
-    app->host_header = application_host_header_create (app);
-
-    argv += 2;
-    argc -= 2;
-
-    // parse command line options
-    context = g_option_context_new (NULL);
-    g_option_context_add_main_entries (context, entries, NULL);
-    if (!g_option_context_parse (context, &argc, &argv, &error)) {
-        g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
-        return FALSE;
+        return 0;
     }
     
-    if (!s_mountpoint || g_strv_length (s_mountpoint) < 1) {
-        print_usage (progname);
+    // get access parameters from the environment
+    app->aws_access_key_id = getenv("AWSACCESSKEYID");
+    app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
+    if (!app->aws_access_key_id || !app->aws_secret_access_key) {
+        LOG_err (APP_LOG, "Environment variables are not set!");
+        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
-    app->mountpoint = g_strdup (s_mountpoint[0]);
-    g_strfreev (s_mountpoint);
+
+    if (g_strv_length (s_params) != 3) {
+        LOG_err (APP_LOG, "Wrong number of provided arguments!");
+        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        return -1;
+    }
+
+    app->uri = evhttp_uri_parse (s_params[0]);
+    if (!app->uri) {
+        LOG_err (APP_LOG, "S3 URL (%s) is not valid!", s_params[0]);
+        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        return -1;
+    }
+    app->bucket_name = g_strdup (s_params[1]);
+    app->host_header = application_host_header_create (app);
+    
+    app->mountpoint = g_strdup (s_params[2]);
+
+    // check if directory exists
+    if (stat (app->mountpoint, &st) == -1) {
+        LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", app->mountpoint);
+        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        return -1;
+    }
+    // check if it's a directory
+    if (!S_ISDIR (st.st_mode)) {
+        LOG_err (APP_LOG, "Mountpoint %s is not a directory!", app->mountpoint);
+        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        return -1;
+    }
+    
+    g_strfreev (s_params);
 
     app->foreground = foreground;
 

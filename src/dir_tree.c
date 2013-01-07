@@ -554,11 +554,13 @@ static DirTreeFileOpData *file_op_data_create (DirTree *dtree, fuse_ino_t ino)
 static void file_op_data_destroy (DirTreeFileOpData *op_data)
 {
     LOG_debug (DIR_TREE_LOG, "Destroying opdata !");
-
-    if (g_queue_get_length (op_data->q_ranges_requested) > 0)
-        g_queue_free_full (op_data->q_ranges_requested, g_free);
-    else
-        g_queue_free (op_data->q_ranges_requested);
+    
+    if (op_data && op_data->q_ranges_requested) {
+        if (g_queue_get_length (op_data->q_ranges_requested) > 0)
+            g_queue_free_full (op_data->q_ranges_requested, g_free);
+        else
+            g_queue_free (op_data->q_ranges_requested);
+    }
     g_free (op_data);
 }
 

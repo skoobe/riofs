@@ -82,8 +82,9 @@ gpointer s3http_connection_create (Application *app)
 void s3http_connection_destroy (gpointer data)
 {
     S3HttpConnection *con = (S3HttpConnection *) data;
-
-    evhttp_connection_free (con->evcon);
+    
+    if (con->evcon)
+        evhttp_connection_free (con->evcon);
     g_free (con->bucket_name);
     g_free (con);
 }

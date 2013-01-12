@@ -87,8 +87,9 @@ void s3client_pool_destroy (S3ClientPool *pool)
 {
     GList *l;
     PoolClient *pc;
-
-    g_queue_free_full (pool->q_requests, g_free);
+    
+    if (pool->q_requests)
+        g_queue_free_full (pool->q_requests, g_free);
     for (l = g_list_first (pool->l_clients); l; l = g_list_next (l)) {
         pc = (PoolClient *) l->data;
         pc->client_destroy (pc->client);

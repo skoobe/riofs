@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -244,6 +244,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->read_client_pool) {
         LOG_err (APP_LOG, "Failed to create S3ClientPool !");
+        event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 
@@ -256,6 +257,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->write_client_pool) {
         LOG_err (APP_LOG, "Failed to create S3ClientPool !");
+        event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 
@@ -268,6 +270,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->ops_client_pool) {
         LOG_err (APP_LOG, "Failed to create S3ClientPool !");
+        event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 
@@ -275,6 +278,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->dir_tree = dir_tree_create (app);
     if (!app->dir_tree) {
         LOG_err (APP_LOG, "Failed to create DirTree !");
+        event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 /*}}}*/
@@ -283,6 +287,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->s3fuse = s3fuse_new (app, app->mountpoint);
     if (!app->s3fuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs !");
+        event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 /*}}}*/
@@ -299,7 +304,8 @@ static gint application_finish_initialization_and_run (Application *app)
     sigact.sa_flags = (int)SA_RESETHAND | SA_SIGINFO;
 	sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGSEGV, &sigact, (struct sigaction *) NULL) != 0) {
-        fprintf (stderr, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
+        LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
+        event_base_loopexit (app->evbase, NULL);
 		return 1;
     }
 	// SIGABRT
@@ -307,7 +313,8 @@ static gint application_finish_initialization_and_run (Application *app)
     sigact.sa_flags = (int)SA_RESETHAND | SA_SIGINFO;
 	sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGABRT, &sigact, (struct sigaction *) NULL) != 0) {
-        fprintf (stderr, "error setting signal handler for %d (%s)\n", SIGABRT, strsignal(SIGABRT));
+        LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGABRT, strsignal(SIGABRT));
+        event_base_loopexit (app->evbase, NULL);
 		return 1;
     }
 	// SIGPIPE
@@ -489,7 +496,6 @@ int main (int argc, char *argv[])
     app->conf->http_port = 80;
     app->conf->dir_cache_max_time = 5;
     app->conf->max_requests_per_pool = 100;
-    app->conf->path_style = path_style;
     app->conf->use_syslog = TRUE;
 
     //XXX: fix it
@@ -532,6 +538,8 @@ int main (int argc, char *argv[])
         return 0;
     }
     
+    app->conf->path_style = path_style;
+
     // get access parameters from the environment
     app->aws_access_key_id = getenv("AWSACCESSKEYID");
     app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");

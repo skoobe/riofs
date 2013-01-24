@@ -18,7 +18,7 @@ All libraries and versions are compatible with Ubuntu 12.04 LTS.
 This is a command line to install all requirements to build this project on Ubuntu:
 
 ```
-sudo apt-get install build-essential gcc make autoconf libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
+sudo apt-get install build-essential gcc make automake autoconf libtool pkg-config intltool libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
 ```
 
 How to build s3ffs

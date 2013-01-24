@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -548,12 +548,14 @@ static DirTreeFileOpData *file_op_data_create (DirTree *dtree, fuse_ino_t ino)
     op_data->tmp_write_fd = 0;
     op_data->http = NULL;
 
+    LOG_debug (DIR_TREE_LOG, "Creating opdata: %p", op_data);
+
     return op_data;
 }
 
 static void file_op_data_destroy (DirTreeFileOpData *op_data)
 {
-    LOG_debug (DIR_TREE_LOG, "Destroying opdata !");
+    LOG_debug (DIR_TREE_LOG, "Destroying opdata: %p", op_data);
     
     if (op_data && op_data->q_ranges_requested) {
         if (g_queue_get_length (op_data->q_ranges_requested) > 0)
@@ -577,7 +579,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
-        LOG_msg (DIR_TREE_LOG, "Directory (%"INO_FMT") not found !", parent_ino);
+        LOG_err (DIR_TREE_LOG, "Directory (%"INO_FMT") not found !", parent_ino);
         file_create_cb (req, FALSE, 0, 0, 0, fi);
         return;
     }
@@ -585,7 +587,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     // create a new entry
     en = dir_tree_add_entry (dtree, name, mode, DET_file, parent_ino, 0, time (NULL));
     if (!en) {
-        LOG_msg (DIR_TREE_LOG, "Failed to create file: %s !", name);
+        LOG_err (DIR_TREE_LOG, "Failed to create file: %s !", name);
         file_create_cb (req, FALSE, 0, 0, 0, fi);
         return;
     }
@@ -630,7 +632,7 @@ gboolean dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_in
     
     op_data->en->op_data = (gpointer) op_data;
 
-    LOG_debug (DIR_TREE_LOG, "[%p %p] dir_tree_open  inode %"INO_FMT, op_data, fi, ino);
+    LOG_debug (DIR_TREE_LOG, "[%p] dir_tree_open inode %"INO_FMT" op: %p", fi, ino, op_data);
 
     if (!s3client_pool_get_client (application_get_read_client_pool (dtree->app), dir_tree_file_open_on_http_ready, op_data)) {
         LOG_err (DIR_TREE_LOG, "Failed to get S3HttpConnection from the pool !");
@@ -646,10 +648,10 @@ static void dir_tree_file_release_on_entry_sent_cb (gpointer ctx, gboolean succe
     
     op_data->en->is_modified = FALSE;
 
+    LOG_debug (DIR_TREE_LOG, "XXXX: File is sent:  ino = %"INO_FMT", op: %p, fd: %d", op_data->ino, op_data, op_data->tmp_write_fd);
+    
     close (op_data->tmp_write_fd);
 
-    LOG_debug (DIR_TREE_LOG, "File is sent:  ino = %"INO_FMT")", op_data->ino);
-    
     file_op_data_destroy (op_data);
 }
 
@@ -659,7 +661,7 @@ static void dir_tree_file_release_on_http_ready (gpointer client, gpointer ctx)
     S3HttpConnection *http_con = (S3HttpConnection *) client;
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
 
-    LOG_debug (DIR_TREE_LOG, "[%p] Acquired http client ! ino: %"INO_FMT, op_data, op_data->ino);
+    LOG_debug (DIR_TREE_LOG, "Acquired http client ! ino: %"INO_FMT" op: %p tmp: %d",op_data->ino, op_data, op_data->tmp_write_fd);
 
     s3http_connection_acquire (http_con);
 
@@ -671,9 +673,7 @@ static void dir_tree_file_release_on_http_ready (gpointer client, gpointer ctx)
 void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     DirEntry *en;
-    DirTreeFileOpData *op_data;
-    
-    LOG_debug (DIR_TREE_LOG, "dir_tree_file_release  inode %d", ino);
+    DirTreeFileOpData *op_data = NULL;
 
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -686,9 +686,8 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_inf
     }
 
     op_data = (DirTreeFileOpData *) en->op_data;
-  //  op_data->en = en;
-  //  op_data->ino = ino;
-    
+    LOG_debug (DIR_TREE_LOG, "dir_tree_file_release  inode %d, op: %p", ino, op_data);
+ 
     if (op_data->http)
         s3http_client_release (op_data->http);
     
@@ -709,7 +708,7 @@ static void dir_tree_file_open_on_http_ready (gpointer client, gpointer ctx)
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
     DirTreeFileRange *range;
 
-    LOG_debug (DIR_TREE_LOG, "[%p] Acquired http client %s", op_data, op_data->en->fullpath);
+    LOG_debug (DIR_TREE_LOG, "Acquired http client %s, op: %p", op_data->en->fullpath, op_data);
     
     s3http_client_acquire (http);
     op_data->http = http;
@@ -760,9 +759,10 @@ static void dir_tree_file_read_on_last_chunk_cb (S3HttpClient *http, struct evbu
     */
 
     op_data->total_read += buf_len;
-    LOG_debug (DIR_TREE_LOG, "[%p %p] lTOTAL read: %zu (req: %zu), orig size: %zu, TOTAL: %"OFF_FMT", Qsize: %zu", 
+    LOG_debug (DIR_TREE_LOG, "[%p %p] lTOTAL read: %zu (req: %zu), orig size: %zu, TOTAL: %"OFF_FMT", Qsize: %zu, op: %p", 
         op_data->c_req, http,
-        buf_len, op_data->c_size, op_data->en->size, op_data->total_read, g_queue_get_length (op_data->q_ranges_requested));
+        buf_len, op_data->c_size, op_data->en->size, op_data->total_read, g_queue_get_length (op_data->q_ranges_requested),
+        op_data);
     
     if (op_data->file_read_cb)
         op_data->file_read_cb (op_data->c_req, TRUE, buf, buf_len);
@@ -875,7 +875,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     
     op_data = (DirTreeFileOpData *) en->op_data;
     
-    LOG_debug (DIR_TREE_LOG, "[%p %p] Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT, req, op_data, ino, size, off);
+    LOG_debug (DIR_TREE_LOG, "[%p] Read Object  inode %"INO_FMT", size: %zd, off: %"OFF_FMT", op: %p", req, ino, size, off, op_data);
     
     op_data->file_read_cb = file_read_cb;
     op_data->en = en;
@@ -952,6 +952,8 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
             file_write_cb (req, FALSE, 0);
             return;
         }
+
+        LOG_debug (DIR_TREE_LOG, "Creating tmp file: %d op: %p", op_data->tmp_write_fd, op_data);
     }
 
     // if http client is not acquired yet
@@ -962,6 +964,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     out_size = pwrite (op_data->tmp_write_fd, buf, size, off);
     if (out_size < 0) {
         file_write_cb (req, FALSE, 0);
+        LOG_err (DIR_TREE_LOG, "Failed to write to tmp file !");
         return;
     } else
         file_write_cb (req, TRUE, out_size);

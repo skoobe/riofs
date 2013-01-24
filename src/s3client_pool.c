@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -109,6 +109,7 @@ static void s3client_pool_on_client_released (gpointer client, gpointer ctx)
     // if we have a request pending
     data = g_queue_pop_head (pc->pool->q_requests);
     if (data) {
+        LOG_debug (POOL, "Retrieving client from the Pool: %p", data->ctx);
         data->on_client_ready (client, data->ctx);
         g_free (data);
     }
@@ -139,7 +140,7 @@ gboolean s3client_pool_get_client (S3ClientPool *pool, S3ClientPool_on_client_re
         }
     }
 
-    LOG_debug (POOL, "all Pool's clients are busy ..ctx: %p", ctx);
+    LOG_debug (POOL, "all Pool's clients are busy, putting into queue: %p", ctx);
     
     // add client to the end of queue
     data = g_new0 (RequestData, 1);

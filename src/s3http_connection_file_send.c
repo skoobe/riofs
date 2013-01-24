@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,11 +29,11 @@ static void s3http_connection_on_file_send_error (S3HttpConnection *con, void *c
 {
     FileSendData *data = (FileSendData *) ctx;
 
-    LOG_err (CON_SEND_LOG, "Failed to send file !");
+    LOG_err (CON_SEND_LOG, "Failed to send file! op: %p", data->ctx);
     
     s3http_connection_release (con);
 
-    if (data->on_entry_sent_cb)
+    if (data && data->on_entry_sent_cb)
         data->on_entry_sent_cb (ctx, FALSE);
 
     g_free (data);
@@ -44,7 +44,7 @@ static void s3http_connection_on_file_send_done (S3HttpConnection *con, void *ct
 {
     FileSendData *data = (FileSendData *) ctx;
 
-    LOG_debug (CON_SEND_LOG, "File is sent ! %p %p", data);
+    LOG_debug (CON_SEND_LOG, "File is sent! op: %p", data->ctx);
 
     if (data->on_entry_sent_cb)
         data->on_entry_sent_cb (data->ctx, TRUE);
@@ -69,12 +69,12 @@ gboolean s3http_connection_file_send (S3HttpConnection *con, int fd, const gchar
     data->on_entry_sent_cb = on_entry_sent_cb;
     data->ctx = ctx;
 
-    LOG_debug (CON_SEND_LOG, "Sending file.. %p", data);
+    LOG_debug (CON_SEND_LOG, "Sending file.. %p, fd: %d", data->ctx, fd);
 
     req_path = g_strdup_printf ("%s", resource_path);
 
     if (fstat (fd, &st) < 0) {
-        LOG_err (CON_SEND_LOG, "Failed to stat temp file !");
+        LOG_err (CON_SEND_LOG, "Failed to stat temp file: %d", fd);
         s3http_connection_on_file_send_error (con, (void *) data);
         return FALSE;
     }

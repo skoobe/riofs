@@ -153,7 +153,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     sig_ucontext_t *uc;
     FILE *f;
     
-    g_fprintf (stderr, "Got Sigfault !\n");
+    g_fprintf (stderr, "Got segmentation fault !\n");
 
 	uc = (sig_ucontext_t *)ucontext;
 

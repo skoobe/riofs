@@ -8,6 +8,8 @@ bin/*
 *.cache
 *.swf
 *.o
+*.pyc
+.deps/
 tests/file.in
 src/test_keys.sh
 src/s3ffs
@@ -20,3 +22,7 @@ include/Makefile
 src/Makefile
 tests/Makefile
 src/run.sh
+config.log
+config.status
+include/config.h
+include/stamp-h1

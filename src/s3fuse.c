@@ -550,7 +550,7 @@ static void s3fuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 {
 	struct fuse_entry_param e;
 
-    LOG_debug (FUSE_LOG, "mkdir_cb  success: %s, ino: %"INO_FMT, success?"YES":"NO", ino);
+    LOG_debug (FUSE_LOG, "mkdir_cb  success: %s, ino: %"INO_FMT, success?"YES":"NO", (uint64_t)ino);
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -579,7 +579,7 @@ static void s3fuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "mkdir  parent_ino: %"INO_FMT", name: %s, mode: %d", parent_ino, name, mode);
+    LOG_debug (FUSE_LOG, "mkdir  parent_ino: %"INO_FMT", name: %s, mode: %d", (uint64_t)parent_ino, name, mode);
 
     dir_tree_dir_create (s3fuse->dir_tree, parent_ino, name, mode, s3fuse_mkdir_cb, req);
 }

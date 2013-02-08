@@ -422,13 +422,13 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 {
     DirEntry *dir_en, *en;
     
-    LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %d", name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %d", name, (uint64_t)parent_ino);
     
     dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
-        LOG_msg (DIR_TREE_LOG, "Directory (%d) not found !", parent_ino);
+        LOG_msg (DIR_TREE_LOG, "Directory (%d) not found !", (uint64_t)parent_ino);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }

@@ -371,7 +371,7 @@ static void s3fuse_lookup (fuse_req_t req, fuse_ino_t parent_ino, const char *na
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "lookup  name: %s parent inode: %"INO_FMT, name, parent_ino);
+    LOG_debug (FUSE_LOG, "lookup  name: %s parent inode: %"INO_FMT, name, (uint64_t)parent_ino);
 
     dir_tree_lookup (s3fuse->dir_tree, parent_ino, name, s3fuse_lookup_cb, req);
 }

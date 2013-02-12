@@ -23,6 +23,7 @@ class Main():
 
         for i in range(int(sys.argv[1])):
             t = ThreadClass()
+            time.sleep(0.1)
             t.start()
             t_list.append(t);
 

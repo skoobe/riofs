@@ -20,3 +20,4 @@ include/Makefile
 src/Makefile
 tests/Makefile
 src/run.sh
+include/config.h.in~

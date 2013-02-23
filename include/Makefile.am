@@ -7,4 +7,7 @@ s3ffsinclude_HEADERS = \
 	s3client_pool.h \
 	s3fuse.h \
 	s3http_client.h \
-	s3http_connection.h
+	s3http_connection.h \
+	file_entry.h \
+	cache_mng.h \
+	utils.h

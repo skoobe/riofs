@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,4 +40,7 @@ void s3client_pool_destroy (S3ClientPool *pool);
 typedef void (*S3ClientPool_on_client_ready) (gpointer client, gpointer ctx);
 gboolean s3client_pool_get_client (S3ClientPool *pool, S3ClientPool_on_client_ready on_client_ready, gpointer ctx);
 
+typedef void (*S3ClientPool_on_request_done) (gpointer callback_data, gboolean success);
+void s3client_pool_add_request (S3ClientPool *pool, 
+    S3ClientPool_on_request_done on_request_done, gpointer callback_data);
 #endif

@@ -22,9 +22,9 @@ struct _S3ClientPool {
     Application *app;
     struct event_base *evbase;
     struct evdns_base *dns_base;
-    GList *l_clients; // the list of PoolClient
+    GList *l_clients; // the list of PoolClient (HTTPClient or HTTPConnection)
     guint max_requests; // maximum awaiting clients in queue
-    GQueue *q_requests; // the queue of awaiting client
+    GQueue *q_requests; // the queue of awaiting requests
 };
 
 typedef struct {
@@ -66,7 +66,10 @@ S3ClientPool *s3client_pool_create (Application *app,
     pool->dns_base = application_get_dnsbase (app);
     pool->l_clients = NULL;
     pool->q_requests = g_queue_new ();
-    pool->max_requests = conf->max_requests_per_pool;
+    if (conf)
+        pool->max_requests = conf->max_requests_per_pool;
+    else
+        pool->max_requests = 100;
    
     for (i = 0; i < client_count; i++) {
         pc = g_new0 (PoolClient, 1);
@@ -149,4 +152,11 @@ gboolean s3client_pool_get_client (S3ClientPool *pool, S3ClientPool_on_client_re
     g_queue_push_tail (pool->q_requests, data);
 
     return TRUE;
+}
+
+// Add request to request queue
+void s3client_pool_add_request (S3ClientPool *pool, 
+    S3ClientPool_on_request_done on_request_done, gpointer callback_data)
+{
+
 }

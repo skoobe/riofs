@@ -608,20 +608,22 @@ int main (int argc, char *argv[])
             LOG_err (APP_LOG, "Failed to load configuration file (%s): %s", conf_path, error->message);
             return -1;
         }
-
+        
+        // [general]
         app->conf->use_syslog = g_key_file_get_boolean (key_file, "general", "use_syslog", &error);
         if (error) {
             LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
             return -1;
         }
-
-        app->conf->writers = g_key_file_get_integer (key_file, "connections", "writes", &error);
+        
+        // [connection]
+        app->conf->writers = g_key_file_get_integer (key_file, "connection", "writes", &error);
         if (error) {
             LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
             return -1;
         }
 
-        app->conf->readers = g_key_file_get_integer (key_file, "connections", "readers", &error);
+        app->conf->readers = g_key_file_get_integer (key_file, "connection", "readers", &error);
         if (error) {
             LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
             return -1;

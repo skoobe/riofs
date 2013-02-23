@@ -466,7 +466,10 @@ static void s3http_client_connect (S3HttpClient *http)
     port = evhttp_uri_get_port (http->http_uri);
     // if no port is specified, libevent returns -1
     if (port == -1) {
-        port = conf->http_port;
+        if (conf)
+            port = conf->http_port;
+        else
+            port = 8011;
     }
     
     LOG_debug (HTTP_LOG, "Connecting to %s:%d .. %p",

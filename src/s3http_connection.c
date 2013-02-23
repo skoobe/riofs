@@ -70,15 +70,20 @@ gpointer s3http_connection_create (Application *app)
         return NULL;
     }
     
-    evhttp_connection_set_timeout (con->evcon, conf->timeout);
-    evhttp_connection_set_retries (con->evcon, conf->retries);
+    if (conf) {
+        evhttp_connection_set_timeout (con->evcon, conf->timeout);
+        evhttp_connection_set_retries (con->evcon, conf->retries);
+    } else {
+        evhttp_connection_set_timeout (con->evcon, 60);
+        evhttp_connection_set_retries (con->evcon, -1);
+    }
 
     evhttp_connection_set_closecb (con->evcon, s3http_connection_on_close, con);
 
     return (gpointer)con;
 }
 
-// destory S3HttpConnection
+// destory S3HttpConnection)
 void s3http_connection_destroy (gpointer data)
 {
     S3HttpConnection *con = (S3HttpConnection *) data;

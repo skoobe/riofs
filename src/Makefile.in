@@ -70,7 +70,8 @@ am_s3ffs_OBJECTS = s3ffs-log.$(OBJEXT) s3ffs-dir_tree.$(OBJEXT) \
 	s3ffs-s3http_connection_dir_list.$(OBJEXT) \
 	s3ffs-s3http_connection_file_send.$(OBJEXT) \
 	s3ffs-s3http_client.$(OBJEXT) s3ffs-s3client_pool.$(OBJEXT) \
-	s3ffs-main.$(OBJEXT)
+	s3ffs-file_entry.$(OBJEXT) s3ffs-cache_mng.$(OBJEXT) \
+	s3ffs-utils.$(OBJEXT) s3ffs-main.$(OBJEXT)
 s3ffs_OBJECTS = $(am_s3ffs_OBJECTS)
 am__DEPENDENCIES_1 =
 s3ffs_DEPENDENCIES = $(am__DEPENDENCIES_1)
@@ -199,7 +200,8 @@ top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include -DSYSCONFDIR=\""$(sysconfdir)/@PACKAGE@/"\" 
 s3ffs_SOURCES = log.c dir_tree.c s3fuse.c s3http_connection.c \
 	s3http_connection_dir_list.c s3http_connection_file_send.c \
-	s3http_client.c s3client_pool.c main.c
+	s3http_client.c s3client_pool.c file_entry.c cache_mng.c \
+	utils.c main.c
 s3ffs_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3ffs_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
@@ -286,7 +288,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-cache_mng.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-dir_tree.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-file_entry.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3client_pool.Po@am__quote@
@@ -295,6 +299,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection_dir_list.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection_file_send.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-utils.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -421,6 +426,48 @@ s3ffs-s3client_pool.obj: s3client_pool.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='s3client_pool.c' object='s3ffs-s3client_pool.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-s3client_pool.obj `if test -f 's3client_pool.c'; then $(CYGPATH_W) 's3client_pool.c'; else $(CYGPATH_W) '$(srcdir)/s3client_pool.c'; fi`
+
+s3ffs-file_entry.o: file_entry.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-file_entry.o -MD -MP -MF $(DEPDIR)/s3ffs-file_entry.Tpo -c -o s3ffs-file_entry.o `test -f 'file_entry.c' || echo '$(srcdir)/'`file_entry.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-file_entry.Tpo $(DEPDIR)/s3ffs-file_entry.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='file_entry.c' object='s3ffs-file_entry.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-file_entry.o `test -f 'file_entry.c' || echo '$(srcdir)/'`file_entry.c
+
+s3ffs-file_entry.obj: file_entry.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-file_entry.obj -MD -MP -MF $(DEPDIR)/s3ffs-file_entry.Tpo -c -o s3ffs-file_entry.obj `if test -f 'file_entry.c'; then $(CYGPATH_W) 'file_entry.c'; else $(CYGPATH_W) '$(srcdir)/file_entry.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-file_entry.Tpo $(DEPDIR)/s3ffs-file_entry.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='file_entry.c' object='s3ffs-file_entry.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-file_entry.obj `if test -f 'file_entry.c'; then $(CYGPATH_W) 'file_entry.c'; else $(CYGPATH_W) '$(srcdir)/file_entry.c'; fi`
+
+s3ffs-cache_mng.o: cache_mng.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-cache_mng.o -MD -MP -MF $(DEPDIR)/s3ffs-cache_mng.Tpo -c -o s3ffs-cache_mng.o `test -f 'cache_mng.c' || echo '$(srcdir)/'`cache_mng.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-cache_mng.Tpo $(DEPDIR)/s3ffs-cache_mng.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cache_mng.c' object='s3ffs-cache_mng.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-cache_mng.o `test -f 'cache_mng.c' || echo '$(srcdir)/'`cache_mng.c
+
+s3ffs-cache_mng.obj: cache_mng.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-cache_mng.obj -MD -MP -MF $(DEPDIR)/s3ffs-cache_mng.Tpo -c -o s3ffs-cache_mng.obj `if test -f 'cache_mng.c'; then $(CYGPATH_W) 'cache_mng.c'; else $(CYGPATH_W) '$(srcdir)/cache_mng.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-cache_mng.Tpo $(DEPDIR)/s3ffs-cache_mng.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cache_mng.c' object='s3ffs-cache_mng.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-cache_mng.obj `if test -f 'cache_mng.c'; then $(CYGPATH_W) 'cache_mng.c'; else $(CYGPATH_W) '$(srcdir)/cache_mng.c'; fi`
+
+s3ffs-utils.o: utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-utils.o -MD -MP -MF $(DEPDIR)/s3ffs-utils.Tpo -c -o s3ffs-utils.o `test -f 'utils.c' || echo '$(srcdir)/'`utils.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-utils.Tpo $(DEPDIR)/s3ffs-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='utils.c' object='s3ffs-utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-utils.o `test -f 'utils.c' || echo '$(srcdir)/'`utils.c
+
+s3ffs-utils.obj: utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-utils.obj -MD -MP -MF $(DEPDIR)/s3ffs-utils.Tpo -c -o s3ffs-utils.obj `if test -f 'utils.c'; then $(CYGPATH_W) 'utils.c'; else $(CYGPATH_W) '$(srcdir)/utils.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-utils.Tpo $(DEPDIR)/s3ffs-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='utils.c' object='s3ffs-utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-utils.obj `if test -f 'utils.c'; then $(CYGPATH_W) 'utils.c'; else $(CYGPATH_W) '$(srcdir)/utils.c'; fi`
 
 s3ffs-main.o: main.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-main.o -MD -MP -MF $(DEPDIR)/s3ffs-main.Tpo -c -o s3ffs-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c

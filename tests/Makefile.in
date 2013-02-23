@@ -69,6 +69,8 @@ am_s3client_pool_test_OBJECTS =  \
 	s3client_pool_test-s3http_client.$(OBJEXT) \
 	s3client_pool_test-s3client_pool.$(OBJEXT) \
 	s3client_pool_test-log.$(OBJEXT) \
+	s3client_pool_test-utils.$(OBJEXT) \
+	s3client_pool_test-s3http_connection.$(OBJEXT) \
 	s3client_pool_test-s3client_pool_test.$(OBJEXT)
 s3client_pool_test_OBJECTS = $(am_s3client_pool_test_OBJECTS)
 am__DEPENDENCIES_1 =
@@ -211,7 +213,8 @@ s3http_client_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3http_client_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 s3client_pool_test_SOURCES = $(top_srcdir)/src/s3http_client.c \
 	$(top_srcdir)/src/s3client_pool.c $(top_srcdir)/src/log.c \
-	s3client_pool_test.c
+	$(top_srcdir)/src/utils.c \
+	$(top_srcdir)/src/s3http_connection.c s3client_pool_test.c
 s3client_pool_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3client_pool_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
@@ -305,6 +308,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-s3client_pool.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-s3client_pool_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-s3http_client.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-s3http_connection.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-utils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3http_client_test-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3http_client_test-s3http_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3http_client_test-s3http_client_test.Po@am__quote@
@@ -364,6 +369,34 @@ s3client_pool_test-log.obj: $(top_srcdir)/src/log.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/log.c' object='s3client_pool_test-log.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -c -o s3client_pool_test-log.obj `if test -f '$(top_srcdir)/src/log.c'; then $(CYGPATH_W) '$(top_srcdir)/src/log.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/log.c'; fi`
+
+s3client_pool_test-utils.o: $(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -MT s3client_pool_test-utils.o -MD -MP -MF $(DEPDIR)/s3client_pool_test-utils.Tpo -c -o s3client_pool_test-utils.o `test -f '$(top_srcdir)/src/utils.c' || echo '$(srcdir)/'`$(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3client_pool_test-utils.Tpo $(DEPDIR)/s3client_pool_test-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/utils.c' object='s3client_pool_test-utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -c -o s3client_pool_test-utils.o `test -f '$(top_srcdir)/src/utils.c' || echo '$(srcdir)/'`$(top_srcdir)/src/utils.c
+
+s3client_pool_test-utils.obj: $(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -MT s3client_pool_test-utils.obj -MD -MP -MF $(DEPDIR)/s3client_pool_test-utils.Tpo -c -o s3client_pool_test-utils.obj `if test -f '$(top_srcdir)/src/utils.c'; then $(CYGPATH_W) '$(top_srcdir)/src/utils.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/utils.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3client_pool_test-utils.Tpo $(DEPDIR)/s3client_pool_test-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/utils.c' object='s3client_pool_test-utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -c -o s3client_pool_test-utils.obj `if test -f '$(top_srcdir)/src/utils.c'; then $(CYGPATH_W) '$(top_srcdir)/src/utils.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/utils.c'; fi`
+
+s3client_pool_test-s3http_connection.o: $(top_srcdir)/src/s3http_connection.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -MT s3client_pool_test-s3http_connection.o -MD -MP -MF $(DEPDIR)/s3client_pool_test-s3http_connection.Tpo -c -o s3client_pool_test-s3http_connection.o `test -f '$(top_srcdir)/src/s3http_connection.c' || echo '$(srcdir)/'`$(top_srcdir)/src/s3http_connection.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3client_pool_test-s3http_connection.Tpo $(DEPDIR)/s3client_pool_test-s3http_connection.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/s3http_connection.c' object='s3client_pool_test-s3http_connection.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -c -o s3client_pool_test-s3http_connection.o `test -f '$(top_srcdir)/src/s3http_connection.c' || echo '$(srcdir)/'`$(top_srcdir)/src/s3http_connection.c
+
+s3client_pool_test-s3http_connection.obj: $(top_srcdir)/src/s3http_connection.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -MT s3client_pool_test-s3http_connection.obj -MD -MP -MF $(DEPDIR)/s3client_pool_test-s3http_connection.Tpo -c -o s3client_pool_test-s3http_connection.obj `if test -f '$(top_srcdir)/src/s3http_connection.c'; then $(CYGPATH_W) '$(top_srcdir)/src/s3http_connection.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/s3http_connection.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3client_pool_test-s3http_connection.Tpo $(DEPDIR)/s3client_pool_test-s3http_connection.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/s3http_connection.c' object='s3client_pool_test-s3http_connection.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -c -o s3client_pool_test-s3http_connection.obj `if test -f '$(top_srcdir)/src/s3http_connection.c'; then $(CYGPATH_W) '$(top_srcdir)/src/s3http_connection.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/s3http_connection.c'; fi`
 
 s3client_pool_test-s3client_pool_test.o: s3client_pool_test.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -MT s3client_pool_test-s3client_pool_test.o -MD -MP -MF $(DEPDIR)/s3client_pool_test-s3client_pool_test.Tpo -c -o s3client_pool_test-s3client_pool_test.o `test -f 's3client_pool_test.c' || echo '$(srcdir)/'`s3client_pool_test.c

@@ -422,13 +422,13 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 {
     DirEntry *dir_en, *en;
     
-    LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %d", name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %d", name, (uint64_t)parent_ino);
     
     dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
-        LOG_msg (DIR_TREE_LOG, "Directory (%d) not found !", parent_ino);
+        LOG_msg (DIR_TREE_LOG, "Directory (%d) not found !", (uint64_t)parent_ino);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }
@@ -812,6 +812,7 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     gchar *url;
     gchar range[300];
     AppConf *conf;
+    int port;
 
     s3http_client_request_reset (http);
 
@@ -835,15 +836,24 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
 
     // XXX: HTTPS
     conf = application_get_conf (op_data->dtree->app);
+    port = application_get_port (op_data->dtree->app);
+
+    // If app->uri.port is -1, because no port was given in the URI that was
+    // parsed to create app->uri, application_get_port returns -1 as well.
+    // Let's use the HTTP standard port in this case.
+    if (port == -1) {
+        port = HTTP_DEFAULT_PORT;
+    }
+
     if (conf->path_style) {
         url = g_strdup_printf ("http://%s:%d/%s%s", application_get_host (op_data->dtree->app),
-                                                    application_get_port (op_data->dtree->app),
+                                                    port,
                                                     application_get_bucket_name (op_data->dtree->app),
                                                     op_data->en->fullpath);
     } else {
-        url = g_strdup_printf ("http://%s%d%s", application_get_host (op_data->dtree->app),
-                                                application_get_port (op_data->dtree->app),
-                                                op_data->en->fullpath);
+        url = g_strdup_printf ("http://%s:%d%s", application_get_host (op_data->dtree->app),
+                                                 port,
+                                                 op_data->en->fullpath);
     }
     
     s3http_client_start_request (http, S3Method_get, url);

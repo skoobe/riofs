@@ -68,6 +68,8 @@
 #include <event2/http.h>
 #include <event2/http_struct.h>
 
+#define HTTP_DEFAULT_PORT 80
+
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/parser.h>

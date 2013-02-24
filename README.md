@@ -27,7 +27,7 @@ How to build s3ffs
 ```
 ./configure
 make
-make install
+sudo make install
 ```
 
 Provide configure script with --enable-debug-mode flag if you want to get a debug build.

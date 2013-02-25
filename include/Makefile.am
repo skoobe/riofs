@@ -11,4 +11,5 @@ s3ffsinclude_HEADERS = \
 	file_entry.h \
 	cache_mng.h \
 	conf.h \
+	range.h \
 	utils.h

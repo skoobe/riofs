@@ -439,7 +439,6 @@ int main (int argc, char *argv[])
     };
 
     // init libraries
-    ENGINE_load_builtin_engines ();
     ENGINE_register_all_complete ();
 
     progname = argv[0];
@@ -471,6 +470,13 @@ int main (int argc, char *argv[])
         return FALSE;
     }
 
+    if (verbose)
+        log_level = LOG_debug;
+    else
+        log_level = LOG_msg;
+
+/*}}}*/
+
 /*{{{ parse config file */
 
     // user provided alternative config path
@@ -481,7 +487,6 @@ int main (int argc, char *argv[])
     }
     
     app->conf = conf_create ();
-
     if (access (conf_path, R_OK) == 0) {
         LOG_msg (APP_LOG, "Using config file: %s", conf_path);
         
@@ -490,7 +495,7 @@ int main (int argc, char *argv[])
             return -1;
         }
 
-        } else {
+    } else {
         LOG_msg (APP_LOG, "Configuration file does not exist, using predefined values.");
     }
 
@@ -500,6 +505,7 @@ int main (int argc, char *argv[])
     logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
 
 /*}}}*/
+    
     // check if --version is specified
     if (version) {
             g_fprintf (stdout, "S3 Fast File System v%s\n", VERSION);
@@ -518,8 +524,9 @@ int main (int argc, char *argv[])
     }
     
     // get access parameters from the environment
-    if (getenv("AWSACCESSKEYID"))
+    if (getenv("AWSACCESSKEYID")) 
         conf_set_string (app->conf, "s3.access_key_id", getenv("AWSACCESSKEYID"));
+    
     if (getenv("AWSSECRETACCESSKEY"))
         conf_set_string (app->conf, "s3.secret_access_key", getenv("AWSSECRETACCESSKEY"));
 
@@ -544,6 +551,8 @@ int main (int argc, char *argv[])
     }
 
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
+    conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
+    conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
 
     app->host_header = application_host_header_create (app);
     
@@ -569,14 +578,8 @@ int main (int argc, char *argv[])
     if (foreground)
         conf_set_boolean (app->conf, "app.foreground", foreground);
 
-    if (verbose)
-        log_level = LOG_debug;
-    else
-        log_level = LOG_msg;
     
     g_option_context_free (context);
-/*}}}*/
-
 
     // perform the initial request to get S3 service URL (in case of redirect)
     app->service_con = s3http_connection_create (app);

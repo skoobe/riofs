@@ -1,5 +1,5 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-bin_PROGRAMS = s3http_client_test s3client_pool_test
+bin_PROGRAMS = s3http_client_test s3client_pool_test conf_test range_test
 
 s3http_client_test_SOURCES = $(top_srcdir)/src/s3http_client.c 
 s3http_client_test_SOURCES += $(top_srcdir)/src/log.c
@@ -17,3 +17,16 @@ s3client_pool_test_SOURCES += $(top_srcdir)/src/s3http_connection.c
 s3client_pool_test_SOURCES += s3client_pool_test.c
 s3client_pool_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3client_pool_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+
+conf_test_SOURCES = $(top_srcdir)/src/log.c
+conf_test_SOURCES += $(top_srcdir)/src/utils.c
+conf_test_SOURCES += $(top_srcdir)/src/conf.c
+conf_test_SOURCES += conf_test.c
+conf_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
+conf_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+
+range_test_SOURCES = $(top_srcdir)/src/range.c
+range_test_SOURCES += range_test.c
+range_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
+range_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+

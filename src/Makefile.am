@@ -12,6 +12,7 @@ s3ffs_SOURCES += file_entry.c
 s3ffs_SOURCES += cache_mng.c
 s3ffs_SOURCES += utils.c
 s3ffs_SOURCES += conf.c
+s3ffs_SOURCES += range.c
 s3ffs_SOURCES += main.c
 
 s3ffs_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)

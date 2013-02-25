@@ -52,7 +52,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-bin_PROGRAMS = s3http_client_test$(EXEEXT) s3client_pool_test$(EXEEXT)
+bin_PROGRAMS = s3http_client_test$(EXEEXT) s3client_pool_test$(EXEEXT) \
+	conf_test$(EXEEXT) range_test$(EXEEXT)
 subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -65,6 +66,20 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
+am_conf_test_OBJECTS = conf_test-log.$(OBJEXT) \
+	conf_test-utils.$(OBJEXT) conf_test-conf.$(OBJEXT) \
+	conf_test-conf_test.$(OBJEXT)
+conf_test_OBJECTS = $(am_conf_test_OBJECTS)
+am__DEPENDENCIES_1 =
+conf_test_DEPENDENCIES = $(am__DEPENDENCIES_1)
+conf_test_LINK = $(CCLD) $(conf_test_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
+am_range_test_OBJECTS = range_test-range.$(OBJEXT) \
+	range_test-range_test.$(OBJEXT)
+range_test_OBJECTS = $(am_range_test_OBJECTS)
+range_test_DEPENDENCIES = $(am__DEPENDENCIES_1)
+range_test_LINK = $(CCLD) $(range_test_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 am_s3client_pool_test_OBJECTS =  \
 	s3client_pool_test-s3http_client.$(OBJEXT) \
 	s3client_pool_test-s3client_pool.$(OBJEXT) \
@@ -74,7 +89,6 @@ am_s3client_pool_test_OBJECTS =  \
 	s3client_pool_test-s3http_connection.$(OBJEXT) \
 	s3client_pool_test-s3client_pool_test.$(OBJEXT)
 s3client_pool_test_OBJECTS = $(am_s3client_pool_test_OBJECTS)
-am__DEPENDENCIES_1 =
 s3client_pool_test_DEPENDENCIES = $(am__DEPENDENCIES_1)
 s3client_pool_test_LINK = $(CCLD) $(s3client_pool_test_CFLAGS) \
 	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
@@ -95,9 +109,10 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(s3client_pool_test_SOURCES) $(s3http_client_test_SOURCES)
-DIST_SOURCES = $(s3client_pool_test_SOURCES) \
-	$(s3http_client_test_SOURCES)
+SOURCES = $(conf_test_SOURCES) $(range_test_SOURCES) \
+	$(s3client_pool_test_SOURCES) $(s3http_client_test_SOURCES)
+DIST_SOURCES = $(conf_test_SOURCES) $(range_test_SOURCES) \
+	$(s3client_pool_test_SOURCES) $(s3http_client_test_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -220,6 +235,13 @@ s3client_pool_test_SOURCES = $(top_srcdir)/src/s3http_client.c \
 	$(top_srcdir)/src/s3http_connection.c s3client_pool_test.c
 s3client_pool_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3client_pool_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+conf_test_SOURCES = $(top_srcdir)/src/log.c $(top_srcdir)/src/utils.c \
+	$(top_srcdir)/src/conf.c conf_test.c
+conf_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
+conf_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+range_test_SOURCES = $(top_srcdir)/src/range.c range_test.c
+range_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
+range_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
 
 .SUFFIXES:
@@ -294,6 +316,12 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
+conf_test$(EXEEXT): $(conf_test_OBJECTS) $(conf_test_DEPENDENCIES) $(EXTRA_conf_test_DEPENDENCIES) 
+	@rm -f conf_test$(EXEEXT)
+	$(conf_test_LINK) $(conf_test_OBJECTS) $(conf_test_LDADD) $(LIBS)
+range_test$(EXEEXT): $(range_test_OBJECTS) $(range_test_DEPENDENCIES) $(EXTRA_range_test_DEPENDENCIES) 
+	@rm -f range_test$(EXEEXT)
+	$(range_test_LINK) $(range_test_OBJECTS) $(range_test_LDADD) $(LIBS)
 s3client_pool_test$(EXEEXT): $(s3client_pool_test_OBJECTS) $(s3client_pool_test_DEPENDENCIES) $(EXTRA_s3client_pool_test_DEPENDENCIES) 
 	@rm -f s3client_pool_test$(EXEEXT)
 	$(s3client_pool_test_LINK) $(s3client_pool_test_OBJECTS) $(s3client_pool_test_LDADD) $(LIBS)
@@ -307,6 +335,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-conf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-conf_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-log.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-utils.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/range_test-range.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/range_test-range_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-conf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3client_pool_test-s3client_pool.Po@am__quote@
@@ -332,6 +366,90 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
+
+conf_test-log.o: $(top_srcdir)/src/log.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-log.o -MD -MP -MF $(DEPDIR)/conf_test-log.Tpo -c -o conf_test-log.o `test -f '$(top_srcdir)/src/log.c' || echo '$(srcdir)/'`$(top_srcdir)/src/log.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-log.Tpo $(DEPDIR)/conf_test-log.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/log.c' object='conf_test-log.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-log.o `test -f '$(top_srcdir)/src/log.c' || echo '$(srcdir)/'`$(top_srcdir)/src/log.c
+
+conf_test-log.obj: $(top_srcdir)/src/log.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-log.obj -MD -MP -MF $(DEPDIR)/conf_test-log.Tpo -c -o conf_test-log.obj `if test -f '$(top_srcdir)/src/log.c'; then $(CYGPATH_W) '$(top_srcdir)/src/log.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/log.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-log.Tpo $(DEPDIR)/conf_test-log.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/log.c' object='conf_test-log.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-log.obj `if test -f '$(top_srcdir)/src/log.c'; then $(CYGPATH_W) '$(top_srcdir)/src/log.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/log.c'; fi`
+
+conf_test-utils.o: $(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-utils.o -MD -MP -MF $(DEPDIR)/conf_test-utils.Tpo -c -o conf_test-utils.o `test -f '$(top_srcdir)/src/utils.c' || echo '$(srcdir)/'`$(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-utils.Tpo $(DEPDIR)/conf_test-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/utils.c' object='conf_test-utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-utils.o `test -f '$(top_srcdir)/src/utils.c' || echo '$(srcdir)/'`$(top_srcdir)/src/utils.c
+
+conf_test-utils.obj: $(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-utils.obj -MD -MP -MF $(DEPDIR)/conf_test-utils.Tpo -c -o conf_test-utils.obj `if test -f '$(top_srcdir)/src/utils.c'; then $(CYGPATH_W) '$(top_srcdir)/src/utils.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/utils.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-utils.Tpo $(DEPDIR)/conf_test-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/utils.c' object='conf_test-utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-utils.obj `if test -f '$(top_srcdir)/src/utils.c'; then $(CYGPATH_W) '$(top_srcdir)/src/utils.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/utils.c'; fi`
+
+conf_test-conf.o: $(top_srcdir)/src/conf.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-conf.o -MD -MP -MF $(DEPDIR)/conf_test-conf.Tpo -c -o conf_test-conf.o `test -f '$(top_srcdir)/src/conf.c' || echo '$(srcdir)/'`$(top_srcdir)/src/conf.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-conf.Tpo $(DEPDIR)/conf_test-conf.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/conf.c' object='conf_test-conf.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-conf.o `test -f '$(top_srcdir)/src/conf.c' || echo '$(srcdir)/'`$(top_srcdir)/src/conf.c
+
+conf_test-conf.obj: $(top_srcdir)/src/conf.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-conf.obj -MD -MP -MF $(DEPDIR)/conf_test-conf.Tpo -c -o conf_test-conf.obj `if test -f '$(top_srcdir)/src/conf.c'; then $(CYGPATH_W) '$(top_srcdir)/src/conf.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/conf.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-conf.Tpo $(DEPDIR)/conf_test-conf.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/conf.c' object='conf_test-conf.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-conf.obj `if test -f '$(top_srcdir)/src/conf.c'; then $(CYGPATH_W) '$(top_srcdir)/src/conf.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/conf.c'; fi`
+
+conf_test-conf_test.o: conf_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-conf_test.o -MD -MP -MF $(DEPDIR)/conf_test-conf_test.Tpo -c -o conf_test-conf_test.o `test -f 'conf_test.c' || echo '$(srcdir)/'`conf_test.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-conf_test.Tpo $(DEPDIR)/conf_test-conf_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='conf_test.c' object='conf_test-conf_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-conf_test.o `test -f 'conf_test.c' || echo '$(srcdir)/'`conf_test.c
+
+conf_test-conf_test.obj: conf_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-conf_test.obj -MD -MP -MF $(DEPDIR)/conf_test-conf_test.Tpo -c -o conf_test-conf_test.obj `if test -f 'conf_test.c'; then $(CYGPATH_W) 'conf_test.c'; else $(CYGPATH_W) '$(srcdir)/conf_test.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/conf_test-conf_test.Tpo $(DEPDIR)/conf_test-conf_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='conf_test.c' object='conf_test-conf_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -c -o conf_test-conf_test.obj `if test -f 'conf_test.c'; then $(CYGPATH_W) 'conf_test.c'; else $(CYGPATH_W) '$(srcdir)/conf_test.c'; fi`
+
+range_test-range.o: $(top_srcdir)/src/range.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -MT range_test-range.o -MD -MP -MF $(DEPDIR)/range_test-range.Tpo -c -o range_test-range.o `test -f '$(top_srcdir)/src/range.c' || echo '$(srcdir)/'`$(top_srcdir)/src/range.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/range_test-range.Tpo $(DEPDIR)/range_test-range.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/range.c' object='range_test-range.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -c -o range_test-range.o `test -f '$(top_srcdir)/src/range.c' || echo '$(srcdir)/'`$(top_srcdir)/src/range.c
+
+range_test-range.obj: $(top_srcdir)/src/range.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -MT range_test-range.obj -MD -MP -MF $(DEPDIR)/range_test-range.Tpo -c -o range_test-range.obj `if test -f '$(top_srcdir)/src/range.c'; then $(CYGPATH_W) '$(top_srcdir)/src/range.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/range.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/range_test-range.Tpo $(DEPDIR)/range_test-range.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/range.c' object='range_test-range.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -c -o range_test-range.obj `if test -f '$(top_srcdir)/src/range.c'; then $(CYGPATH_W) '$(top_srcdir)/src/range.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/range.c'; fi`
+
+range_test-range_test.o: range_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -MT range_test-range_test.o -MD -MP -MF $(DEPDIR)/range_test-range_test.Tpo -c -o range_test-range_test.o `test -f 'range_test.c' || echo '$(srcdir)/'`range_test.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/range_test-range_test.Tpo $(DEPDIR)/range_test-range_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='range_test.c' object='range_test-range_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -c -o range_test-range_test.o `test -f 'range_test.c' || echo '$(srcdir)/'`range_test.c
+
+range_test-range_test.obj: range_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -MT range_test-range_test.obj -MD -MP -MF $(DEPDIR)/range_test-range_test.Tpo -c -o range_test-range_test.obj `if test -f 'range_test.c'; then $(CYGPATH_W) 'range_test.c'; else $(CYGPATH_W) '$(srcdir)/range_test.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/range_test-range_test.Tpo $(DEPDIR)/range_test-range_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='range_test.c' object='range_test-range_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(range_test_CFLAGS) $(CFLAGS) -c -o range_test-range_test.obj `if test -f 'range_test.c'; then $(CYGPATH_W) 'range_test.c'; else $(CYGPATH_W) '$(srcdir)/range_test.c'; fi`
 
 s3client_pool_test-s3http_client.o: $(top_srcdir)/src/s3http_client.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3client_pool_test_CFLAGS) $(CFLAGS) -MT s3client_pool_test-s3http_client.o -MD -MP -MF $(DEPDIR)/s3client_pool_test-s3http_client.Tpo -c -o s3client_pool_test-s3http_client.o `test -f '$(top_srcdir)/src/s3http_client.c' || echo '$(srcdir)/'`$(top_srcdir)/src/s3http_client.c

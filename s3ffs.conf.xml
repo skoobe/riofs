@@ -28,8 +28,6 @@
     <timeout type="int">20</timeout>
     <!-- number of retries, before giving up (-1 for infinite loop) -->
     <retries type="int">-1</retries>
-    <!-- default HTTP port -->
-    <port type="int">80</port>
 </connection>
 
 <filesystem>

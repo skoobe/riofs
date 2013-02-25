@@ -58,6 +58,8 @@
 #include <openssl/engine.h>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
+#include <openssl/ssl.h>
+#include <openssl/md5.h>
 
 #include <event2/event.h>
 #include <event2/listener.h>
@@ -80,25 +82,13 @@
 
 #include "config.h" 
 
-typedef struct {
-    gint writers;
-    gint readers;
-    gint ops;
-    gint timeout;
-    gint retries;
-    gint http_port;
-    gint dir_cache_max_time;
-    gint max_requests_per_pool;
-    gboolean use_syslog;
-    gboolean path_style;
-} AppConf;
-
 typedef struct _Application Application;
 typedef struct _S3HttpConnection S3HttpConnection;
 typedef struct _DirTree DirTree;
 typedef struct _S3Fuse S3Fuse;
 typedef struct _S3ClientPool S3ClientPool;
 typedef enum _LogLevel LogLevel;
+typedef struct _ConfData ConfData;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
@@ -109,7 +99,7 @@ const gchar *application_get_host (Application *app);
 int application_get_port (Application *app);
 const gchar *application_get_host_header (Application *app);
 const gchar *application_get_tmp_dir (Application *app);
-AppConf *application_get_conf (Application *app);
+ConfData *application_get_conf (Application *app);
 
 S3ClientPool *application_get_read_client_pool (Application *app);
 S3ClientPool *application_get_write_client_pool (Application *app);
@@ -117,6 +107,7 @@ S3ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 
 #include "log.h" 
+#include "conf.h" 
 
 LogLevel log_level;
 

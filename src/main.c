@@ -25,7 +25,7 @@
 #define APP_LOG "main"
 
 struct _Application {
-    AppConf *conf;
+    ConfData *conf;
     struct event_base *evbase;
     struct evdns_base *dns_base;
     
@@ -39,17 +39,8 @@ struct _Application {
     S3ClientPool *read_client_pool;
     S3ClientPool *ops_client_pool;
 
-    gchar *aws_access_key_id;
-    gchar *aws_secret_access_key;
-
-    gchar *bucket_name;
     gchar *host_header;
     struct evhttp_uri *uri;
-
-    gchar *tmp_dir;
-
-    gboolean foreground;
-    gchar *mountpoint;
 
     struct event *sigint_ev;
     struct event *sigpipe_ev;
@@ -59,7 +50,6 @@ struct _Application {
 
 // global variable, used by signals handlers
 static Application *_app = NULL;
-
 
 /*{{{ getters */
 struct event_base *application_get_evbase (Application *app)
@@ -77,16 +67,6 @@ DirTree *application_get_dir_tree (Application *app)
     return app->dir_tree;
 }
 
-const gchar *application_get_access_key_id (Application *app)
-{
-    return (const gchar *) app->aws_access_key_id;
-}
-
-const gchar *application_get_secret_access_key (Application *app)
-{
-    return (const gchar *) app->aws_secret_access_key;
-}
-
 S3ClientPool *application_get_write_client_pool (Application *app)
 {
     return app->write_client_pool;
@@ -102,32 +82,7 @@ S3ClientPool *application_get_ops_client_pool (Application *app)
     return app->ops_client_pool;
 }
 
-const gchar *application_get_bucket_name (Application *app)
-{
-    return app->bucket_name;
-}
-
-const gchar *application_get_host (Application *app)
-{
-    return evhttp_uri_get_host (app->uri);
-}
-
-const gchar *application_get_host_header (Application *app)
-{
-    return app->host_header;
-}
-
-int application_get_port (Application *app)
-{
-    return evhttp_uri_get_port (app->uri);
-}
-
-const gchar *application_get_tmp_dir (Application *app)
-{
-    return app->tmp_dir;
-}
-
-AppConf *application_get_conf (Application *app)
+ConfData *application_get_conf (Application *app)
 {
     return app->conf;
 }
@@ -223,11 +178,10 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
 
 const gchar *application_host_header_create (Application *app)
 {
-    AppConf *conf = application_get_conf (app);
-    if (conf->path_style) {
+    if (conf_get_boolean (app->conf, "s3.path_style")) {
         return g_strdup_printf("s3.amazonaws.com");
     } else {
-        return g_strdup_printf("%s.s3.amazonaws.com", app->bucket_name);
+        return g_strdup_printf("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
     }
 }
 
@@ -236,7 +190,7 @@ static gint application_finish_initialization_and_run (Application *app)
     struct sigaction sigact;
 
     // create S3ClientPool for reading operations
-    app->read_client_pool = s3client_pool_create (app, app->conf->readers,
+    app->read_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
         s3http_client_create,
         s3http_client_destroy,
         s3http_client_set_on_released_cb,
@@ -249,7 +203,7 @@ static gint application_finish_initialization_and_run (Application *app)
     }
 
     // create S3ClientPool for writing operations
-    app->write_client_pool = s3client_pool_create (app, app->conf->writers,
+    app->write_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.writers"),
         s3http_connection_create,
         s3http_connection_destroy,
         s3http_connection_set_on_released_cb,
@@ -262,7 +216,7 @@ static gint application_finish_initialization_and_run (Application *app)
     }
 
     // create S3ClientPool for various operations
-    app->ops_client_pool = s3client_pool_create (app, app->conf->ops,
+    app->ops_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.operations"),
         s3http_connection_create,
         s3http_connection_destroy,
         s3http_connection_set_on_released_cb,
@@ -284,7 +238,7 @@ static gint application_finish_initialization_and_run (Application *app)
 /*}}}*/
 
 /*{{{ FUSE*/
-    app->s3fuse = s3fuse_new (app, app->mountpoint);
+    app->s3fuse = s3fuse_new (app, conf_get_string (app->conf, "app.mountpoint"));
     if (!app->s3fuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs !");
         event_base_loopexit (app->evbase, NULL);
@@ -325,7 +279,7 @@ static gint application_finish_initialization_and_run (Application *app)
 	event_add (app->sigusr1_ev, NULL);
 /*}}}*/
     
-    if (!app->foreground)
+    if (conf_get_boolean (app->conf, "app.foreground"))
         fuse_daemonize (0);
 
     return 0;
@@ -429,13 +383,10 @@ static void application_destroy (Application *app)
     evdns_base_free (app->dns_base, 0);
     event_base_free (app->evbase);
 
-    g_free (app->mountpoint);
-    g_free (app->tmp_dir);
-    g_free (app->bucket_name);
     g_free (app->host_header);
     evhttp_uri_free (app->uri);
 
-    g_free (app->conf);
+    conf_destroy (app->conf);
     g_free (app);
     
     ENGINE_cleanup ();
@@ -450,17 +401,16 @@ int main (int argc, char *argv[])
     Application *app;
     gboolean verbose = FALSE;
     gboolean version = FALSE;
-    gboolean path_style = FALSE;
     GError *error = NULL;
     GOptionContext *context;
     gchar **s_params = NULL;
     gchar **s_config = NULL;
     gchar *progname;
     gboolean foreground = FALSE;
-    GKeyFile *key_file;
     gchar conf_str[1023];
     gchar *conf_path;
     struct stat st;
+    gboolean path_style = FALSE;
 
     conf_path = g_build_filename (SYSCONFDIR, "s3ffs.conf", NULL); 
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
@@ -485,21 +435,6 @@ int main (int argc, char *argv[])
     app = g_new0 (Application, 1);
     app->service_con_redirects = 0;
     app->evbase = event_base_new ();
-
-    app->conf = g_new0 (AppConf, 1);
-    // set default values
-    app->conf->writers = 2;
-    app->conf->readers = 2;
-    app->conf->ops = 4;
-    app->conf->timeout = 20;
-    app->conf->retries = -1;
-    app->conf->http_port = 80;
-    app->conf->dir_cache_max_time = 5;
-    app->conf->max_requests_per_pool = 100;
-    app->conf->use_syslog = TRUE;
-
-    //XXX: fix it
-    app->tmp_dir = g_strdup ("/tmp");
 
     if (!app->evbase) {
         LOG_err (APP_LOG, "Failed to create event base !");
@@ -526,8 +461,8 @@ int main (int argc, char *argv[])
     // check if --version is specified
     if (version) {
             g_fprintf (stdout, "S3 Fast File System v%s\n", VERSION);
-            g_fprintf (stdout, "Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>\n");
-            g_fprintf (stdout, "Copyright (C) 2012 Skoobe GmbH. All rights reserved.\n");
+            g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
+            g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
             g_fprintf (stdout, "Libraries:\n");
             g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d  glibc: %s\n", 
                     GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION, 
@@ -535,15 +470,19 @@ int main (int argc, char *argv[])
                     FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION,
                     gnu_get_libc_version ()
             );
+            g_fprintf (stdout, "\nFeatures:\n");
+            g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
         return 0;
     }
     
-    app->conf->path_style = path_style;
-
     // get access parameters from the environment
-    app->aws_access_key_id = getenv("AWSACCESSKEYID");
-    app->aws_secret_access_key = getenv("AWSSECRETACCESSKEY");
-    if (!app->aws_access_key_id || !app->aws_secret_access_key) {
+    if (getenv("AWSACCESSKEYID"))
+        conf_set_string (app->conf, "s3.access_key_id", getenv("AWSACCESSKEYID"));
+    if (getenv("AWSSECRETACCESSKEY"))
+        conf_set_string (app->conf, "s3.secret_access_key", getenv("AWSSECRETACCESSKEY"));
+
+    // check if both strings are set
+    if (!conf_get_string (app->conf, "s3.access_key_id") || !conf_get_string (app->conf, "s3.secret_access_key")) {
         LOG_err (APP_LOG, "Environment variables are not set!");
         g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
@@ -561,27 +500,32 @@ int main (int argc, char *argv[])
         g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
-    app->bucket_name = g_strdup (s_params[1]);
+
+    conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
+
     app->host_header = application_host_header_create (app);
     
-    app->mountpoint = g_strdup (s_params[2]);
+    conf_set_string (app->conf, "app.mountpoint", s_params[2]);
 
     // check if directory exists
-    if (stat (app->mountpoint, &st) == -1) {
-        LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", app->mountpoint);
+    if (stat (conf_get_string (app->conf, "app.mountpoint"), &st) == -1) {
+        LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", 
+            conf_get_string (app->conf, "app.mountpoint"));
         g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
     // check if it's a directory
     if (!S_ISDIR (st.st_mode)) {
-        LOG_err (APP_LOG, "Mountpoint %s is not a directory!", app->mountpoint);
+        LOG_err (APP_LOG, "Mountpoint %s is not a directory!", conf_get_string (app->conf, "app.mountpoint"));
         g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
     
     g_strfreev (s_params);
 
-    app->foreground = foreground;
+    // foreground is set
+    if (foreground)
+        conf_set_boolean (app->conf, "app.foreground", foreground);
 
     if (verbose)
         log_level = LOG_debug;
@@ -603,90 +547,19 @@ int main (int argc, char *argv[])
     if (access (conf_path, R_OK) == 0) {
         LOG_msg (APP_LOG, "Using config file: %s", conf_path);
         
-        key_file = g_key_file_new ();
-        if (!g_key_file_load_from_file (key_file, conf_path, G_KEY_FILE_NONE, &error)) {
-            LOG_err (APP_LOG, "Failed to load configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-        
-        // [general]
-        app->conf->use_syslog = g_key_file_get_boolean (key_file, "general", "use_syslog", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-        
-        // [connection]
-        app->conf->writers = g_key_file_get_integer (key_file, "connection", "writes", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
+        if (!conf_parse_file (app->conf, conf_path)) {
+            LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
             return -1;
         }
 
-        app->conf->readers = g_key_file_get_integer (key_file, "connection", "readers", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->ops = g_key_file_get_integer (key_file, "connections", "operations", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->timeout = g_key_file_get_integer (key_file, "connections", "timeout", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->retries = g_key_file_get_integer (key_file, "connections", "retries", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->http_port = g_key_file_get_integer (key_file, "connections", "http_port", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->max_requests_per_pool = g_key_file_get_integer (key_file, "connections", "max_requests_per_pool", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->path_style = g_key_file_get_boolean (key_file, "connections", "path_style", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        app->conf->dir_cache_max_time = g_key_file_get_integer (key_file, "filesystem", "dir_cache_max_time", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-        
-        g_free (app->tmp_dir);
-        app->tmp_dir = g_key_file_get_string (key_file, "filesystem", "tmp_dir", &error);
-        if (error) {
-            LOG_err (APP_LOG, "Failed to read configuration file (%s): %s", conf_path, error->message);
-            return -1;
-        }
-
-        g_key_file_free (key_file);
-    } else {
+        } else {
         LOG_msg (APP_LOG, "Configuration file does not exist, using predefined values.");
     }
 
     g_free (conf_path);
 
     // update logging settings
-    logger_set_syslog (app->conf->use_syslog);
+    logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
 
 /*}}}*/
 

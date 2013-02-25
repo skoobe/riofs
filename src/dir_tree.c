@@ -47,13 +47,13 @@ typedef struct {
 } DirEntry;
 
 struct _DirTree {
+    Application *app;
+    ConfData *conf;
     DirEntry *root;
     GHashTable *h_inodes; // inode -> DirEntry
-    Application *app;
 
     fuse_ino_t max_ino;
     guint64 current_age;
-    time_t dir_cache_max_time; // max time of dir cache in seconds
 
     gint64 current_write_ops; // the number of current write operations
 };
@@ -70,16 +70,14 @@ static void dir_entry_destroy (gpointer data);
 DirTree *dir_tree_create (Application *app)
 {
     DirTree *dtree;
-    AppConf *conf;
 
-    conf = application_get_conf (app);
     dtree = g_new0 (DirTree, 1);
+    dtree->conf = application_get_conf (app);
     dtree->app = app;
     // children entries are destroyed by parent directory entries
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
     dtree->current_age = 0;
-    dtree->dir_cache_max_time = conf->dir_cache_max_time; //XXX
     dtree->current_write_ops = 0;
 
     dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
@@ -383,7 +381,9 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     t = time (NULL);
 
     // already have directory buffer in the cache
-    if (en->dir_cache_size && t >= en->dir_cache_created && t - en->dir_cache_created <= dtree->dir_cache_max_time) {
+    if (en->dir_cache_size && t >= en->dir_cache_created && 
+        t - en->dir_cache_created <= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+        
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
         return;
@@ -811,7 +811,6 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     gchar auth_key[300];
     gchar *url;
     gchar range[300];
-    AppConf *conf;
     int port;
 
     s3http_client_request_reset (http);
@@ -824,7 +823,7 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 
     auth_str = (gchar *)s3http_connection_get_auth_string (op_data->dtree->app, "GET", "", op_data->en->fullpath, time_str);
-    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", application_get_access_key_id (op_data->dtree->app), auth_str);
+    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (op_data->dtree->conf, "s3.access_key_id"), auth_str);
     g_free (auth_str);
     snprintf (range, sizeof (range), "bytes=%"OFF_FMT"-%"OFF_FMT, off, off+size - 1);
     LOG_debug (DIR_TREE_LOG, "range: %s", range);
@@ -832,11 +831,7 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
     s3http_client_add_output_header (http, "Authorization", auth_key);
     s3http_client_add_output_header (http, "Date", time_str);
     s3http_client_add_output_header (http, "Range", range);
-    s3http_client_add_output_header (http, "Host", application_get_host_header (op_data->dtree->app));
-
-    // XXX: HTTPS
-    conf = application_get_conf (op_data->dtree->app);
-    port = application_get_port (op_data->dtree->app);
+    s3http_client_add_output_header (http, "Host", conf_get_string (op_data->dtree->conf, "s3.host_header"));
 
     // If app->uri.port is -1, because no port was given in the URI that was
     // parsed to create app->uri, application_get_port returns -1 as well.
@@ -845,13 +840,13 @@ static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3Ht
         port = HTTP_DEFAULT_PORT;
     }
 
-    if (conf->path_style) {
-        url = g_strdup_printf ("http://%s:%d/%s%s", application_get_host (op_data->dtree->app),
+    if (conf_get_boolean (op_data->dtree->conf, "s3.path_style")) {
+        url = g_strdup_printf ("http://%s:%d/%s%s", conf_get_string (op_data->dtree->conf, "s3.host"),
                                                     port,
-                                                    application_get_bucket_name (op_data->dtree->app),
+                                                    conf_get_string (op_data->dtree->conf, "s3.bucket_name"),
                                                     op_data->en->fullpath);
     } else {
-        url = g_strdup_printf ("http://%s:%d%s", application_get_host (op_data->dtree->app),
+        url = g_strdup_printf ("http://%s:%d%s", conf_get_string (op_data->dtree->conf, "s3.host"),
                                                  port,
                                                  op_data->en->fullpath);
     }
@@ -955,7 +950,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
 
         op_data->en = en;
         op_data->op_in_progress = TRUE;
-        snprintf (filename, sizeof (filename), "%s/s3ffs.XXXXXX", application_get_tmp_dir (dtree->app));
+        snprintf (filename, sizeof (filename), "%s/s3ffs.XXXXXX", conf_get_string (dtree->conf, "filesystem.cache_dir"));
         op_data->tmp_write_fd = mkstemp (filename);
         if (op_data->tmp_write_fd < 0) {
             LOG_err (DIR_TREE_LOG, "Failed to create tmp file !");

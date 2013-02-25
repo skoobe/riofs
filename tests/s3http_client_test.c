@@ -57,7 +57,7 @@ typedef struct {
 struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
-    AppConf *conf;
+    ConfData *conf;
 };
 
 #define HTTP_TEST "http_test"
@@ -72,11 +72,10 @@ struct evdns_base *application_get_dnsbase (Application *app)
     return app->dns_base;
 }
 
-AppConf *application_get_conf (Application *app)
+ConfData *application_get_conf (Application *app)
 {
     return app->conf;
 }
-
 
 static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 {

@@ -30,7 +30,7 @@ gchar *get_random_string (size_t len, gboolean readable)
         for (i = 0; i < len; i++)
             out[i] = readable_chars[rand() % strlen (readable_chars)];
     } else {
-        if (!RAND_pseudo_bytes (out, len))
+        if (!RAND_pseudo_bytes ((unsigned char *)out, len))
             return out;
     }
 
@@ -45,11 +45,46 @@ gchar *get_md5_sum (char *buf, size_t len)
     gchar *out;
     size_t i;
 
-    MD5 (buf, len, digest);
+    MD5 ((const unsigned char *)buf, len, digest);
 
     out = g_malloc (33);
     for (i = 0; i < 16; ++i)
         sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
 
     return out;
+}
+
+gboolean uri_is_https (const struct evhttp_uri *uri)
+{
+    const char *scheme;
+
+    if (!uri)
+        return FALSE;
+
+    scheme = evhttp_uri_get_scheme (uri);
+    if (!scheme)
+        return FALSE;
+
+    if (!strncasecmp ("https", scheme, 5))
+        return TRUE;
+    
+    return FALSE;
+}
+
+
+gint uri_get_port (const struct evhttp_uri *uri)
+{
+    gint port;
+
+    port = evhttp_uri_get_port (uri);
+
+    // if no port is specified, libevent returns -1
+    if (port == -1) {
+        if (uri_is_https (uri))
+            port = 443;
+        else
+            port = 80;
+    }
+
+    return port;
 }

@@ -22,5 +22,7 @@
 
 gchar *get_random_string (size_t len, gboolean readable);
 gchar *get_md5_sum (char *buf, size_t len);
+gboolean uri_is_https (const struct evhttp_uri *uri);
+gint uri_get_port (const struct evhttp_uri *uri);
 
 #endif

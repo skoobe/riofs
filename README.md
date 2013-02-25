@@ -54,7 +54,7 @@ Please note, that you can specify default S3 service URL (http://s3.amazonaws.co
 Configuration file
 ------------------
     
-Configuration file (s3ffs.conf) is located in $(prefix)/etc directory.
+Configuration file (s3ffs.conf.xml) is located in $(prefix)/etc directory.
 
 Bug reporting
 -------------

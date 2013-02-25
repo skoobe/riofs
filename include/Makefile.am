@@ -10,4 +10,5 @@ s3ffsinclude_HEADERS = \
 	s3http_connection.h \
 	file_entry.h \
 	cache_mng.h \
+	conf.h \
 	utils.h

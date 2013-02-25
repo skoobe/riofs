@@ -1,5 +1,5 @@
 SUBDIRS=src include tests
-CONF_FILE = s3ffs.conf
+CONF_FILE = s3ffs.conf.xml
 cfgdir = $(sysconfdir)/@PACKAGE@
 cfg_DATA = $(CONF_FILE)
 cfg_SCRIPTS = $(CONF_FILE)

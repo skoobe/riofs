@@ -41,7 +41,7 @@ typedef struct {
 struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
-    AppConf *conf;
+    ConfData *conf;
 
     GList *l_files;
     GHashTable *h_clients_freq; // keeps the number of requests for each HTTP client
@@ -272,7 +272,7 @@ int application_get_port (Application *app)
 }
 
 
-AppConf *application_get_conf (Application *app)
+ConfData *application_get_conf (Application *app)
 {
     return app->conf;
 }
@@ -330,7 +330,7 @@ int main (int argc, char *argv[])
 
     event_base_dispatch (app->evbase);
 
-    g_hash_table_foreach (app->h_clients_freq, print_foreach, NULL);
+    g_hash_table_foreach (app->h_clients_freq, (GHFunc)print_foreach, NULL);
 
     return 0;
 }

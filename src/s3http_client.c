@@ -35,6 +35,7 @@ typedef enum {
 // HTTP structure
 struct _S3HttpClient {
     Application *app;
+    ConfData *conf;
     struct event_base *evbase;
     struct evdns_base *dns_base;
     
@@ -116,6 +117,7 @@ gpointer s3http_client_create (Application *app)
 
     http = g_new0 (S3HttpClient, 1);
     http->app = app;
+    http->conf = application_get_conf (app);
     http->evbase = application_get_evbase (app);
     http->dns_base = application_get_dnsbase (app);
     http->is_acquired = FALSE;
@@ -445,12 +447,9 @@ static void s3http_client_connection_event_cb (struct bufferevent *bev, short wh
 static void s3http_client_connect (S3HttpClient *http)
 {
     int port;
-    AppConf *conf;
     
     if (http->connection_state == S3C_connecting)
         return;
-
-    conf = application_get_conf (http->app);
 
     if (http->bev)
         bufferevent_free (http->bev);
@@ -463,14 +462,7 @@ static void s3http_client_connect (S3HttpClient *http)
     // bufferevent_set_timeouts (http->bev, 
 
 
-    port = evhttp_uri_get_port (http->http_uri);
-    // if no port is specified, libevent returns -1
-    if (port == -1) {
-        if (conf)
-            port = conf->http_port;
-        else
-            port = 8011;
-    }
+    port = uri_get_port (http->http_uri);
     
     LOG_debug (HTTP_LOG, "Connecting to %s:%d .. %p",
         evhttp_uri_get_host (http->http_uri),

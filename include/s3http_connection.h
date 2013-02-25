@@ -27,12 +27,12 @@ typedef enum {
 
 struct _S3HttpConnection {
     Application *app;
+    ConfData *conf;
 
     S3ClientPool_on_released_cb client_on_released_cb;
     gpointer pool_ctx;
 
     struct evhttp_connection *evcon;
-    gchar *bucket_name;
 
     // is taken by high level
     gboolean is_acquired;

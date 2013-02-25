@@ -533,7 +533,6 @@ typedef struct {
     fuse_req_t c_req;
 } DirTreeFileRange;
 
-/*{{{ dir_tree_add_file */
 
 static DirTreeFileOpData *file_op_data_create (DirTree *dtree, fuse_ino_t ino)
 {
@@ -566,6 +565,7 @@ static void file_op_data_destroy (DirTreeFileOpData *op_data)
     g_free (op_data);
 }
 
+/*{{{ file_create */
 // add new file entry to directory, return new inode
 void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
     DirTree_file_create_cb file_create_cb, fuse_req_t req, struct fuse_file_info *fi)
@@ -606,6 +606,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
 static void dir_tree_file_read_prepare_request (DirTreeFileOpData *op_data, S3HttpClient *http, off_t off, size_t size);
 static void dir_tree_file_open_on_http_ready (gpointer client, gpointer ctx);
 
+/*{{{ file_open */
 // existing file is opened, create context data
 gboolean dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi, 
     DirTree_file_open_cb file_open_cb, fuse_req_t req)
@@ -640,7 +641,9 @@ gboolean dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_in
 
     return TRUE;
 }
+/*}}}*/
 
+/*{{{ file_release */
 static void dir_tree_file_release_on_entry_sent_cb (gpointer ctx, gboolean success)
 {
     DirTreeFileOpData *op_data = (DirTreeFileOpData *) ctx;
@@ -668,6 +671,7 @@ static void dir_tree_file_release_on_http_ready (gpointer client, gpointer ctx)
     s3http_connection_file_send (http_con, op_data->tmp_write_fd, op_data->en->fullpath, 
         dir_tree_file_release_on_entry_sent_cb, op_data);
 }
+
 
 // file is closed, free context data
 void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -700,6 +704,7 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_inf
         file_op_data_destroy (op_data);
     }
 }
+/*}}}*/
 
 /*{{{ file read*/
 static void dir_tree_file_open_on_http_ready (gpointer client, gpointer ctx)
@@ -1083,6 +1088,7 @@ gboolean dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remo
 }
 /*}}}*/
 
+/*{{{ mkdir*/
 void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
      dir_tree_mkdir_cb mkdir_cb, fuse_req_t req)
 {
@@ -1115,4 +1121,4 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
     en->mode = DIR_DEFAULT_MODE;
 
     mkdir_cb (req, TRUE, en->ino, en->mode, en->size, en->ctime);
-}
+}/*}}}*/

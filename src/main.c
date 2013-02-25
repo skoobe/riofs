@@ -21,6 +21,7 @@
 #include "s3fuse.h"
 #include "s3client_pool.h"
 #include "s3http_client.h"
+#include "cache_mng.h"
 
 #define APP_LOG "main"
 
@@ -31,6 +32,7 @@ struct _Application {
     
     S3Fuse *s3fuse;
     DirTree *dir_tree;
+    CacheMng *cmng;
 
     S3HttpConnection *service_con;
     gint service_con_redirects;
@@ -189,6 +191,7 @@ static gint application_finish_initialization_and_run (Application *app)
 {
     struct sigaction sigact;
 
+/*{{{ create POOLs */
     // create S3ClientPool for reading operations
     app->read_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
         s3http_client_create,
@@ -227,6 +230,16 @@ static gint application_finish_initialization_and_run (Application *app)
         event_base_loopexit (app->evbase, NULL);
         return -1;
     }
+/*}}}*/
+
+/*{{{ CacheMng */
+    app->cmng = cache_mng_create (app);
+    if (!app->cmng) {
+        LOG_err (APP_LOG, "Failed to create CacheMng !");
+        event_base_loopexit (app->evbase, NULL);
+        return -1;
+    }
+/*}}}*/
 
 /*{{{ DirTree*/
     app->dir_tree = dir_tree_create (app);
@@ -458,6 +471,35 @@ int main (int argc, char *argv[])
         return FALSE;
     }
 
+/*{{{ parse config file */
+
+    // user provided alternative config path
+    if (s_config && g_strv_length (s_config) > 0) {
+        g_free (conf_path);
+        conf_path = g_strdup (s_config[0]);
+        g_strfreev (s_config);
+    }
+    
+    app->conf = conf_create ();
+
+    if (access (conf_path, R_OK) == 0) {
+        LOG_msg (APP_LOG, "Using config file: %s", conf_path);
+        
+        if (!conf_parse_file (app->conf, conf_path)) {
+            LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
+            return -1;
+        }
+
+        } else {
+        LOG_msg (APP_LOG, "Configuration file does not exist, using predefined values.");
+    }
+
+    g_free (conf_path);
+
+    // update logging settings
+    logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
+
+/*}}}*/
     // check if --version is specified
     if (version) {
             g_fprintf (stdout, "S3 Fast File System v%s\n", VERSION);
@@ -535,33 +577,6 @@ int main (int argc, char *argv[])
     g_option_context_free (context);
 /*}}}*/
 
-/*{{{ parse config file */
-
-    // user provided alternative config path
-    if (s_config && g_strv_length (s_config) > 0) {
-        g_free (conf_path);
-        conf_path = g_strdup (s_config[0]);
-        g_strfreev (s_config);
-    }
-
-    if (access (conf_path, R_OK) == 0) {
-        LOG_msg (APP_LOG, "Using config file: %s", conf_path);
-        
-        if (!conf_parse_file (app->conf, conf_path)) {
-            LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
-            return -1;
-        }
-
-        } else {
-        LOG_msg (APP_LOG, "Configuration file does not exist, using predefined values.");
-    }
-
-    g_free (conf_path);
-
-    // update logging settings
-    logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
-
-/*}}}*/
 
     // perform the initial request to get S3 service URL (in case of redirect)
     app->service_con = s3http_connection_create (app);

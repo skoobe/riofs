@@ -89,6 +89,7 @@ typedef struct _S3Fuse S3Fuse;
 typedef struct _S3ClientPool S3ClientPool;
 typedef enum _LogLevel LogLevel;
 typedef struct _ConfData ConfData;
+typedef struct _CacheMng CacheMng;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);

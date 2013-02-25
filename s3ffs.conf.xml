@@ -19,8 +19,8 @@
 </pool>
 
 <s3>
-    <!-- Set False to use old-style S3 path -->
-    <path_style type="boolean">True</path_style>
+    <!-- Set True to use old-style S3 path -->
+    <path_style type="boolean">False</path_style>
 </s3>
 
 <connection>

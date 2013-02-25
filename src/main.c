@@ -19,6 +19,7 @@
 #include "s3http_connection.h"
 #include "dir_tree.h"
 #include "s3fuse.h"
+#include "utils.h"
 #include "s3client_pool.h"
 #include "s3http_client.h"
 #include "cache_mng.h"
@@ -34,14 +35,13 @@ struct _Application {
     DirTree *dir_tree;
     CacheMng *cmng;
 
+    // initial bucket ACL request
     S3HttpConnection *service_con;
-    gint service_con_redirects;
 
     S3ClientPool *write_client_pool;
     S3ClientPool *read_client_pool;
     S3ClientPool *ops_client_pool;
 
-    gchar *host_header;
     struct evhttp_uri *uri;
 
     struct event *sigint_ev;
@@ -90,6 +90,37 @@ ConfData *application_get_conf (Application *app)
 }
 
 /*}}}*/
+
+
+gboolean application_set_url (Application *app, const gchar *url)
+{
+    if (app->uri)
+        evhttp_uri_free (app->uri);
+    
+    // check if URL contains HTTP or HTTPS
+    if (strlen (url) < 4 || !strcasestr (url, "http") || strcasestr (url, "http") != url) {
+        // XXX: check config and decide HTTP or HTTPS ?
+        gchar *tmp;
+
+        tmp = g_strdup_printf ("http://%s", url);
+        app->uri = evhttp_uri_parse (tmp);
+        g_free (tmp);
+    } else 
+        app->uri = evhttp_uri_parse (url);
+
+
+    if (!app->uri) {
+        LOG_err (APP_LOG, "S3 URL (%s) is not valid!", url);
+
+        event_base_loopexit (app->evbase, NULL);
+        return FALSE;
+    }
+
+    conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
+    conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
+    
+    return TRUE;
+}
 
 /*{{{ signal handlers */
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
@@ -177,15 +208,6 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
     event_base_loopexit (app->evbase, NULL);
 }
 /*}}}*/
-
-const gchar *application_host_header_create (Application *app)
-{
-    if (conf_get_boolean (app->conf, "s3.path_style")) {
-        return g_strdup_printf("s3.amazonaws.com");
-    } else {
-        return g_strdup_printf("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
-    }
-}
 
 static gint application_finish_initialization_and_run (Application *app)
 {
@@ -298,29 +320,19 @@ static gint application_finish_initialization_and_run (Application *app)
     return 0;
 }
 
-// S3 replies with error on initial HEAD request
-static void application_get_service_on_error (S3HttpConnection *con, void *ctx)
+// S3 replies on bucket ACL
+static void application_on_bucket_acl_cb (gpointer ctx, gboolean success, const gchar *buf, size_t buf_len)
 {
     Application *app = (Application *)ctx;
-
-    LOG_err (APP_LOG, "Failed to access S3 bucket URL !");
-
-    s3http_connection_destroy (con);
-    if (app->service_con == con) { // should be always identical?
-        app->service_con = NULL;
+    
+    if (!success) {
+        LOG_err (APP_LOG, "Failed to get bucket ACL!");
+        event_base_loopexit (app->evbase, NULL);
+        return;
     }
 
-    event_base_loopexit (app->evbase, NULL);
-}
-
-// S3 replies on initial HEAD request
-static void application_get_service_on_done (S3HttpConnection *con, void *ctx, 
-        G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, struct evkeyvalq *headers)
-{
-    Application *app = (Application *)ctx;
-    const char *loc;
-    
     // make sure it breaks infinite redirect loop
+    /*
     if (app->service_con_redirects > 20) {
         LOG_err (APP_LOG, "Too many redirects !");
         event_base_loopexit (app->evbase, NULL);
@@ -344,8 +356,12 @@ static void application_get_service_on_done (S3HttpConnection *con, void *ctx,
         LOG_debug (APP_LOG, "New service URL: %s", evhttp_uri_get_host (app->uri));
 
         // update host header
-        g_free (app->host_header);
-        app->host_header = application_host_header_create (app);
+        if (!conf_get_boolean (app->conf, "s3.path_style")) {
+            return g_strdup_printf("s3.amazonaws.com");
+    } else {
+        return g_strdup_printf("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
+    }
+
 
         // perform a new request
         app->service_con = s3http_connection_create (app);
@@ -363,8 +379,10 @@ static void application_get_service_on_done (S3HttpConnection *con, void *ctx,
             return;
         }
     } else {
+
+*/
         application_finish_initialization_and_run (app);
-    }
+//    }
 }
 
 static void application_destroy (Application *app)
@@ -396,7 +414,6 @@ static void application_destroy (Application *app)
     evdns_base_free (app->dns_base, 0);
     event_base_free (app->evbase);
 
-    g_free (app->host_header);
     evhttp_uri_free (app->uri);
 
     conf_destroy (app->conf);
@@ -445,7 +462,6 @@ int main (int argc, char *argv[])
 
     // init main app structure
     app = g_new0 (Application, 1);
-    app->service_con_redirects = 0;
     app->evbase = event_base_new ();
 
     if (!app->evbase) {
@@ -543,19 +559,11 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    app->uri = evhttp_uri_parse (s_params[0]);
-    if (!app->uri) {
-        LOG_err (APP_LOG, "S3 URL (%s) is not valid!", s_params[0]);
-        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+    if (!application_set_url (app, s_params[0])) {
         return -1;
     }
 
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
-    conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
-    conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
-
-    app->host_header = application_host_header_create (app);
-    
     conf_set_string (app->conf, "app.mountpoint", s_params[2]);
 
     // check if directory exists
@@ -581,14 +589,12 @@ int main (int argc, char *argv[])
     
     g_option_context_free (context);
 
-    // perform the initial request to get S3 service URL (in case of redirect)
+    // perform the initial request to get S3 bucket ACL (handles redirect as well)
     app->service_con = s3http_connection_create (app);
     if (!app->service_con) 
         return -1;
+    bucket_client_get_acl (app->service_con, application_on_bucket_acl_cb, app);
 
-    if (!s3http_connection_make_request (app->service_con, "/", "/", "HEAD", NULL,
-        application_get_service_on_done, application_get_service_on_error, app))
-        return -1;
 
     // start the loop
     event_base_dispatch (app->evbase);

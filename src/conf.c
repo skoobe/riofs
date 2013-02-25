@@ -343,7 +343,7 @@ void conf_set_int (ConfData *conf, const gchar *full_path, gint32 val)
     conf_node->type = CT_INT;
     conf_node->value = GINT_TO_POINTER (val);
 
-    g_hash_table_insert (conf->h_conf, conf_node->full_name, conf_node);
+    g_hash_table_replace (conf->h_conf, conf_node->full_name, conf_node);
 }
 
 

@@ -993,7 +993,7 @@ typedef struct {
 } FileRemoveData;
 
 // file is removed
-static void dir_tree_file_remove_on_http_client_data_cb (S3HttpConnection *http_con, gpointer ctx, 
+static void dir_tree_file_remove_on_http_client_data_cb (S3HttpConnection *http_con, gpointer ctx, gboolean success,
         const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileRemoveData *data = (FileRemoveData *) ctx;
@@ -1032,10 +1032,9 @@ static void dir_tree_file_remove_on_http_client_cb (gpointer client, gpointer ct
     req_path = g_strdup_printf ("%s", data->en->fullpath);
 
     res = s3http_connection_make_request (http_con, 
-        req_path, req_path, "DELETE", 
+        req_path,"DELETE", 
         NULL,
         dir_tree_file_remove_on_http_client_data_cb,
-        dir_tree_file_remove_on_http_client_error_cb,
         data
     );
 
@@ -1044,7 +1043,6 @@ static void dir_tree_file_remove_on_http_client_cb (gpointer client, gpointer ct
     if (!res) {
         LOG_err (DIR_TREE_LOG, "Failed to create HTTP request !");
         data->file_remove_cb (data->req, FALSE);
-        
         s3http_connection_release (http_con);
         g_free (data);
     }

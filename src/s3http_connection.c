@@ -22,6 +22,7 @@
 #define CON_LOG "con"
 
 static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
+static gboolean s3http_connection_init (S3HttpConnection *con);
 
 /*}}}*/
 
@@ -42,31 +43,42 @@ gpointer s3http_connection_create (Application *app)
     con->conf = application_get_conf (app);
 
     con->is_acquired = FALSE;
+    
+    if (!s3http_connection_init (con))
+        return NULL;
 
+    return (gpointer)con;
+}
+
+static gboolean s3http_connection_init (S3HttpConnection *con)
+{
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
         conf_get_string (con->conf, "s3.host"),
         conf_get_int (con->conf, "s3.port")
     );
 
+    if (con->evcon)
+        evhttp_connection_free (con->evcon);
+
     // XXX: implement SSL
     con->evcon = evhttp_connection_base_new (
-        application_get_evbase (app),
-        application_get_dnsbase (app),
+        application_get_evbase (con->app),
+        application_get_dnsbase (con->app),
         conf_get_string (con->conf, "s3.host"),
         conf_get_int (con->conf, "s3.port")
     );
 
     if (!con->evcon) {
         LOG_err (CON_LOG, "Failed to create evhttp_connection !");
-        return NULL;
+        return FALSE;
     }
     
     evhttp_connection_set_timeout (con->evcon, conf_get_int (con->conf, "connection.timeout"));
     evhttp_connection_set_retries (con->evcon, conf_get_int (con->conf, "connection.retries"));
 
     evhttp_connection_set_closecb (con->evcon, s3http_connection_on_close, con);
-
-    return (gpointer)con;
+    
+    return TRUE;
 }
 
 // destory S3HttpConnection)
@@ -151,7 +163,8 @@ gchar *s3http_connection_get_auth_string (Application *app,
 
     conf = application_get_conf (app);
 
-    tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
+    //tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
+    tmp = g_strdup_printf ("%s", resource);
 
     string_to_sign = g_strdup_printf (
         "%s\n"  // HTTP-Verb + "\n"
@@ -166,7 +179,7 @@ gchar *s3http_connection_get_auth_string (Application *app,
 
     g_free (tmp);
 
-   // LOG_debug (CON_LOG, "%s", string_to_sign);
+   LOG_debug (CON_LOG, "%s", string_to_sign);
 
     HMAC (EVP_sha1(),
         conf_get_string (conf, "s3.secret_access_key"),
@@ -226,12 +239,52 @@ struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
 }
 
 
+static const gchar *get_endpoint (const char *xml, size_t xml_len) {
+    xmlDocPtr doc;
+    xmlXPathContextPtr ctx;
+    xmlXPathObjectPtr endpoint_xp;
+    xmlNodeSetPtr nodes;
+    gchar *endpoint = NULL;
+
+    doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
+    ctx = xmlXPathNewContext (doc);
+    endpoint_xp = xmlXPathEvalExpression ((xmlChar *) "/Error/Endpoint", ctx);
+    nodes = endpoint_xp->nodesetval;
+
+    if (!nodes || nodes->nodeNr < 1) {
+        endpoint = NULL;
+    } else {
+        endpoint = (char *) xmlNodeListGetString (doc, nodes->nodeTab[0]->xmlChildrenNode, 1);
+    }
+
+    xmlXPathFreeObject (endpoint_xp);
+    xmlXPathFreeContext (ctx);
+    xmlFreeDoc (doc);
+
+    return endpoint;
+}
+
+
 typedef struct {
     S3HttpConnection *con;
     S3HttpConnection_responce_cb responce_cb;
-    S3HttpConnection_error_cb error_cb;
     gpointer ctx;
+
+    // number of redirects so far
+    gint redirects;
+
+    // original values
+    gchar *resource_path;
+    gchar *http_cmd;
+    struct evbuffer *out_buffer;
 } RequestData;
+
+static void request_data_free (RequestData *data)
+{
+    g_free (data->resource_path);
+    g_free (data->http_cmd);
+    g_free (data);
+}
 
 static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *ctx)
 {
@@ -244,19 +297,70 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
 
     if (!req) {
         LOG_err (CON_LOG, "Request failed !");
-        if (data->error_cb)
-            data->error_cb (data->con, data->ctx);
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        goto done;
+    }
+    
+    // check if we reached maximum redirect count
+    if (data->redirects > conf_get_int (data->con->conf, "connection.max_redirects")) {
+        LOG_err (CON_LOG, "Too many redirects !");
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
     }
 
-    // XXX: handle redirect
+    // handle redirect
+    if (evhttp_request_get_response_code (req) == 301) {
+        gchar *loc;
+        struct evkeyvalq *headers;
+
+        data->redirects++;
+        headers = evhttp_request_get_input_headers (req);
+
+        loc = evhttp_find_header (headers, "Location");
+        if (!loc) {
+            inbuf = evhttp_request_get_input_buffer (req);
+            buf_len = evbuffer_get_length (inbuf);
+            buf = (const char *) evbuffer_pullup (inbuf, buf_len);
+
+            // let's parse XML
+            loc = get_endpoint (buf, buf_len);
+            
+            if (!loc) {
+                LOG_err (CON_LOG, "Redirect URL not found !");
+                if (data->responce_cb)
+                    data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                goto done;
+            }
+        }
+
+        LOG_debug (CON_LOG, "New URL: %s", loc);
+
+        if (!application_set_url (data->con->app, loc)) {
+            if (data->responce_cb)
+                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            goto done;
+        }
+
+        if (!s3http_connection_init (data->con)) {
+            if (data->responce_cb)
+                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            goto done;
+        }
+
+        // re-send request
+        s3http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer,
+            data->responce_cb, data->ctx);
+        goto done;
+    }
+
     // 200 and 204 (No Content) are ok
-    if (evhttp_request_get_response_code (req) != 200 && evhttp_request_get_response_code (req) != 204
-        && evhttp_request_get_response_code (req) != 307 && evhttp_request_get_response_code (req) != 301) {
+    if (evhttp_request_get_response_code (req) != 200) {
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
-        if (data->error_cb)
-            data->error_cb (data->con, data->ctx);
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
     }
 
@@ -265,20 +369,19 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     buf = (const char *) evbuffer_pullup (inbuf, buf_len);
     
     if (data->responce_cb)
-        data->responce_cb (data->con, data->ctx, buf, buf_len, evhttp_request_get_input_headers (req));
+        data->responce_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));
     else
         LOG_debug (CON_LOG, ">>> NO callback function !");
 
 done:
-    g_free (data);
+    request_data_free (data);
 }
 
 gboolean s3http_connection_make_request (S3HttpConnection *con, 
-    const gchar *resource_path, const gchar *request_str,
+    const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
     S3HttpConnection_responce_cb responce_cb,
-    S3HttpConnection_error_cb error_cb,
     gpointer ctx)
 {
     gchar *auth_str;
@@ -289,12 +392,16 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     RequestData *data;
     int res;
     enum evhttp_cmd_type cmd_type;
+    gchar *request_str;
 
     data = g_new0 (RequestData, 1);
     data->responce_cb = responce_cb;
-    data->error_cb = error_cb;
     data->ctx = ctx;
     data->con = con;
+    data->redirects = 0;
+    data->resource_path = g_strdup (resource_path);
+    data->http_cmd = g_strdup (http_cmd);
+    data->out_buffer = out_buffer;
     
     if (!strcasecmp (http_cmd, "GET")) {
         cmd_type = EVHTTP_REQ_GET;
@@ -306,6 +413,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
         cmd_type = EVHTTP_REQ_HEAD;
     } else {
         LOG_err (CON_LOG, "Unsupported HTTP method: %s", http_cmd);
+        request_data_free (data);
         return FALSE;
     }
     
@@ -318,6 +426,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     req = evhttp_request_new (s3http_connection_on_responce_cb, data);
     if (!req) {
         LOG_err (CON_LOG, "Failed to create HTTP request object !");
+        request_data_free (data);
         return FALSE;
     }
 
@@ -329,16 +438,19 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
 
-    if (conf_get_boolean (con->conf, "connection.path_style")) {
-        request_str = g_strdup_printf("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), request_str);
-    }
+    //if (conf_get_boolean (con->conf, "s3.path_style")) {
+    //request_str = g_strdup_printf("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), resource_path);
+    request_str = g_strdup_printf("%s", resource_path);
+    //}
 
     LOG_debug (CON_LOG, "[%p] bucket: %s path: %s", con, conf_get_string (con->conf, "s3.bucket_name"), request_str);
 
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
+    g_free (request_str);
 
-    if (res < 0)
+    if (res < 0) {
+        request_data_free (data);
         return FALSE;
-    else
+    } else
         return TRUE;
 }    

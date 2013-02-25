@@ -69,9 +69,10 @@ am_s3ffs_OBJECTS = s3ffs-log.$(OBJEXT) s3ffs-dir_tree.$(OBJEXT) \
 	s3ffs-s3fuse.$(OBJEXT) s3ffs-s3http_connection.$(OBJEXT) \
 	s3ffs-s3http_connection_dir_list.$(OBJEXT) \
 	s3ffs-s3http_connection_file_send.$(OBJEXT) \
-	s3ffs-s3http_client.$(OBJEXT) s3ffs-s3client_pool.$(OBJEXT) \
-	s3ffs-file_entry.$(OBJEXT) s3ffs-cache_mng.$(OBJEXT) \
-	s3ffs-utils.$(OBJEXT) s3ffs-conf.$(OBJEXT) \
+	s3ffs-bucket_client.$(OBJEXT) s3ffs-s3http_client.$(OBJEXT) \
+	s3ffs-s3client_pool.$(OBJEXT) s3ffs-file_entry.$(OBJEXT) \
+	s3ffs-cache_mng.$(OBJEXT) s3ffs-utils.$(OBJEXT) \
+	s3ffs-conf.$(OBJEXT) s3ffs-range.$(OBJEXT) \
 	s3ffs-main.$(OBJEXT)
 s3ffs_OBJECTS = $(am_s3ffs_OBJECTS)
 am__DEPENDENCIES_1 =
@@ -201,8 +202,8 @@ top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include -DSYSCONFDIR=\""$(sysconfdir)/@PACKAGE@/"\" 
 s3ffs_SOURCES = log.c dir_tree.c s3fuse.c s3http_connection.c \
 	s3http_connection_dir_list.c s3http_connection_file_send.c \
-	s3http_client.c s3client_pool.c file_entry.c cache_mng.c \
-	utils.c conf.c main.c
+	bucket_client.c s3http_client.c s3client_pool.c file_entry.c \
+	cache_mng.c utils.c conf.c range.c main.c
 s3ffs_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3ffs_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
@@ -289,12 +290,14 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-bucket_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-cache_mng.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-conf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-dir_tree.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-file_entry.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-range.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3client_pool.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3fuse.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_client.Po@am__quote@
@@ -401,6 +404,20 @@ s3ffs-s3http_connection_file_send.obj: s3http_connection_file_send.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-s3http_connection_file_send.obj `if test -f 's3http_connection_file_send.c'; then $(CYGPATH_W) 's3http_connection_file_send.c'; else $(CYGPATH_W) '$(srcdir)/s3http_connection_file_send.c'; fi`
 
+s3ffs-bucket_client.o: bucket_client.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-bucket_client.o -MD -MP -MF $(DEPDIR)/s3ffs-bucket_client.Tpo -c -o s3ffs-bucket_client.o `test -f 'bucket_client.c' || echo '$(srcdir)/'`bucket_client.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-bucket_client.Tpo $(DEPDIR)/s3ffs-bucket_client.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='bucket_client.c' object='s3ffs-bucket_client.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-bucket_client.o `test -f 'bucket_client.c' || echo '$(srcdir)/'`bucket_client.c
+
+s3ffs-bucket_client.obj: bucket_client.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-bucket_client.obj -MD -MP -MF $(DEPDIR)/s3ffs-bucket_client.Tpo -c -o s3ffs-bucket_client.obj `if test -f 'bucket_client.c'; then $(CYGPATH_W) 'bucket_client.c'; else $(CYGPATH_W) '$(srcdir)/bucket_client.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-bucket_client.Tpo $(DEPDIR)/s3ffs-bucket_client.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='bucket_client.c' object='s3ffs-bucket_client.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-bucket_client.obj `if test -f 'bucket_client.c'; then $(CYGPATH_W) 'bucket_client.c'; else $(CYGPATH_W) '$(srcdir)/bucket_client.c'; fi`
+
 s3ffs-s3http_client.o: s3http_client.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-s3http_client.o -MD -MP -MF $(DEPDIR)/s3ffs-s3http_client.Tpo -c -o s3ffs-s3http_client.o `test -f 's3http_client.c' || echo '$(srcdir)/'`s3http_client.c
 @am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-s3http_client.Tpo $(DEPDIR)/s3ffs-s3http_client.Po
@@ -484,6 +501,20 @@ s3ffs-conf.obj: conf.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='conf.c' object='s3ffs-conf.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-conf.obj `if test -f 'conf.c'; then $(CYGPATH_W) 'conf.c'; else $(CYGPATH_W) '$(srcdir)/conf.c'; fi`
+
+s3ffs-range.o: range.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-range.o -MD -MP -MF $(DEPDIR)/s3ffs-range.Tpo -c -o s3ffs-range.o `test -f 'range.c' || echo '$(srcdir)/'`range.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-range.Tpo $(DEPDIR)/s3ffs-range.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='range.c' object='s3ffs-range.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-range.o `test -f 'range.c' || echo '$(srcdir)/'`range.c
+
+s3ffs-range.obj: range.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-range.obj -MD -MP -MF $(DEPDIR)/s3ffs-range.Tpo -c -o s3ffs-range.obj `if test -f 'range.c'; then $(CYGPATH_W) 'range.c'; else $(CYGPATH_W) '$(srcdir)/range.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-range.Tpo $(DEPDIR)/s3ffs-range.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='range.c' object='s3ffs-range.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-range.obj `if test -f 'range.c'; then $(CYGPATH_W) 'range.c'; else $(CYGPATH_W) '$(srcdir)/range.c'; fi`
 
 s3ffs-main.o: main.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-main.o -MD -MP -MF $(DEPDIR)/s3ffs-main.Tpo -c -o s3ffs-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c

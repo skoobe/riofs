@@ -6,6 +6,7 @@ s3ffs_SOURCES += s3fuse.c
 s3ffs_SOURCES += s3http_connection.c
 s3ffs_SOURCES += s3http_connection_dir_list.c
 s3ffs_SOURCES += s3http_connection_file_send.c
+s3ffs_SOURCES += bucket_client.c
 s3ffs_SOURCES += s3http_client.c
 s3ffs_SOURCES += s3client_pool.c
 s3ffs_SOURCES += file_entry.c

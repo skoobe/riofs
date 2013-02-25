@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "global.h"
+#include "test_application.h"
 #include "s3http_client.h"
 #include "s3http_connection.h"
 #include "s3client_pool.h"
+#include "utils.h"
 
 #define POOL_TEST "pool_test"
 typedef struct {
@@ -37,15 +39,6 @@ typedef struct {
     S3ClientPool *pool;
     GList *l_files;
 } CBData;
-
-struct _Application {
-    struct event_base *evbase;
-    struct evdns_base *dns_base;
-    ConfData *conf;
-
-    GList *l_files;
-    GHashTable *h_clients_freq; // keeps the number of requests for each HTTP client
-};
 
 static Application *app;
 
@@ -231,52 +224,6 @@ static void start_srv (struct event_base *base, gchar *in_dir)
 }
 
 
-struct event_base *application_get_evbase (Application *app)
-{
-    return app->evbase;
-}
-
-struct evdns_base *application_get_dnsbase (Application *app)
-{
-    return app->dns_base;
-}
-
-const gchar *application_get_access_key_id (Application *app)
-{
-    return "";
-}
-
-const gchar *application_get_secret_access_key (Application *app)
-{
-    return "";
-}
-
-const gchar *application_get_bucket_name (Application *app)
-{
-    return "";
-}
-
-const gchar *application_get_host (Application *app)
-{
-    return "127.0.0.1";
-}
-
-const gchar *application_get_host_header (Application *app)
-{
-    return "";
-}
-
-int application_get_port (Application *app)
-{
-    return 8011;
-}
-
-
-ConfData *application_get_conf (Application *app)
-{
-    return app->conf;
-}
-
 static gboolean print_foreach (gconstpointer a, gconstpointer b)
 {
     g_printf ("%p: %i\n", a, GPOINTER_TO_INT (b));
@@ -302,10 +249,8 @@ int main (int argc, char *argv[])
     l_files = populate_file_list (100, l_files, in_dir);
     g_assert (l_files);
 
-    app = g_new0 (Application, 1);
+    app = app_create ();
     app->h_clients_freq = g_hash_table_new (g_direct_hash, g_direct_equal);
-    app->evbase = event_base_new ();
-	app->dns_base = evdns_base_new (app->evbase, 1);
     app->l_files = l_files;
     // start server
     start_srv (app->evbase, in_dir);

@@ -27,3 +27,8 @@ config.log
 config.status
 include/config.h
 include/stamp-h1
+src/test.sh
+src/test_h.sh
+tests/range_test
+tests/conf_test
+tests/tst.py

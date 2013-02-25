@@ -150,29 +150,28 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
     return next_marker;
 }
 
-// error, return error to fuse 
-static void s3http_connection_on_directory_listing_error (S3HttpConnection *con, void *ctx)
-{
-    DirListRequest *dir_req = (DirListRequest *) ctx;
-    
-    LOG_err (CON_DIR_LOG, "Failed to retrieve directory listing !");
 
+// free DirListRequest, release HTTPConnection, call callback function
+static void directory_listing_done (S3HttpConnection *con, DirListRequest *dir_req, gboolean success)
+{
+    if (dir_req->directory_listing_callback)
+        dir_req->directory_listing_callback (dir_req->callback_data, success);
+        
     // we are done, stop updating
     dir_tree_stop_update (dir_req->dir_tree, dir_req->ino);
-    
-    if (dir_req->directory_listing_callback)
-        dir_req->directory_listing_callback (dir_req->callback_data, FALSE);
-
+        
     // release HTTP client
-    s3http_connection_release (con);
-    
+    if (con)
+        s3http_connection_release (con);
+
     g_free (dir_req->dir_path_orig);
     g_free (dir_req->resource_path);
     g_free (dir_req);
+
 }
 
 // Directory read callback function
-static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, 
+static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, gboolean success,
         const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     DirListRequest *dir_req = (DirListRequest *) ctx;
@@ -182,10 +181,13 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
    
     if (!buf_len || !buf) {
         LOG_err (CON_DIR_LOG, "Directory buffer is empty !");
-        s3http_connection_on_directory_listing_error (con, (void *) dir_req);
-        g_free (dir_req->dir_path_orig);
-        g_free (dir_req->resource_path);
-        g_free (dir_req);
+        directory_listing_done (con, dir_req, FALSE);
+        return;
+    }
+
+    if (!success) {
+        LOG_err (CON_DIR_LOG, "Error getting directory list !");
+        directory_listing_done (con, dir_req, FALSE);
         return;
     }
    
@@ -196,20 +198,8 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
 
     // check if we need to get more data
     if (!strstr (buf, "<IsTruncated>true</IsTruncated>") && !next_marker) {
-        LOG_debug (CON_DIR_LOG, "DONE !!");
-        
-        if (dir_req->directory_listing_callback)
-            dir_req->directory_listing_callback (dir_req->callback_data, TRUE);
-        
-        // we are done, stop updating
-        dir_tree_stop_update (dir_req->dir_tree, dir_req->ino);
-        
-        // release HTTP client
-        s3http_connection_release (con);
-        
-        g_free (dir_req->dir_path_orig);
-        g_free (dir_req->resource_path);
-        g_free (dir_req);
+        LOG_debug (CON_DIR_LOG, "Directory listing done !");
+        directory_listing_done (con, dir_req, TRUE);
         return;
     }
 
@@ -219,22 +209,22 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
     xmlFree ((void *) next_marker);
 
     res = s3http_connection_make_request (dir_req->con, 
-        dir_req->resource_path, req_path, "GET", NULL,
+        req_path, "GET",
+        NULL,
         s3http_connection_on_directory_listing_data,
-        s3http_connection_on_directory_listing_error, 
         dir_req
     );
     g_free (req_path);
 
     if (!res) {
         LOG_err (CON_DIR_LOG, "Failed to create HTTP request !");
-        s3http_connection_on_directory_listing_error (con, (void *) dir_req);
+        directory_listing_done (con, dir_req, FALSE);
         return;
     }
 }
 
 // create DirListRequest
-gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar *dir_path, fuse_ino_t ino,
+void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar *dir_path, fuse_ino_t ino,
     S3HttpConnection_directory_listing_callback directory_listing_callback, gpointer callback_data)
 {
     DirListRequest *dir_req;
@@ -275,9 +265,9 @@ gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const g
     req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%d", dir_req->dir_path, dir_req->max_keys);
 
     res = s3http_connection_make_request (con, 
-        dir_req->resource_path, req_path, "GET", NULL,
+        req_path, "GET",
+        NULL,
         s3http_connection_on_directory_listing_data,
-        s3http_connection_on_directory_listing_error, 
         dir_req
     );
     
@@ -285,10 +275,9 @@ gboolean s3http_connection_get_directory_listing (S3HttpConnection *con, const g
 
     if (!res) {
         LOG_err (CON_DIR_LOG, "Failed to create HTTP request !");
-        s3http_connection_on_directory_listing_error (con, (void *) dir_req);
-
-        return FALSE;
+        directory_listing_done (con, dir_req, FALSE);
+        return;
     }
 
-    return TRUE;
+    return;
 }

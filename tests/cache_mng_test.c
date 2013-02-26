@@ -85,7 +85,11 @@ static void cache_mng_test_store (CacheMng **cmng, gconstpointer test_data)
 static void cache_mng_test_remove (CacheMng **cmng, gconstpointer test_data)
 {
     struct test_ctx test_ctx = {FALSE, NULL, 0};
+    int i;
     unsigned char buf[256];
+
+    for (i = 0; i < (int) sizeof (buf); i++)
+        buf[i] = i % 256;
 
     cache_mng_store_file_buf (*cmng, 1, sizeof (buf), 0, buf, store_cb, &test_ctx);
     cache_mng_retrieve_file_buf (*cmng, 1, 1, 0, retrieve_cb, &test_ctx);
@@ -105,7 +109,11 @@ static void cache_mng_test_remove (CacheMng **cmng, gconstpointer test_data)
 static void cache_mng_test_lru (CacheMng **cmng, gconstpointer test_data)
 {
     struct test_ctx test_ctx = {FALSE, NULL, 0};
+    int i;
     unsigned char buf[50];
+
+    for (i = 0; i < (int) sizeof (buf); i++)
+        buf[i] = i % 256;
 
     cache_mng_store_file_buf (*cmng, 1, sizeof (buf), 0, buf, store_cb, &test_ctx);
     cache_mng_store_file_buf (*cmng, 2, sizeof (buf), 0, buf, store_cb, &test_ctx);

@@ -25,4 +25,7 @@ gchar *get_md5_sum (char *buf, size_t len);
 gboolean uri_is_https (const struct evhttp_uri *uri);
 gint uri_get_port (const struct evhttp_uri *uri);
 
+// remove directory tree
+int utils_del_tree (const gchar *path);
+
 #endif

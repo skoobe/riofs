@@ -51,6 +51,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <math.h>
+#include <ftw.h>
 
 #include <glib.h>
 #include <glib/gprintf.h>
@@ -99,7 +100,9 @@ S3ClientPool *application_get_read_client_pool (Application *app);
 S3ClientPool *application_get_write_client_pool (Application *app);
 S3ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
+CacheMng *application_get_cache_mng (Application *app);
 
+// sets new S3 URL in case of redirect
 gboolean application_set_url (Application *app, const gchar *url);
 
 #include "log.h" 
@@ -109,5 +112,6 @@ LogLevel log_level;
 
 #define OFF_FMT "ju"
 #define INO_FMT "llu"
+#define INO (unsigned long long)
 
 #endif

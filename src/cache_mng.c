@@ -22,8 +22,9 @@ struct _CacheMng {
     Application *app;
     ConfData *conf;
     GHashTable *h_entries; 
-    GList *l_lru;
+    GQueue *q_lru;
     size_t size;
+    size_t capacity;
 };
 
 struct _CacheEntry {
@@ -53,24 +54,27 @@ CacheMng *cache_mng_create (Application *app)
     cmng->app = app;
     cmng->conf = application_get_conf (app);
     cmng->h_entries = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, cache_entry_destroy);
-    cmng->l_lru = g_list_alloc ();
+    cmng->q_lru = g_queue_new ();
     cmng->size = 0;
+    cmng->capacity = 100;
 
     return cmng;
 }
 
 void cache_mng_destroy (CacheMng *cmng)
 {
-    g_list_free (cmng->l_lru);
+    g_queue_free (cmng->q_lru);
     g_hash_table_destroy (cmng->h_entries);
     g_free (cmng);
 }
 
-static struct _CacheEntry* cache_entry_create ()
+static struct _CacheEntry* cache_entry_create (fuse_ino_t ino)
 {
     struct _CacheEntry* entry = g_malloc (sizeof (struct _CacheEntry));
 
+    entry->ino = ino;
     entry->avail_range = range_create ();
+    entry->ll_lru = NULL;
 
     return entry;
 }
@@ -132,6 +136,8 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         ssize_t res;
         char path[PATH_MAX];
 
+        g_assert (ino == entry->ino);
+
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         fd = open (path, O_RDONLY);
 
@@ -144,10 +150,9 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
             context->buf = NULL;
         }
 
-        // move entry to the front of l_lru
-        g_list_delete_link (cmng->l_lru, entry->ll_lru);
-        cmng->l_lru = g_list_prepend (cmng->l_lru, entry);
-        entry->ll_lru = g_list_first (cmng->l_lru);
+        // move entry to the front of q_lru
+        g_queue_unlink (cmng->q_lru, entry->ll_lru);
+        g_queue_push_head_link (cmng->q_lru, entry->ll_lru);
     }
 
     ev = event_new (application_get_evbase (cmng->app), -1,  0,
@@ -178,6 +183,13 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     struct event *ev;
     guint64 old_length, new_length;
 
+    // remove data until we have at least size bytes of capacity left
+    while (cmng->capacity < cmng->size + size && g_queue_peek_tail (cmng->q_lru)) {
+        entry = (struct _CacheEntry *) g_queue_peek_tail (cmng->q_lru);
+
+        cache_mng_remove_file (cmng, entry->ino);
+    }
+
     context = cache_context_create (size, ctx);
     context->cb.store_cb = on_store_file_buf_cb;
 
@@ -189,9 +201,9 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
 
     if (!entry) {
-        entry = cache_entry_create ();
-        cmng->l_lru = g_list_prepend (cmng->l_lru, entry);
-        entry->ll_lru = g_list_first (cmng->l_lru);
+        entry = cache_entry_create (ino);
+        g_queue_push_head (cmng->q_lru, entry);
+        entry->ll_lru = g_queue_peek_head_link (cmng->q_lru);
         g_hash_table_insert (cmng->h_entries, GUINT_TO_POINTER (ino), entry);
     }
 
@@ -217,7 +229,7 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (entry) {
         cmng->size -= range_length (entry->avail_range);
-        g_list_delete_link (cmng->l_lru, entry->ll_lru);
+        g_queue_delete_link (cmng->q_lru, entry->ll_lru);
         g_hash_table_remove (cmng->h_entries, GUINT_TO_POINTER (ino));
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         unlink (path);

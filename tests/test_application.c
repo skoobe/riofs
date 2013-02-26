@@ -24,9 +24,14 @@ Application *app_create ()
 {
     Application *app = g_new0 (Application, 1);
     app->evbase = event_base_new ();
-	app->dns_base = evdns_base_new (app->evbase, 1);
+    app->dns_base = evdns_base_new (app->evbase, 1);
 
     return app;
+}
+
+void app_dispatch(Application *app)
+{
+    event_base_dispatch (app->evbase);
 }
 
 void app_destroy (Application *app)

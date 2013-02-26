@@ -117,7 +117,7 @@ static struct _CacheContext* cache_context_create (size_t size, void *user_ctx)
 
 static void cache_mng_rm_cache_dir (CacheMng *cmng)
 {
-    if (cmng->cache_dir && strlen (cmng->cache_dir) >= strlen (CACHE_MNGR_DIR))
+    if (cmng->cache_dir && strstr (cmng->cache_dir, CACHE_MNGR_DIR))
         utils_del_tree (cmng->cache_dir, 1);
     else
         g_assert (0);

@@ -136,6 +136,24 @@ static void cache_mng_test_lru (CacheMng **cmng, gconstpointer test_data)
     g_assert (!test_ctx.success);
 }
 
+static void cache_mng_test_zero_size (CacheMng **cmng, gconstpointer test_data)
+{
+    struct test_ctx test_ctx = {FALSE, NULL, 0};
+
+    cache_mng_store_file_buf (*cmng, 1, 0, 0, NULL, store_cb, &test_ctx);
+    app_dispatch (app);
+
+    g_assert (test_ctx.success);
+    g_assert (cache_mng_size (*cmng) == 0);
+
+    cache_mng_retrieve_file_buf (*cmng, 1, 0, 0, retrieve_cb, &test_ctx);
+    app_dispatch (app);
+
+    g_assert (test_ctx.success);
+    g_assert (test_ctx.buflen == 0);
+    g_assert (test_ctx.buf == NULL);
+}
+
 int main (int argc, char *argv[])
 {
     app = app_create ();
@@ -144,6 +162,7 @@ int main (int argc, char *argv[])
 	g_test_add ("/cache_mng/cache_mng_test_store", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_store, cache_mng_test_destroy);
 	g_test_add ("/cache_mng/cache_mng_test_remove", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_remove, cache_mng_test_destroy);
 	g_test_add ("/cache_mng/cache_mng_test_lru", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_lru, cache_mng_test_destroy);
+	g_test_add ("/cache_mng/cache_mng_test_zero_size", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_zero_size, cache_mng_test_destroy);
 
     return g_test_run ();
 }

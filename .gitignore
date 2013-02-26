@@ -17,6 +17,7 @@ src/valgrind*
 src/core
 tests/s3client_pool_test
 tests/s3http_client_test
+tests/cache_mng_test
 Makefile
 include/Makefile
 src/Makefile

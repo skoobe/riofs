@@ -12,9 +12,9 @@ struct _Application {
     GHashTable *h_clients_freq; // keeps the number of requests for each HTTP client
 };
 
-void app_dispatch(Application *app);
-
 Application *app_create ();
+void app_enable_dns (Application *app);
+void app_dispatch(Application *app);
 void app_destroy (Application *app);
 
 #endif

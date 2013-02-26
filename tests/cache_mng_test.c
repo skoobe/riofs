@@ -110,7 +110,7 @@ static void cache_mng_test_lru (CacheMng **cmng, gconstpointer test_data)
 {
     struct test_ctx test_ctx = {FALSE, NULL, 0};
     int i;
-    unsigned char buf[50];
+    unsigned char buf[512];
 
     for (i = 0; i < (int) sizeof (buf); i++)
         buf[i] = i % 256;
@@ -121,14 +121,14 @@ static void cache_mng_test_lru (CacheMng **cmng, gconstpointer test_data)
     app_dispatch (app);
 
     g_assert (test_ctx.success);
-    g_assert (cache_mng_size (*cmng) == 100);
+    g_assert (cache_mng_size (*cmng) == 1024);
     g_free (test_ctx.buf);
 
     cache_mng_store_file_buf (*cmng, 3, sizeof (buf), 0, buf, store_cb, &test_ctx);
     app_dispatch (app);
 
     g_assert (test_ctx.success);
-    g_assert (cache_mng_size (*cmng) == 100);
+    g_assert (cache_mng_size (*cmng) == 1024);
 
     cache_mng_retrieve_file_buf (*cmng, 2, 1, 0, retrieve_cb, &test_ctx);
     app_dispatch (app);

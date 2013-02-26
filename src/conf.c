@@ -384,7 +384,7 @@ GList *conf_get_list (ConfData *conf, const gchar *path)
         return (GList *) conf_node->value;
 }
 
-void conf_list_add_string (ConfData *conf, const gchar *full_path, const gchar *val)
+void conf_list_set_string (ConfData *conf, const gchar *full_path, const gchar *val)
 {
     ConfNode *conf_node;
     GList *l;
@@ -403,7 +403,7 @@ void conf_list_add_string (ConfData *conf, const gchar *full_path, const gchar *
         conf_node->name = g_strdup (full_path);
         conf_node->type = CT_LIST;
         conf_node->value = l;
-        g_hash_table_insert (conf->h_conf, conf_node->full_name, conf_node);
+        g_hash_table_replace (conf->h_conf, conf_node->full_name, conf_node);
     }
 }
 

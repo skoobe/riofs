@@ -21,11 +21,15 @@
 <s3>
     <!-- Set True to use old-style S3 path -->
     <path_style type="boolean">False</path_style>
+    <!-- The maximum number of keys returned in the response body. -->
+    <keys_per_request type="uint">1000</keys_per_request>
+    <!-- part size for upload / download files (5mb) -->
+    <part_size type="uint">5242880</part_size>
 </s3>
 
 <connection>
     <!-- timeout value for HTTP requests (seconds) -->
-    <timeout type="int">20</timeout>
+    <timeout type="int">-1</timeout>
     <!-- number of retries, before giving up (-1 for infinite loop) -->
     <retries type="int">-1</retries>
     <!-- maximum redirects per HTTP request -->
@@ -41,12 +45,10 @@
     <md5_enabled type="boolean">True</md5_enabled>
     <!-- directory for storing cache objects -->
     <cache_dir type="string">/tmp/s3ffs</cache_dir>
-    <!-- maximum size of cache directory -->
-    <cache_dir_max_size type="string">1Gb</cache_dir_max_size>
+    <!-- maximum size of cache directory (1Gb) -->
+    <cache_dir_max_size type="uint">1073741824</cache_dir_max_size>
     <!-- maximum time of cached object, 10 min -->
     <cache_object_ttl type="uint">600</cache_object_ttl>
     <!-- how often check cached objects for expiration, 1 min -->
     <cache_check_secs type="uint">60</cache_check_secs>
-    <!-- segment size for upload / download files (5mb) -->
-    <segment_size type="uint">5242880</segment_size>
 </filesystem>

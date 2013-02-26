@@ -22,13 +22,11 @@ typedef struct {
     Application *app;
     DirTree *dir_tree;
     S3HttpConnection *con;
-    gchar *resource_path;
     gchar *dir_path;
-    gchar *dir_path_orig; // save ptr
     fuse_ino_t ino;
-    gint max_keys;
     S3HttpConnection_directory_listing_callback directory_listing_callback;
     gpointer callback_data;
+    guint max_keys;
 } DirListRequest;
 
 #define CON_DIR_LOG "con_dir"
@@ -48,6 +46,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
     xmlNodeSetPtr key_nodes;
     gchar *name = NULL;
     gchar *size;
+    time_t last_modified = time (NULL);
 
     doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
     if (doc == NULL)
@@ -82,7 +81,8 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
 
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
-        dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino, bname, atoll (size));
+        dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino, 
+            bname, atoll (size), last_modified);
         
         xmlFree (size);
         xmlFree (name);
@@ -111,7 +111,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         if (bname[strlen (bname) - 1] == '/')
             bname[strlen (bname) - 1] = '\0';
         
-        dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_dir, dir_list->ino, bname, 0);
+        dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_dir, dir_list->ino, bname, 0, last_modified);
 
         xmlFree (name);
     }
@@ -164,8 +164,7 @@ static void directory_listing_done (S3HttpConnection *con, DirListRequest *dir_r
     if (con)
         s3http_connection_release (con);
 
-    g_free (dir_req->dir_path_orig);
-    g_free (dir_req->resource_path);
+    g_free (dir_req->dir_path);
     g_free (dir_req);
 
 }
@@ -204,7 +203,7 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
     }
 
     // execute HTTP request
-    req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%d&marker=%s", dir_req->dir_path, dir_req->max_keys, next_marker);
+    req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%u&marker=%s", dir_req->dir_path, dir_req->max_keys, next_marker);
     
     xmlFree ((void *) next_marker);
 
@@ -231,15 +230,14 @@ void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar
     gchar *req_path;
     gboolean res;
 
-    LOG_debug (CON_DIR_LOG, "Getting directory listing for: %s", dir_path);
+    LOG_debug (CON_DIR_LOG, "Getting directory listing for: >>%s<<", dir_path);
 
     dir_req = g_new0 (DirListRequest, 1);
     dir_req->con = con;
     dir_req->app = s3http_connection_get_app (con);
     dir_req->dir_tree = application_get_dir_tree (dir_req->app);
     dir_req->ino = ino;
-    // XXX: settings
-    dir_req->max_keys = 1000;
+    dir_req->max_keys = conf_get_uint (con->conf, "s3.keys_per_request");
     dir_req->directory_listing_callback = directory_listing_callback;
     dir_req->callback_data = callback_data;
 
@@ -251,18 +249,15 @@ void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar
 
     
     //XXX: fix dir_path
-    if (!strcmp (dir_path, "/")) {
+    if (!strlen (dir_path)) {
         dir_req->dir_path = g_strdup ("");
-        dir_req->dir_path_orig = dir_req->dir_path;
-        dir_req->resource_path = g_strdup_printf ("/");
     } else {
         dir_req->dir_path = g_strdup_printf ("%s/", dir_path);
-        dir_req->dir_path_orig = dir_req->dir_path;
-        dir_req->dir_path = dir_req->dir_path + 1;
-        dir_req->resource_path = g_strdup_printf ("/");
     }
-   
-    req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%d", dir_req->dir_path, dir_req->max_keys);
+
+    LOG_err (CON_DIR_LOG, "%d >>%s<<   %d >>%s<<<", strlen (dir_path), dir_path, strlen (dir_req->dir_path), dir_req->dir_path);
+    
+    req_path = g_strdup_printf ("/?delimiter=/&max-keys=%u&prefix=%s", dir_req->max_keys, dir_req->dir_path);
 
     res = s3http_connection_make_request (con, 
         req_path, "GET",

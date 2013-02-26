@@ -38,7 +38,7 @@ gboolean conf_get_boolean (ConfData *conf, const gchar *path);
 void conf_set_boolean (ConfData *conf, const gchar *full_path, gboolean val);
 
 GList *conf_get_list (ConfData *conf, const gchar *path);
-void conf_list_add_string (ConfData *conf, const gchar *full_path, const gchar *val);
+void conf_list_set_string (ConfData *conf, const gchar *full_path, const gchar *val);
 
 void conf_print (ConfData *conf);
 

@@ -36,6 +36,7 @@ struct _S3HttpConnection {
 
     // is taken by high level
     gboolean is_acquired;
+    GList *l_output_headers;
 };
 
 gpointer s3http_connection_create (Application *app);
@@ -43,6 +44,8 @@ void s3http_connection_destroy (gpointer data);
 
 gchar *s3http_connection_get_auth_string (Application *app, 
         const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str);
+
+void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *key, const gchar *value);
 
 void s3http_connection_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx);
 gboolean s3http_connection_check_rediness (gpointer client);
@@ -55,11 +58,6 @@ Application *s3http_connection_get_app (S3HttpConnection *con);
 gboolean s3http_connection_connect (S3HttpConnection *con);
 
 void s3http_connection_send (S3HttpConnection *con, struct evbuffer *outbuf);
-
-struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
-    void (*cb)(struct evhttp_request *, void *), void *arg,
-    const gchar *auth_str);
-
 
 typedef void (*S3HttpConnection_directory_listing_callback) (gpointer callback_data, gboolean success);
 void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar *path, fuse_ino_t ino,

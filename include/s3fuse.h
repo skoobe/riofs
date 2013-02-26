@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef _FUSE_H_
-#define _FUSE_H_
+#ifndef _S3_FUSE_H_
+#define _S3_FUSE_H_
 
 #include "global.h"
 
@@ -28,6 +28,6 @@ struct dirbuf {
 S3Fuse *s3fuse_new (Application *app, const gchar *mountpoint);
 void s3fuse_destroy (S3Fuse *s3fuse);
 
-void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino);
+void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, off_t file_size);
 
 #endif

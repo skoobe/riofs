@@ -1,15 +1,14 @@
-s3ffsincludedir=$(includedir)/s3ffs
+includedir=$(includedir)/hydrafs
 
-s3ffsinclude_HEADERS = \
-	global.h \
-	log.h \
-	dir_tree.h \
-	s3client_pool.h \
-	s3fuse.h \
-	s3http_client.h \
-	s3http_connection.h \
-	file_entry.h \
-	cache_mng.h \
-	conf.h \
-	range.h \
-	utils.h
+include_HEADERS = global.h
+include_HEADERS += log.h
+include_HEADERS += conf.h
+include_HEADERS += dir_tree.h 
+include_HEADERS += s3client_pool.h
+include_HEADERS += s3fuse.h
+include_HEADERS += s3http_client.h
+include_HEADERS += s3http_connection.h
+include_HEADERS += file_io_ops.h
+include_HEADERS += cache_mng.h
+include_HEADERS += range.h
+include_HEADERS += utils.h

@@ -53,7 +53,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 bin_PROGRAMS = s3http_client_test$(EXEEXT) s3client_pool_test$(EXEEXT) \
-	conf_test$(EXEEXT) range_test$(EXEEXT)
+	conf_test$(EXEEXT) range_test$(EXEEXT) cache_mng_test$(EXEEXT)
 subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -66,11 +66,20 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
+am_cache_mng_test_OBJECTS = cache_mng_test-cache_mng.$(OBJEXT) \
+	cache_mng_test-range.$(OBJEXT) cache_mng_test-utils.$(OBJEXT) \
+	cache_mng_test-conf.$(OBJEXT) cache_mng_test-log.$(OBJEXT) \
+	cache_mng_test-test_application.$(OBJEXT) \
+	cache_mng_test-cache_mng_test.$(OBJEXT)
+cache_mng_test_OBJECTS = $(am_cache_mng_test_OBJECTS)
+am__DEPENDENCIES_1 =
+cache_mng_test_DEPENDENCIES = $(am__DEPENDENCIES_1)
+cache_mng_test_LINK = $(CCLD) $(cache_mng_test_CFLAGS) $(CFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 am_conf_test_OBJECTS = conf_test-log.$(OBJEXT) \
 	conf_test-utils.$(OBJEXT) conf_test-conf.$(OBJEXT) \
 	conf_test-conf_test.$(OBJEXT)
 conf_test_OBJECTS = $(am_conf_test_OBJECTS)
-am__DEPENDENCIES_1 =
 conf_test_DEPENDENCIES = $(am__DEPENDENCIES_1)
 conf_test_LINK = $(CCLD) $(conf_test_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
@@ -110,10 +119,12 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(conf_test_SOURCES) $(range_test_SOURCES) \
-	$(s3client_pool_test_SOURCES) $(s3http_client_test_SOURCES)
-DIST_SOURCES = $(conf_test_SOURCES) $(range_test_SOURCES) \
-	$(s3client_pool_test_SOURCES) $(s3http_client_test_SOURCES)
+SOURCES = $(cache_mng_test_SOURCES) $(conf_test_SOURCES) \
+	$(range_test_SOURCES) $(s3client_pool_test_SOURCES) \
+	$(s3http_client_test_SOURCES)
+DIST_SOURCES = $(cache_mng_test_SOURCES) $(conf_test_SOURCES) \
+	$(range_test_SOURCES) $(s3client_pool_test_SOURCES) \
+	$(s3http_client_test_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -225,6 +236,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
+EXTRA_DIST = test.conf.xml
 s3http_client_test_SOURCES = $(top_srcdir)/src/s3http_client.c \
 	$(top_srcdir)/src/log.c $(top_srcdir)/src/utils.c \
 	s3http_client_test.c
@@ -244,6 +256,12 @@ conf_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 range_test_SOURCES = $(top_srcdir)/src/range.c range_test.c
 range_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 range_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+cache_mng_test_SOURCES = $(top_srcdir)/src/cache_mng.c \
+	$(top_srcdir)/src/range.c $(top_srcdir)/src/utils.c \
+	$(top_srcdir)/src/conf.c $(top_srcdir)/src/log.c \
+	test_application.c cache_mng_test.c
+cache_mng_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
+cache_mng_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
 
 .SUFFIXES:
@@ -318,6 +336,9 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
+cache_mng_test$(EXEEXT): $(cache_mng_test_OBJECTS) $(cache_mng_test_DEPENDENCIES) $(EXTRA_cache_mng_test_DEPENDENCIES) 
+	@rm -f cache_mng_test$(EXEEXT)
+	$(cache_mng_test_LINK) $(cache_mng_test_OBJECTS) $(cache_mng_test_LDADD) $(LIBS)
 conf_test$(EXEEXT): $(conf_test_OBJECTS) $(conf_test_DEPENDENCIES) $(EXTRA_conf_test_DEPENDENCIES) 
 	@rm -f conf_test$(EXEEXT)
 	$(conf_test_LINK) $(conf_test_OBJECTS) $(conf_test_LDADD) $(LIBS)
@@ -337,6 +358,13 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-cache_mng.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-cache_mng_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-conf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-log.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-range.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-test_application.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cache_mng_test-utils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-conf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-conf_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf_test-log.Po@am__quote@
@@ -369,6 +397,104 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
+
+cache_mng_test-cache_mng.o: $(top_srcdir)/src/cache_mng.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-cache_mng.o -MD -MP -MF $(DEPDIR)/cache_mng_test-cache_mng.Tpo -c -o cache_mng_test-cache_mng.o `test -f '$(top_srcdir)/src/cache_mng.c' || echo '$(srcdir)/'`$(top_srcdir)/src/cache_mng.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-cache_mng.Tpo $(DEPDIR)/cache_mng_test-cache_mng.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/cache_mng.c' object='cache_mng_test-cache_mng.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-cache_mng.o `test -f '$(top_srcdir)/src/cache_mng.c' || echo '$(srcdir)/'`$(top_srcdir)/src/cache_mng.c
+
+cache_mng_test-cache_mng.obj: $(top_srcdir)/src/cache_mng.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-cache_mng.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-cache_mng.Tpo -c -o cache_mng_test-cache_mng.obj `if test -f '$(top_srcdir)/src/cache_mng.c'; then $(CYGPATH_W) '$(top_srcdir)/src/cache_mng.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/cache_mng.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-cache_mng.Tpo $(DEPDIR)/cache_mng_test-cache_mng.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/cache_mng.c' object='cache_mng_test-cache_mng.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-cache_mng.obj `if test -f '$(top_srcdir)/src/cache_mng.c'; then $(CYGPATH_W) '$(top_srcdir)/src/cache_mng.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/cache_mng.c'; fi`
+
+cache_mng_test-range.o: $(top_srcdir)/src/range.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-range.o -MD -MP -MF $(DEPDIR)/cache_mng_test-range.Tpo -c -o cache_mng_test-range.o `test -f '$(top_srcdir)/src/range.c' || echo '$(srcdir)/'`$(top_srcdir)/src/range.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-range.Tpo $(DEPDIR)/cache_mng_test-range.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/range.c' object='cache_mng_test-range.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-range.o `test -f '$(top_srcdir)/src/range.c' || echo '$(srcdir)/'`$(top_srcdir)/src/range.c
+
+cache_mng_test-range.obj: $(top_srcdir)/src/range.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-range.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-range.Tpo -c -o cache_mng_test-range.obj `if test -f '$(top_srcdir)/src/range.c'; then $(CYGPATH_W) '$(top_srcdir)/src/range.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/range.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-range.Tpo $(DEPDIR)/cache_mng_test-range.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/range.c' object='cache_mng_test-range.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-range.obj `if test -f '$(top_srcdir)/src/range.c'; then $(CYGPATH_W) '$(top_srcdir)/src/range.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/range.c'; fi`
+
+cache_mng_test-utils.o: $(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-utils.o -MD -MP -MF $(DEPDIR)/cache_mng_test-utils.Tpo -c -o cache_mng_test-utils.o `test -f '$(top_srcdir)/src/utils.c' || echo '$(srcdir)/'`$(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-utils.Tpo $(DEPDIR)/cache_mng_test-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/utils.c' object='cache_mng_test-utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-utils.o `test -f '$(top_srcdir)/src/utils.c' || echo '$(srcdir)/'`$(top_srcdir)/src/utils.c
+
+cache_mng_test-utils.obj: $(top_srcdir)/src/utils.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-utils.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-utils.Tpo -c -o cache_mng_test-utils.obj `if test -f '$(top_srcdir)/src/utils.c'; then $(CYGPATH_W) '$(top_srcdir)/src/utils.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/utils.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-utils.Tpo $(DEPDIR)/cache_mng_test-utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/utils.c' object='cache_mng_test-utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-utils.obj `if test -f '$(top_srcdir)/src/utils.c'; then $(CYGPATH_W) '$(top_srcdir)/src/utils.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/utils.c'; fi`
+
+cache_mng_test-conf.o: $(top_srcdir)/src/conf.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-conf.o -MD -MP -MF $(DEPDIR)/cache_mng_test-conf.Tpo -c -o cache_mng_test-conf.o `test -f '$(top_srcdir)/src/conf.c' || echo '$(srcdir)/'`$(top_srcdir)/src/conf.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-conf.Tpo $(DEPDIR)/cache_mng_test-conf.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/conf.c' object='cache_mng_test-conf.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-conf.o `test -f '$(top_srcdir)/src/conf.c' || echo '$(srcdir)/'`$(top_srcdir)/src/conf.c
+
+cache_mng_test-conf.obj: $(top_srcdir)/src/conf.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-conf.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-conf.Tpo -c -o cache_mng_test-conf.obj `if test -f '$(top_srcdir)/src/conf.c'; then $(CYGPATH_W) '$(top_srcdir)/src/conf.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/conf.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-conf.Tpo $(DEPDIR)/cache_mng_test-conf.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/conf.c' object='cache_mng_test-conf.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-conf.obj `if test -f '$(top_srcdir)/src/conf.c'; then $(CYGPATH_W) '$(top_srcdir)/src/conf.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/conf.c'; fi`
+
+cache_mng_test-log.o: $(top_srcdir)/src/log.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-log.o -MD -MP -MF $(DEPDIR)/cache_mng_test-log.Tpo -c -o cache_mng_test-log.o `test -f '$(top_srcdir)/src/log.c' || echo '$(srcdir)/'`$(top_srcdir)/src/log.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-log.Tpo $(DEPDIR)/cache_mng_test-log.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/log.c' object='cache_mng_test-log.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-log.o `test -f '$(top_srcdir)/src/log.c' || echo '$(srcdir)/'`$(top_srcdir)/src/log.c
+
+cache_mng_test-log.obj: $(top_srcdir)/src/log.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-log.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-log.Tpo -c -o cache_mng_test-log.obj `if test -f '$(top_srcdir)/src/log.c'; then $(CYGPATH_W) '$(top_srcdir)/src/log.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/log.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-log.Tpo $(DEPDIR)/cache_mng_test-log.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/log.c' object='cache_mng_test-log.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-log.obj `if test -f '$(top_srcdir)/src/log.c'; then $(CYGPATH_W) '$(top_srcdir)/src/log.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/log.c'; fi`
+
+cache_mng_test-test_application.o: test_application.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-test_application.o -MD -MP -MF $(DEPDIR)/cache_mng_test-test_application.Tpo -c -o cache_mng_test-test_application.o `test -f 'test_application.c' || echo '$(srcdir)/'`test_application.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-test_application.Tpo $(DEPDIR)/cache_mng_test-test_application.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='test_application.c' object='cache_mng_test-test_application.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-test_application.o `test -f 'test_application.c' || echo '$(srcdir)/'`test_application.c
+
+cache_mng_test-test_application.obj: test_application.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-test_application.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-test_application.Tpo -c -o cache_mng_test-test_application.obj `if test -f 'test_application.c'; then $(CYGPATH_W) 'test_application.c'; else $(CYGPATH_W) '$(srcdir)/test_application.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-test_application.Tpo $(DEPDIR)/cache_mng_test-test_application.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='test_application.c' object='cache_mng_test-test_application.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-test_application.obj `if test -f 'test_application.c'; then $(CYGPATH_W) 'test_application.c'; else $(CYGPATH_W) '$(srcdir)/test_application.c'; fi`
+
+cache_mng_test-cache_mng_test.o: cache_mng_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-cache_mng_test.o -MD -MP -MF $(DEPDIR)/cache_mng_test-cache_mng_test.Tpo -c -o cache_mng_test-cache_mng_test.o `test -f 'cache_mng_test.c' || echo '$(srcdir)/'`cache_mng_test.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-cache_mng_test.Tpo $(DEPDIR)/cache_mng_test-cache_mng_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cache_mng_test.c' object='cache_mng_test-cache_mng_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-cache_mng_test.o `test -f 'cache_mng_test.c' || echo '$(srcdir)/'`cache_mng_test.c
+
+cache_mng_test-cache_mng_test.obj: cache_mng_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -MT cache_mng_test-cache_mng_test.obj -MD -MP -MF $(DEPDIR)/cache_mng_test-cache_mng_test.Tpo -c -o cache_mng_test-cache_mng_test.obj `if test -f 'cache_mng_test.c'; then $(CYGPATH_W) 'cache_mng_test.c'; else $(CYGPATH_W) '$(srcdir)/cache_mng_test.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/cache_mng_test-cache_mng_test.Tpo $(DEPDIR)/cache_mng_test-cache_mng_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cache_mng_test.c' object='cache_mng_test-cache_mng_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cache_mng_test_CFLAGS) $(CFLAGS) -c -o cache_mng_test-cache_mng_test.obj `if test -f 'cache_mng_test.c'; then $(CYGPATH_W) 'cache_mng_test.c'; else $(CYGPATH_W) '$(srcdir)/cache_mng_test.c'; fi`
 
 conf_test-log.o: $(top_srcdir)/src/log.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(conf_test_CFLAGS) $(CFLAGS) -MT conf_test-log.o -MD -MP -MF $(DEPDIR)/conf_test-log.Tpo -c -o conf_test-log.o `test -f '$(top_srcdir)/src/log.c' || echo '$(srcdir)/'`$(top_srcdir)/src/log.c

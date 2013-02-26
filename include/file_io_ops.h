@@ -15,26 +15,26 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef _FILE_ENTRY_H_
-#define _FILE_ENTRY_H_
+#ifndef _FILE_IO_OPS_H_
+#define _FILE_IO_OPS_H_
 
 #include "global.h"
 
-typedef struct _FileEntry FileEntry;
+typedef struct _FileIO FileIO;
 
-FileEntry *file_entry_create ();
-void file_entry_destroy (FileEntry *fentry);
+FileIO *fileio_create (Application *app, const gchar *fname);
+void fileio_destroy (FileIO *fop);
 
-void file_entry_release (FileEntry *fentry);
+void fileio_release (FileIO *fop);
 
-typedef void (*FileEntry_on_buffer_written) (gpointer callback_data, gboolean success);
-void file_entry_write_buffer (FileEntry *fentry,
-    const char *buf, size_t buf_size, off_t off,
-    FileEntry_on_buffer_written on_buffer_written, gpointer callback_data);
+typedef void (*FileIO_on_buffer_written_cb) (FileIO *fop, gpointer ctx, gboolean success, size_t count);
+void fileio_write_buffer (FileIO *fop,
+    const char *buf, size_t buf_size, off_t off, fuse_ino_t ino,
+    FileIO_on_buffer_written_cb on_buffer_written_cb, gpointer ctx);
 
-typedef void (*FileEntry_on_buffer_read) (gpointer callback_data, gboolean success, char *buf, size_t size);
-void file_entry_read_buffer (FileEntry *fentry,
-    size_t size, off_t off,
-    FileEntry_on_buffer_read on_buffer_read, gpointer callback_data);
+typedef void (*FileIO_on_buffer_read_cb) (gpointer ctx, gboolean success, char *buf, size_t size);
+void fileio_read_buffer (FileIO *fop,
+    size_t size, off_t off, fuse_ino_t ino,
+    FileIO_on_buffer_read_cb on_buffer_read_cb, gpointer ctx);
 
 #endif

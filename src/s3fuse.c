@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 #include "s3fuse.h"
 #include "dir_tree.h"
 
-/*{{{ struct */
+/*{{{ struct / defines */
 
 struct _S3Fuse {
     Application *app;
@@ -38,7 +38,10 @@ struct _S3Fuse {
 };
 
 #define FUSE_LOG "fuse"
+/*}}}*/
 
+/*{{{ func declarations */
+static void s3fuse_init (void *userdata, struct fuse_conn_info *conn);
 static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg);
 static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, 
     size_t size, off_t off, struct fuse_file_info *fi);
@@ -57,6 +60,7 @@ static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg);
 
 static struct fuse_lowlevel_ops s3fuse_opers = {
+    .init       = s3fuse_init,
 	.readdir	= s3fuse_readdir,
 	.lookup		= s3fuse_lookup,
     .getattr	= s3fuse_getattr,
@@ -173,6 +177,12 @@ static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg)
 */
 }
 
+// turn ASYNC read off
+static void s3fuse_init (void *userdata, struct fuse_conn_info *conn)
+{
+    conn->async_read = 0;
+}
+
 // low level fuse reading operations
 static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
 {
@@ -222,12 +232,12 @@ static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
 // return newly allocated buffer which holds directory entry
-void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino)
+void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, off_t file_size)
 {
     struct stat stbuf;
     size_t oldsize = b->size;
     
-    LOG_debug (FUSE_LOG, "add_dirbuf  ino: %d, name: %s", ino, name);
+    LOG_debug (FUSE_LOG, "add_dirbuf  ino: %"INO_FMT", name: %s", INO ino, name);
 
     // get required buff size
 	b->size += fuse_add_direntry (req, NULL, 0, name, NULL, 0);
@@ -236,6 +246,7 @@ void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse
 	b->p = (char *) g_realloc (b->p, b->size);
 	memset (&stbuf, 0, sizeof (stbuf));
 	stbuf.st_ino = ino;
+    stbuf.st_size = file_size;
     // add entry
 	fuse_add_direntry (req, b->p + oldsize, b->size - oldsize, name, &stbuf, b->size);
 }
@@ -263,7 +274,7 @@ static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t o
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "readdir  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
+    LOG_debug (FUSE_LOG, "readdir  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
     
     // fill directory buffer for "ino" directory
     dir_tree_fill_dir_buf (s3fuse->dir_tree, ino, size, off, s3fuse_readdir_cb, req);
@@ -300,7 +311,7 @@ static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "getattr  for %d", ino);
+    LOG_debug (FUSE_LOG, "getattr  for %"INO_FMT, INO ino);
 
     dir_tree_getattr (s3fuse->dir_tree, ino, s3fuse_getattr_cb, req);
 }
@@ -371,7 +382,7 @@ static void s3fuse_lookup (fuse_req_t req, fuse_ino_t parent_ino, const char *na
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "lookup  name: %s parent inode: %"INO_FMT, name, (uint64_t)parent_ino);
+    LOG_debug (FUSE_LOG, "lookup  name: %s parent inode: %"INO_FMT, name, INO parent_ino);
 
     dir_tree_lookup (s3fuse->dir_tree, parent_ino, name, s3fuse_lookup_cb, req);
 }
@@ -393,7 +404,7 @@ static void s3fuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "[%p] open  inode: %d, flags: %d", fi, ino, fi->flags);
+    LOG_debug (FUSE_LOG, "[%p] open  inode: %"INO_FMT", flags: %d", fi, INO ino, fi->flags);
 
     dir_tree_file_open (s3fuse->dir_tree, ino, fi, s3fuse_open_cb, req);
 }
@@ -430,7 +441,7 @@ static void s3fuse_create (fuse_req_t req, fuse_ino_t parent_ino, const char *na
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "create  parent inode: %"INO_FMT", name: %s, mode: %d ", parent_ino, name, mode);
+    LOG_debug (FUSE_LOG, "create  parent inode: %"INO_FMT", name: %s, mode: %d ", INO parent_ino, name, mode);
 
     dir_tree_file_create (s3fuse->dir_tree, parent_ino, name, mode, s3fuse_create_cb, req, fi);
 }
@@ -444,7 +455,7 @@ static void s3fuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "release  inode: %d, flags: %d", ino, fi->flags);
+    LOG_debug (FUSE_LOG, "release  inode: %"INO_FMT", flags: %d", INO ino, fi->flags);
 
     dir_tree_file_release (s3fuse->dir_tree, ino, fi);
 
@@ -474,7 +485,7 @@ static void s3fuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "[%p] >>>> read  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, req, ino, size, off);
+    LOG_debug (FUSE_LOG, "[%p] >>>> read  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, req, INO ino, size, off);
 
     dir_tree_file_read (s3fuse->dir_tree, ino, size, off, s3fuse_read_cb, req, fi);
 }
@@ -499,7 +510,7 @@ static void s3fuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "write  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, ino, size, off);
+    LOG_debug (FUSE_LOG, "write  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
 
     dir_tree_file_write (s3fuse->dir_tree, ino, buf, size, off, s3fuse_write_cb, req, fi);
 }
@@ -523,23 +534,38 @@ static void s3fuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "forget  inode: %"INO_FMT", nlookup: %lu", ino, nlookup);
-
-    dir_tree_file_remove (s3fuse->dir_tree, ino, s3fuse_forget_cb, req);
+    LOG_debug (FUSE_LOG, "forget  inode: %"INO_FMT", nlookup: %lu", INO ino, nlookup);
+    
+    if (nlookup != 0) {
+        LOG_debug (FUSE_LOG, "Ignoring forget with nlookup > 0");
+        fuse_reply_none (req);
+    } else
+        dir_tree_file_remove (s3fuse->dir_tree, ino, s3fuse_forget_cb, req);
 }
 /*}}}*/
 
 /*{{{ unlink operation*/
+
+static void s3fuse_unlink_cb (fuse_req_t req, gboolean success)
+{
+    LOG_debug (FUSE_LOG, "[%p] success: %s", req, success ? "TRUE" : "FALSE");
+
+    if (success)
+        fuse_reply_err (req, 0);
+    else
+        fuse_reply_err (req, ENOENT);
+}
+
 // Remove a file
 // Valid replies: fuse_reply_err
 // XXX: not used, see s3fuse_forget
 static void s3fuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name)
 {
-    LOG_debug (FUSE_LOG, "unlink  parent_ino: %"INO_FMT", name: %s", parent, name);
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+    
+    LOG_debug (FUSE_LOG, "[%p] unlink  parent_ino: %"INO_FMT", name: %s", req, INO parent, name);
 
-    // XXX:
-
-    fuse_reply_err (req, 0);
+    dir_tree_file_unlink (s3fuse->dir_tree, parent, name, s3fuse_unlink_cb, req);
 }
 /*}}}*/
 
@@ -550,7 +576,7 @@ static void s3fuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 {
 	struct fuse_entry_param e;
 
-    LOG_debug (FUSE_LOG, "mkdir_cb  success: %s, ino: %"INO_FMT, success?"YES":"NO", (uint64_t)ino);
+    LOG_debug (FUSE_LOG, "mkdir_cb  success: %s, ino: %"INO_FMT, success?"YES":"NO", INO ino);
     if (!success) {
 		fuse_reply_err (req, ENOENT);
         return;
@@ -579,11 +605,13 @@ static void s3fuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "mkdir  parent_ino: %"INO_FMT", name: %s, mode: %d", (uint64_t)parent_ino, name, mode);
+    LOG_debug (FUSE_LOG, "mkdir  parent_ino: %"INO_FMT", name: %s, mode: %d", INO parent_ino, name, mode);
 
     dir_tree_dir_create (s3fuse->dir_tree, parent_ino, name, mode, s3fuse_mkdir_cb, req);
 }
 /*}}}*/
+
+/*{{{ rmdir operator */
 
 // Remove a directory
 // Valid replies: fuse_reply_err
@@ -592,7 +620,8 @@ static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "rmdir  parent_ino: %"INO_FMT", name: %s", parent_ino, name);
+    LOG_debug (FUSE_LOG, "rmdir  parent_ino: %"INO_FMT", name: %s", INO parent_ino, name);
 
     fuse_reply_err (req, 0);
 }
+/*}}}*/

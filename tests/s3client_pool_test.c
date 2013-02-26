@@ -249,7 +249,12 @@ int main (int argc, char *argv[])
     l_files = populate_file_list (100, l_files, in_dir);
     g_assert (l_files);
 
+    
+    
     app = app_create ();
+    
+    
+    
     app->h_clients_freq = g_hash_table_new (g_direct_hash, g_direct_equal);
     app->l_files = l_files;
     // start server

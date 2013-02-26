@@ -53,7 +53,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = include
-DIST_COMMON = $(s3ffsinclude_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = $(include_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(srcdir)/config.h.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -97,8 +97,8 @@ am__uninstall_files_from_dir = { \
     || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
-am__installdirs = "$(DESTDIR)$(s3ffsincludedir)"
-HEADERS = $(s3ffsinclude_HEADERS)
+am__installdirs = "$(DESTDIR)$(includedir)"
+HEADERS = $(include_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -178,7 +178,7 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-includedir = @includedir@
+includedir = $(includedir)/hydrafs
 infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
@@ -204,21 +204,9 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-s3ffsincludedir = $(includedir)/s3ffs
-s3ffsinclude_HEADERS = \
-	global.h \
-	log.h \
-	dir_tree.h \
-	s3client_pool.h \
-	s3fuse.h \
-	s3http_client.h \
-	s3http_connection.h \
-	file_entry.h \
-	cache_mng.h \
-	conf.h \
-	range.h \
-	utils.h
-
+include_HEADERS = global.h log.h conf.h dir_tree.h s3client_pool.h \
+	s3fuse.h s3http_client.h s3http_connection.h file_io_ops.h \
+	cache_mng.h range.h utils.h
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -268,27 +256,27 @@ $(srcdir)/config.h.in:  $(am__configure_deps)
 
 distclean-hdr:
 	-rm -f config.h stamp-h1
-install-s3ffsincludeHEADERS: $(s3ffsinclude_HEADERS)
+install-includeHEADERS: $(include_HEADERS)
 	@$(NORMAL_INSTALL)
-	@list='$(s3ffsinclude_HEADERS)'; test -n "$(s3ffsincludedir)" || list=; \
+	@list='$(include_HEADERS)'; test -n "$(includedir)" || list=; \
 	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(s3ffsincludedir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(s3ffsincludedir)" || exit 1; \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(includedir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(includedir)" || exit 1; \
 	fi; \
 	for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  echo "$$d$$p"; \
 	done | $(am__base_list) | \
 	while read files; do \
-	  echo " $(INSTALL_HEADER) $$files '$(DESTDIR)$(s3ffsincludedir)'"; \
-	  $(INSTALL_HEADER) $$files "$(DESTDIR)$(s3ffsincludedir)" || exit $$?; \
+	  echo " $(INSTALL_HEADER) $$files '$(DESTDIR)$(includedir)'"; \
+	  $(INSTALL_HEADER) $$files "$(DESTDIR)$(includedir)" || exit $$?; \
 	done
 
-uninstall-s3ffsincludeHEADERS:
+uninstall-includeHEADERS:
 	@$(NORMAL_UNINSTALL)
-	@list='$(s3ffsinclude_HEADERS)'; test -n "$(s3ffsincludedir)" || list=; \
+	@list='$(include_HEADERS)'; test -n "$(includedir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
-	dir='$(DESTDIR)$(s3ffsincludedir)'; $(am__uninstall_files_from_dir)
+	dir='$(DESTDIR)$(includedir)'; $(am__uninstall_files_from_dir)
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -376,7 +364,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(HEADERS) config.h
 installdirs:
-	for dir in "$(DESTDIR)$(s3ffsincludedir)"; do \
+	for dir in "$(DESTDIR)$(includedir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -429,7 +417,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-s3ffsincludeHEADERS
+install-data-am: install-includeHEADERS
 
 install-dvi: install-dvi-am
 
@@ -473,7 +461,7 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-s3ffsincludeHEADERS
+uninstall-am: uninstall-includeHEADERS
 
 .MAKE: all install-am install-strip
 
@@ -482,13 +470,13 @@ uninstall-am: uninstall-s3ffsincludeHEADERS
 	distdir dvi dvi-am html html-am info info-am install \
 	install-am install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-s3ffsincludeHEADERS install-strip installcheck \
+	install-html-am install-includeHEADERS install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
 	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-generic pdf \
 	pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-s3ffsincludeHEADERS
+	uninstall-includeHEADERS
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

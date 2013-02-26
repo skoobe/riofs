@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,12 @@
 #include "s3http_connection.h"
 
 /*{{{ struct*/
+
+// HTTP header: key, value
+typedef struct {
+    gchar *key;
+    gchar *value;
+} S3HttpConnectionHeader;
 
 #define CON_LOG "con"
 
@@ -41,6 +47,7 @@ gpointer s3http_connection_create (Application *app)
     
     con->app = app;
     con->conf = application_get_conf (app);
+    con->l_output_headers = NULL;
 
     con->is_acquired = FALSE;
     
@@ -163,8 +170,14 @@ gchar *s3http_connection_get_auth_string (Application *app,
 
     conf = application_get_conf (app);
 
-    //tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
-    tmp = g_strdup_printf ("%s", resource);
+    // The list of sub-resources that must be included when constructing the CanonicalizedResource Element are: acl, lifecycle, location, logging, notification, partNumber, policy, requestPayment, torrent, uploadId, uploads, versionId, versioning, versions and website.
+    if (strlen (resource) > 2 && resource[1] == '?') {
+        if (strstr (resource, "?acl"))
+            tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
+        else
+            tmp = g_strdup_printf ("/%s/", conf_get_string (conf, "s3.bucket_name"));
+    } else
+        tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
 
     string_to_sign = g_strdup_printf (
         "%s\n"  // HTTP-Verb + "\n"
@@ -179,7 +192,7 @@ gchar *s3http_connection_get_auth_string (Application *app,
 
     g_free (tmp);
 
-   LOG_debug (CON_LOG, "%s", string_to_sign);
+   LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
 
     HMAC (EVP_sha1(),
         conf_get_string (conf, "s3.secret_access_key"),
@@ -209,35 +222,6 @@ gchar *s3http_connection_get_auth_string (Application *app,
     return res;
 }
 /*}}}*/
-
-// create S3 and setup HTTP connection request
-struct evhttp_request *s3http_connection_create_request (S3HttpConnection *con,
-    void (*cb)(struct evhttp_request *, void *), void *arg,
-    const gchar *auth_str)
-{    
-    struct evhttp_request *req;
-    gchar auth_key[300];
-    struct tm *cur_p;
-	time_t t = time(NULL);
-    struct tm cur;
-    char date[50];
-    //char hostname[1024];
-
-	gmtime_r(&t, &cur);
-	cur_p = &cur;
-
-    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (con->conf, "s3.access_key_id"), auth_str);
-
-    req = evhttp_request_new (cb, arg);
-    evhttp_add_header (req->output_headers, "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, "Host", conf_get_string (con->conf, "s3.host_header"));
-		
-    if (strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S GMT", cur_p) != 0) {
-			evhttp_add_header (req->output_headers, "Date", date);
-		}
-    return req;
-}
-
 
 static const gchar *get_endpoint (const char *xml, size_t xml_len) {
     xmlDocPtr doc;
@@ -355,8 +339,13 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
         goto done;
     }
 
-    // 200 and 204 (No Content) are ok
-    if (evhttp_request_get_response_code (req) != 200) {
+    // OK codes are:
+    // 200
+    // 204 (No Content)
+    // 206 (Partial Content)
+    if (evhttp_request_get_response_code (req) != 200 && 
+        evhttp_request_get_response_code (req) != 204 && 
+        evhttp_request_get_response_code (req) != 206) {
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
         if (data->responce_cb)
@@ -377,6 +366,30 @@ done:
     request_data_free (data);
 }
 
+// add an header to the outgoing request
+void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *key, const gchar *value)
+{
+    S3HttpConnectionHeader *header;
+
+    header = g_new0 (S3HttpConnectionHeader, 1);
+    header->key = g_strdup (key);
+    header->value = g_strdup (value);
+
+    con->l_output_headers = g_list_append (con->l_output_headers, header);
+}
+
+static void s3http_connection_free_headers (GList *l_headers)
+{
+    GList *l;
+    for (l = g_list_first (l_headers); l; l = g_list_next (l)) {
+        S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
+        g_free (header->key);
+        g_free (header->value);
+    }
+
+    g_list_free (l_headers);
+}
+
 gboolean s3http_connection_make_request (S3HttpConnection *con, 
     const gchar *resource_path,
     const gchar *http_cmd,
@@ -393,6 +406,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     int res;
     enum evhttp_cmd_type cmd_type;
     gchar *request_str;
+    GList *l;
 
     data = g_new0 (RequestData, 1);
     data->responce_cb = responce_cb;
@@ -433,6 +447,21 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
     evhttp_add_header (req->output_headers, "Host", conf_get_string (con->conf, "s3.host"));
 	evhttp_add_header (req->output_headers, "Date", time_str);
+    // ask to keep connection opened
+    evhttp_add_header (req->output_headers, "Connection", "keep-alive");
+    evhttp_add_header (req->output_headers, "Accept-Encoding", "identify");
+
+    // add headers
+    for (l = g_list_first (con->l_output_headers); l; l = g_list_next (l)) {
+        S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
+        evhttp_add_header (req->output_headers, 
+            header->key, header->value
+        );
+    }
+
+    s3http_connection_free_headers (con->l_output_headers);
+    con->l_output_headers = NULL;
+
 
     if (out_buffer) {
         evbuffer_add_buffer (req->output_buffer, out_buffer);
@@ -443,8 +472,13 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     request_str = g_strdup_printf("%s", resource_path);
     //}
 
-    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s", con, conf_get_string (con->conf, "s3.bucket_name"), request_str);
+    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", con, 
+        conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
 
+
+    evhttp_connection_set_timeout (con->evcon, 100);
+    evhttp_connection_set_retries (con->evcon, 20);
+    
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
     g_free (request_str);
 

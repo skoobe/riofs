@@ -1,4 +1,4 @@
-AC_INIT([s3ffs], [0.1])
+AC_INIT([s3ffs], [0.2], [paul.ionkin@gmail.com])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE 

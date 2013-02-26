@@ -89,8 +89,13 @@ ConfData *application_get_conf (Application *app)
     return app->conf;
 }
 
-/*}}}*/
+CacheMng *application_get_cache_mng (Application *app)
+{
+    return app->cmng;
+}
 
+
+/*}}}*/
 
 gboolean application_set_url (Application *app, const gchar *url)
 {
@@ -116,8 +121,14 @@ gboolean application_set_url (Application *app, const gchar *url)
         return FALSE;
     }
 
+    if (!strcmp (evhttp_uri_get_host (app->uri), "s3.amazonaws.com")) {
+        gchar *tmp = g_strdup_printf ("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
+        conf_set_string (app->conf, "s3.host", tmp);
+        g_free (tmp);
+    } else
+        conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
+
     conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
-    conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
     
     return TRUE;
 }
@@ -215,11 +226,19 @@ static gint application_finish_initialization_and_run (Application *app)
 
 /*{{{ create POOLs */
     // create S3ClientPool for reading operations
+    /*
     app->read_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
         s3http_client_create,
         s3http_client_destroy,
         s3http_client_set_on_released_cb,
         s3http_client_check_rediness
+        );
+    */
+    app->read_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
+        s3http_connection_create,
+        s3http_connection_destroy,
+        s3http_connection_set_on_released_cb,
+        s3http_connection_check_rediness
         );
     if (!app->read_client_pool) {
         LOG_err (APP_LOG, "Failed to create S3ClientPool !");
@@ -275,7 +294,7 @@ static gint application_finish_initialization_and_run (Application *app)
 /*{{{ FUSE*/
     app->s3fuse = s3fuse_new (app, conf_get_string (app->conf, "app.mountpoint"));
     if (!app->s3fuse) {
-        LOG_err (APP_LOG, "Failed to create FUSE fs !");
+        LOG_err (APP_LOG, "Failed to create FUSE fs ! Mount point: %s", conf_get_string (app->conf, "app.mountpoint"));
         event_base_loopexit (app->evbase, NULL);
         return -1;
     }
@@ -314,7 +333,7 @@ static gint application_finish_initialization_and_run (Application *app)
 	event_add (app->sigusr1_ev, NULL);
 /*}}}*/
     
-    if (conf_get_boolean (app->conf, "app.foreground"))
+    if (!conf_get_boolean (app->conf, "app.foreground"))
         fuse_daemonize (0);
 
     return 0;
@@ -330,59 +349,10 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success, const 
         event_base_loopexit (app->evbase, NULL);
         return;
     }
-
-    // make sure it breaks infinite redirect loop
-    /*
-    if (app->service_con_redirects > 20) {
-        LOG_err (APP_LOG, "Too many redirects !");
-        event_base_loopexit (app->evbase, NULL);
-        return;
-    }
-    app->service_con_redirects ++;
-
-    loc = evhttp_find_header (headers, "Location");
-    // redirect detected, use new location
-    if (loc) {
-        s3http_connection_destroy (con);
-        
-        evhttp_uri_free (app->uri);
-
-        app->uri = evhttp_uri_parse (loc);
-        if (!app->uri) {
-            LOG_err (APP_LOG, "Invalid S3 service URL: %s", loc);
-            event_base_loopexit (app->evbase, NULL);
-            return;
-        }
-        LOG_debug (APP_LOG, "New service URL: %s", evhttp_uri_get_host (app->uri));
-
-        // update host header
-        if (!conf_get_boolean (app->conf, "s3.path_style")) {
-            return g_strdup_printf("s3.amazonaws.com");
-    } else {
-        return g_strdup_printf("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
-    }
-
-
-        // perform a new request
-        app->service_con = s3http_connection_create (app);
-        if (!app->service_con) {
-            LOG_err (APP_LOG, "Failed to execute a request !");
-            event_base_loopexit (app->evbase, NULL);
-            return;
-        }
-
-        if (!s3http_connection_make_request (app->service_con, "/", "/", "HEAD", NULL,
-            application_get_service_on_done, application_get_service_on_error, app)) {
-
-            LOG_err (APP_LOG, "Failed to execute a request !");
-            event_base_loopexit (app->evbase, NULL);
-            return;
-        }
-    } else {
-
-*/
-        application_finish_initialization_and_run (app);
-//    }
+    
+    // XXX: check ACL permissions
+    
+    application_finish_initialization_and_run (app);
 }
 
 static void application_destroy (Application *app)
@@ -559,11 +529,11 @@ int main (int argc, char *argv[])
         return -1;
     }
 
+    conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     if (!application_set_url (app, s_params[0])) {
         return -1;
     }
 
-    conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     conf_set_string (app->conf, "app.mountpoint", s_params[2]);
 
     // check if directory exists
@@ -586,7 +556,6 @@ int main (int argc, char *argv[])
     if (foreground)
         conf_set_boolean (app->conf, "app.foreground", foreground);
 
-    
     g_option_context_free (context);
 
     // perform the initial request to get S3 bucket ACL (handles redirect as well)

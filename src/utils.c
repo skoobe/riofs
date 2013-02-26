@@ -100,7 +100,7 @@ static int on_unlink_cb (const char *fpath, const struct stat *sb, int typeflag,
 }
 
 // remove directory tree
-int utils_del_tree (const gchar *path)
+int utils_del_tree (const gchar *path, int depth)
 {
-    return nftw (path, on_unlink_cb, 100, FTW_DEPTH | FTW_PHYS);
+    return nftw (path, on_unlink_cb, depth, FTW_DEPTH | FTW_PHYS);
 }

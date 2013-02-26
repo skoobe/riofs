@@ -133,7 +133,8 @@ static void cache_read_cb (evutil_socket_t fd, short flags, void *ctx)
 {
     struct _CacheContext *context = (struct _CacheContext *) ctx;
 
-    context->cb.retrieve_cb (context->buf, context->size, context->success, context->user_ctx);
+    if (context->cb.retrieve_cb)
+        context->cb.retrieve_cb (context->buf, context->size, context->success, context->user_ctx);
     cache_context_destroy (context);
 }
 
@@ -189,7 +190,8 @@ static void cache_write_cb (evutil_socket_t fd, short flags, void *ctx)
 {
     struct _CacheContext *context = (struct _CacheContext *) ctx;
 
-    context->cb.store_cb (context->success, context->user_ctx);
+    if (context->cb.store_cb)
+        context->cb.store_cb (context->success, context->user_ctx);
 
     cache_context_destroy (context);
 }

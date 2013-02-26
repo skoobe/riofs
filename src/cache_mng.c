@@ -17,6 +17,10 @@
  */
 #include "cache_mng.h"
 #include "range.h"
+#include "utils.h"
+#include "conf.h"
+
+#define CACHE_MNGR_DIR "s3ffs_cache"
 
 struct _CacheMng {
     Application *app;
@@ -24,7 +28,8 @@ struct _CacheMng {
     GHashTable *h_entries; 
     GQueue *q_lru;
     size_t size;
-    size_t capacity;
+    size_t max_size;
+    gchar *cache_dir;
 };
 
 struct _CacheEntry {
@@ -44,7 +49,8 @@ struct _CacheContext {
     void *user_ctx;
 };
 
-static void cache_entry_destroy(gpointer data);
+static void cache_entry_destroy (gpointer data);
+static void cache_mng_rm_cache_dir (CacheMng *cmng);
 
 CacheMng *cache_mng_create (Application *app)
 {
@@ -56,13 +62,23 @@ CacheMng *cache_mng_create (Application *app)
     cmng->h_entries = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, cache_entry_destroy);
     cmng->q_lru = g_queue_new ();
     cmng->size = 0;
-    cmng->capacity = 100;
+    cmng->max_size = conf_get_uint (cmng->conf, "filesystem.cache_dir_max_size");
+    cmng->cache_dir = g_strdup_printf ("%s/%s", conf_get_string (cmng->conf, "filesystem.cache_dir"), CACHE_MNGR_DIR);
+
+    cache_mng_rm_cache_dir (cmng);
+    if (g_mkdir_with_parents (cmng->cache_dir, 0777) != 0) {
+        perror("g_mkdir_with_parents");
+        cache_mng_destroy (cmng);
+        return NULL;
+    }
 
     return cmng;
 }
 
 void cache_mng_destroy (CacheMng *cmng)
 {
+    cache_mng_rm_cache_dir (cmng);
+    g_free (cmng->cache_dir);
     g_queue_free (cmng->q_lru);
     g_hash_table_destroy (cmng->h_entries);
     g_free (cmng);
@@ -99,6 +115,14 @@ static struct _CacheContext* cache_context_create (size_t size, void *user_ctx)
     return context;
 }
 
+static void cache_mng_rm_cache_dir (CacheMng *cmng)
+{
+    if (cmng->cache_dir && strlen (cmng->cache_dir) >= strlen (CACHE_MNGR_DIR))
+        utils_del_tree (cmng->cache_dir, 1);
+    else
+        g_assert (0);
+}
+
 static void cache_context_destroy (struct _CacheContext* context)
 {
     g_free (context->buf);
@@ -115,7 +139,7 @@ static void cache_read_cb (evutil_socket_t fd, short flags, void *ctx)
 
 static int cache_mng_file_name (CacheMng *cmng, char *buf, int buflen, fuse_ino_t ino)
 {
-    return snprintf (buf, buflen, "cache_mng_%"INO_FMT"", ino);
+    return snprintf (buf, buflen, "%s/cache_mng_%"INO_FMT"", cmng->cache_dir, INO ino);
 }
 
 // retrieve file buffer from local storage
@@ -183,8 +207,8 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     struct event *ev;
     guint64 old_length, new_length;
 
-    // remove data until we have at least size bytes of capacity left
-    while (cmng->capacity < cmng->size + size && g_queue_peek_tail (cmng->q_lru)) {
+    // remove data until we have at least size bytes of max_size left
+    while (cmng->max_size < cmng->size + size && g_queue_peek_tail (cmng->q_lru)) {
         entry = (struct _CacheEntry *) g_queue_peek_tail (cmng->q_lru);
 
         cache_mng_remove_file (cmng, entry->ino);

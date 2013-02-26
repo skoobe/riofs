@@ -143,7 +143,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
     context->cb.retrieve_cb = on_retrieve_file_buf_cb;
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
 
-    if (entry && range_contain (entry->avail_range, off, off + size)) {
+    if (entry && range_contain (entry->avail_range, off, off + size - 1)) {
         int fd;
         ssize_t res;
         char path[PATH_MAX];
@@ -203,7 +203,7 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
         g_hash_table_insert (context->cmng->h_entries, GUINT_TO_POINTER (ino), entry);
     }
 
-    range_add (entry->avail_range, off, off + size);
+    range_add (entry->avail_range, off, off + size - 1);
 
     context->success = (res == size);
 

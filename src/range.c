@@ -138,6 +138,21 @@ gint range_count (Range *range)
     return g_list_length (range->l_intervals);
 }
 
+guint64 range_length (Range *range)
+{
+    GList *l;
+    guint64 length = 0;
+
+    for (l = g_list_first (range->l_intervals); l; l = g_list_next (l)) {
+        Interval *in = (Interval *) l->data;
+
+        g_assert (in->start <= in->end);
+        length += in->end - in->start + 1;
+    }
+
+    return length;
+}
+
 void range_print (Range *range)
 {
     GList *l;

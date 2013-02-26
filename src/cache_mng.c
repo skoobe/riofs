@@ -30,17 +30,8 @@ struct _CacheEntry {
     Range *avail_range;
 };
 
-enum _CacheOp {
-    CACHE_OP_RETRIEVE,
-    CACHE_OP_STORE
-};
-
 struct _CacheContext {
-    CacheMng *cmng;
-    enum _CacheOp op;
-    fuse_ino_t ino;
     size_t size;
-    off_t off;
     unsigned char *buf;
     gboolean success;
     union {
@@ -88,27 +79,14 @@ static void cache_entry_destroy (gpointer data)
     g_free(entry);
 }
 
-static struct _CacheContext* cache_context_create (CacheMng *cmng,
-                                                   fuse_ino_t ino,
-                                                   enum _CacheOp op, size_t size,
-                                                   off_t off, unsigned char *buf,
-                                                   void *user_ctx)
+static struct _CacheContext* cache_context_create (size_t size, void *user_ctx)
 {
     struct _CacheContext *context = g_malloc (sizeof (struct _CacheContext));
 
-    context->cmng = cmng;
-    context->ino = ino;
-    context->op = op;
-    context->off = off;
-    context->size = size;
     context->user_ctx = user_ctx;
     context->success = FALSE;
-    if (buf) {
-        context->buf = g_malloc (size);
-        memcpy (context->buf, buf, size);
-    } else {
-        context->buf = NULL;
-    }
+    context->size = size;
+    context->buf = NULL;
 
     return context;
 }
@@ -141,7 +119,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
     struct _CacheEntry *entry;
     struct event *ev;
 
-    context = cache_context_create (cmng, ino, CACHE_OP_RETRIEVE, size, off, NULL, ctx);
+    context = cache_context_create (size, ctx);
     context->cb.retrieve_cb = on_retrieve_file_buf_cb;
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
 
@@ -191,7 +169,7 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     struct event *ev;
     guint64 old_length, new_length;
 
-    context = cache_context_create (cmng, ino, CACHE_OP_STORE, size, off, NULL, ctx);
+    context = cache_context_create (size, ctx);
     context->cb.store_cb = on_store_file_buf_cb;
 
     cache_mng_file_name (cmng, path, sizeof (path), ino);
@@ -203,7 +181,7 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
 
     if (!entry) {
         entry = cache_entry_create ();
-        g_hash_table_insert (context->cmng->h_entries, GUINT_TO_POINTER (ino), entry);
+        g_hash_table_insert (cmng->h_entries, GUINT_TO_POINTER (ino), entry);
     }
 
     old_length = range_length (entry->avail_range);

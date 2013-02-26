@@ -66,7 +66,7 @@ CacheMng *cache_mng_create (Application *app)
     cmng->cache_dir = g_strdup_printf ("%s/%s", conf_get_string (cmng->conf, "filesystem.cache_dir"), CACHE_MNGR_DIR);
 
     cache_mng_rm_cache_dir (cmng);
-    if (g_mkdir_with_parents (cmng->cache_dir, 0777) != 0) {
+    if (g_mkdir_with_parents (cmng->cache_dir, 0700) != 0) {
         perror("g_mkdir_with_parents");
         cache_mng_destroy (cmng);
         return NULL;

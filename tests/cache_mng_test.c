@@ -70,6 +70,7 @@ static void cache_mng_test_store (CacheMng **cmng, gconstpointer test_data)
     app_dispatch (app);
 
     g_assert (test_ctx.success);
+    g_assert (cache_mng_size (*cmng) == 25);
 
     cache_mng_retrieve_file_buf (*cmng, 1, 25, 0, retrieve_cb, &test_ctx);
     app_dispatch (app);
@@ -91,12 +92,14 @@ static void cache_mng_test_remove (CacheMng **cmng, gconstpointer test_data)
     app_dispatch (app);
 
     g_assert (test_ctx.success);
+    g_assert (cache_mng_size (*cmng) == sizeof (buf));
     g_free (test_ctx.buf);
 
     cache_mng_remove_file (*cmng, 1);
     cache_mng_retrieve_file_buf (*cmng, 1, 1, 0, retrieve_cb, &test_ctx);
     app_dispatch (app);
     g_assert (!test_ctx.success);
+    g_assert (cache_mng_size (*cmng) == 0);
 }
 
 int main (int argc, char *argv[])

@@ -38,4 +38,6 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
 // removes file from local storage
 void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino);
 
+// get current size of cache
+size_t cache_mng_size (CacheMng *cmng);
 #endif

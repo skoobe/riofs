@@ -22,6 +22,7 @@ struct _CacheMng {
     Application *app;
     ConfData *conf;
     GHashTable *h_entries; 
+    size_t size;
 };
 
 struct _CacheEntry {
@@ -59,6 +60,7 @@ CacheMng *cache_mng_create (Application *app)
     cmng->app = app;
     cmng->conf = application_get_conf (app);
     cmng->h_entries = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, cache_entry_destroy);
+    cmng->size = 0;
 
     return cmng;
 }
@@ -187,6 +189,7 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     int fd;
     char path[PATH_MAX];
     struct event *ev;
+    guint64 old_length, new_length;
 
     context = cache_context_create (cmng, ino, CACHE_OP_STORE, size, off, NULL, ctx);
     context->cb.store_cb = on_store_file_buf_cb;
@@ -203,7 +206,10 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
         g_hash_table_insert (context->cmng->h_entries, GUINT_TO_POINTER (ino), entry);
     }
 
+    old_length = range_length (entry->avail_range);
     range_add (entry->avail_range, off, off + size - 1);
+    new_length = range_length (entry->avail_range);
+    cmng->size += new_length - old_length;
 
     context->success = (res == size);
 
@@ -219,8 +225,16 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
     struct _CacheEntry *entry;
     char path[PATH_MAX];
 
-    if (g_hash_table_remove (cmng->h_entries, GUINT_TO_POINTER (ino))) {
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (entry) {
+        cmng->size -= range_length (entry->avail_range);
+        g_hash_table_remove (cmng->h_entries, GUINT_TO_POINTER (ino));
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         unlink (path);
     }
+}
+
+size_t cache_mng_size (CacheMng *cmng)
+{
+    return cmng->size;
 }

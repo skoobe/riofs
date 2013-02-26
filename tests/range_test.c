@@ -32,6 +32,7 @@ static void range_test_add (Range **range, gconstpointer test_data)
     range_add (*range, 1, 10);
     g_assert (range_contain (*range, 2, 5) == TRUE);
     g_assert (range_count (*range) == 1);
+    g_assert (range_length (*range) == 10);
 }
 
 static void range_test_extend_1 (Range **range, gconstpointer test_data)
@@ -53,6 +54,7 @@ static void range_test_extend_2 (Range **range, gconstpointer test_data)
     range_add (*range, 7, 52);
     g_assert (range_contain (*range, 2, 12) == TRUE);
     g_assert (range_count (*range) == 2);
+    g_assert (range_length (*range) == 52 + 11);
 }
 
 

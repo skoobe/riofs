@@ -22,12 +22,14 @@ struct _CacheMng {
     Application *app;
     ConfData *conf;
     GHashTable *h_entries; 
+    GList *l_lru;
     size_t size;
 };
 
 struct _CacheEntry {
     fuse_ino_t ino;
     Range *avail_range;
+    GList *ll_lru;
 };
 
 struct _CacheContext {
@@ -51,6 +53,7 @@ CacheMng *cache_mng_create (Application *app)
     cmng->app = app;
     cmng->conf = application_get_conf (app);
     cmng->h_entries = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, cache_entry_destroy);
+    cmng->l_lru = g_list_alloc ();
     cmng->size = 0;
 
     return cmng;
@@ -58,6 +61,7 @@ CacheMng *cache_mng_create (Application *app)
 
 void cache_mng_destroy (CacheMng *cmng)
 {
+    g_list_free (cmng->l_lru);
     g_hash_table_destroy (cmng->h_entries);
     g_free (cmng);
 }
@@ -134,11 +138,16 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         context->buf = g_malloc (size);
         res = pread (fd, context->buf, size, off);
         close (fd);
-        context->success = (res == size);
+        context->success = (res == (ssize_t) size);
         if (!context->success) {
             g_free (context->buf);
             context->buf = NULL;
         }
+
+        // move entry to the front of l_lru
+        g_list_delete_link (cmng->l_lru, entry->ll_lru);
+        cmng->l_lru = g_list_prepend (cmng->l_lru, entry);
+        entry->ll_lru = g_list_first (cmng->l_lru);
     }
 
     ev = event_new (application_get_evbase (cmng->app), -1,  0,
@@ -181,6 +190,8 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
 
     if (!entry) {
         entry = cache_entry_create ();
+        cmng->l_lru = g_list_prepend (cmng->l_lru, entry);
+        entry->ll_lru = g_list_first (cmng->l_lru);
         g_hash_table_insert (cmng->h_entries, GUINT_TO_POINTER (ino), entry);
     }
 
@@ -189,7 +200,7 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     new_length = range_length (entry->avail_range);
     cmng->size += new_length - old_length;
 
-    context->success = (res == size);
+    context->success = (res == (ssize_t) size);
 
     ev = event_new (application_get_evbase (cmng->app), -1,  0,
                     cache_write_cb, context);
@@ -206,6 +217,7 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (entry) {
         cmng->size -= range_length (entry->avail_range);
+        g_list_delete_link (cmng->l_lru, entry->ll_lru);
         g_hash_table_remove (cmng->h_entries, GUINT_TO_POINTER (ino));
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         unlink (path);

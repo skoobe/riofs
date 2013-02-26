@@ -88,3 +88,19 @@ gint uri_get_port (const struct evhttp_uri *uri)
 
     return port;
 }
+
+static int on_unlink_cb (const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    int rv = remove (fpath);
+
+    if (rv)
+        perror (fpath);
+
+    return rv;
+}
+
+// remove directory tree
+int utils_del_tree (const gchar *path)
+{
+    return nftw (path, on_unlink_cb, 100, FTW_DEPTH | FTW_PHYS);
+}

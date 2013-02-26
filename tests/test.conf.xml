@@ -1,0 +1,18 @@
+<connection>
+    <timeout type="int">5</timeout>
+    <retries type="int">2</retries>
+</connection>
+<auth>
+    <ttl type="uint">10</ttl>
+</auth>
+
+<tmp>
+    <a>
+        <tmp type="string">TEST_OK</tmp>
+        <b>
+            <b type="boolean">TRUE</b>
+        </b>
+    </a>
+    <int type="int">445</int>
+    <list type="list">TEST_1,TEST_2,TEST_3,TEST_4</list>
+</tmp>

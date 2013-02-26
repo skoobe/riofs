@@ -27,9 +27,9 @@ Application *app_create ()
     app->dns_base = NULL;
     app->conf = conf_create ();
 
-    conf_add_boolean (app->conf, "filesystem.cache_enabled", TRUE);
-    conf_add_string (app->conf, "filesystem.cache_dir", "/tmp/s3ffs");
-    conf_add_string (app->conf, "filesystem.cache_dir_max_size", "1Gb");
+    conf_set_boolean (app->conf, "filesystem.cache_enabled", TRUE);
+    conf_set_string (app->conf, "filesystem.cache_dir", "/tmp/s3ffs");
+    conf_set_string (app->conf, "filesystem.cache_dir_max_size", "1Gb");
     
     return app;
 }

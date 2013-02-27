@@ -77,7 +77,7 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
         fclose (f);
 
         fdata->out_name = g_strdup_printf ("%s/%s", out_dir, name);
-        fdata->md5 = get_md5_sum (bytes, bytes_len + 1);
+        get_md5_sum (bytes, bytes_len + 1, fdata->md5, NULL);
         
         fdata->fout = fopen (fdata->out_name, "w");
         g_assert (fdata->fout);
@@ -115,7 +115,7 @@ static void on_last_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gp
     buf_len = evbuffer_get_length (input_buf);
     buf = (gchar *) evbuffer_pullup (input_buf, buf_len);
 
-    md5 = get_md5_sum (buf, buf_len);
+    get_md5_sum (buf, buf_len, *md5, NULL);
 
     LOG_debug (POOL_TEST, "%s == %s", fdata->md5, md5);
     g_assert_cmpstr (fdata->md5, ==, md5);

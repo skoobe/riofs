@@ -51,8 +51,10 @@ gboolean get_md5_sum (char *buf, size_t len, gchar **md5str, gchar **md5b)
     for (i = 0; i < 16; ++i)
         sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
 
-    *md5b = get_base64 (digest, 16);
-    *md5str = out;
+    if (md5b)
+        *md5b = get_base64 (digest, 16);
+    if (md5str)
+        *md5str = out;
     return TRUE;
 }
 

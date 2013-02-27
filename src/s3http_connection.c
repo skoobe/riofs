@@ -60,8 +60,6 @@ gpointer s3http_connection_create (Application *app)
 
 static gboolean s3http_connection_init (S3HttpConnection *con)
 {
-    struct timeval tv;
-    
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
         conf_get_string (con->conf, "s3.host"),
         conf_get_int (con->conf, "s3.port")
@@ -225,7 +223,7 @@ static gchar *s3http_connection_get_auth_string (Application *app,
     );
     g_free (string_to_sign);
 
-    return get_base64 (md, md_len);
+    return get_base64 ((const gchar *)md, md_len);
 }
 /*}}}*/
 
@@ -302,7 +300,7 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
 
     // handle redirect
     if (evhttp_request_get_response_code (req) == 301) {
-        gchar *loc;
+        const gchar *loc;
         struct evkeyvalq *headers;
 
         data->redirects++;

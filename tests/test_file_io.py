@@ -19,7 +19,7 @@ class App ():
         self.write_cache_dir = self.base_dir + "/write_cache/"
         self.read_dir = self.base_dir + "/read/"
         self.read_cache_dir = self.base_dir + "/read_cache/"
-        self.nr_tests = 10
+        self.nr_tests = 1
         self.l_files = []
         random.seed (time.time())
 
@@ -70,11 +70,11 @@ class App ():
 
         #print self.l_files
 
-        print "Checking files .."
+        print "STARTING .."
         failed = False
         for entry in self.l_files:
             time.sleep (1)
-            print >> sys.stderr, ">> CHECKING:", entry
+            print >> sys.stderr, ">> FILE:", entry
             res = self.check_file (entry)
             if res == False:
                 print "Test failed !"
@@ -82,7 +82,7 @@ class App ():
                 break
 
         if failed == False:
-            print "Test passed !"
+            print "All tests passed !"
 
         try:
             print "Killing processes .."
@@ -158,7 +158,7 @@ class App ():
 
     def check_file (self, entry):
         out_src_name = self.write_dir + os.path.basename (entry["name"])
-        print >> sys.stderr, ">> Copying ", entry["name"], " to: ", out_src_name
+        print >> sys.stderr, ">> Copying to SRV", entry["name"], " to: ", out_src_name
 
         for i in range (0, 10):
             try:
@@ -175,6 +175,7 @@ class App ():
 
         out_dst_name = self.dst_dir + os.path.basename (entry["name"])
         
+        print >> sys.stderr, ">> Copying to LOC", in_dst_name, " to: ", out_dst_name
         # write can take some extra time (due file release does not wait)
         for i in range (0, 10):
             try:
@@ -193,9 +194,11 @@ class App ():
 
         if md5 == entry["md5"]:
             print "Files match: ", entry["md5"], " == ", md5
+            print "======"
             return True
         else:
             print "Files (", entry["name"], ") DOES NOT match: ", entry["md5"], " != ", md5
+            print "======"
             return False
 
 

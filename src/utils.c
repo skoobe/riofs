@@ -39,26 +39,30 @@ gchar *get_random_string (size_t len, gboolean readable)
     return out;
 }
 
-gboolean get_md5_sum (char *buf, size_t len, gchar **md5str, gchar **md5b)
+gboolean get_md5_sum (const gchar *buf, size_t len, gchar **md5str, gchar **md5b)
 {
     unsigned char digest[16];
     size_t i;
     gchar *out;
 
+    if (!md5b && !md5str)
+        return TRUE;
+
     MD5 ((const unsigned char *)buf, len, digest);
 
-    out = g_malloc (33);
-    for (i = 0; i < 16; ++i)
-        sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
-
+  
     if (md5b)
-        *md5b = get_base64 (digest, 16);
-    if (md5str)
+        *md5b = get_base64 ((const gchar *)digest, 16);
+    if (md5str) {
+        out = g_malloc (33);
+        for (i = 0; i < 16; ++i)
+        sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
         *md5str = out;
+    }
     return TRUE;
 }
 
-gchar *get_base64 (char *buf, size_t len)
+gchar *get_base64 (const gchar *buf, size_t len)
 {
     int ret;
     gchar *res;

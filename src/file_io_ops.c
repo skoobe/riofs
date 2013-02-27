@@ -547,6 +547,7 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
     struct evkeyvalq *headers)
 {   
     FileReadData *rdata = (FileReadData *) ctx;
+    gchar *etag;
     
     // release S3HttpConnection
     s3http_connection_release (con);
@@ -557,6 +558,25 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
         g_free (rdata);
         return;
     }
+
+    etag = evhttp_find_header (headers, "ETag");
+    if (etag && strlen (etag) > 3 && strlen (etag) == 32 + 2) { //Etag: "etag"
+        gchar *md5;
+        get_md5_sum (buf, buf_len, &md5, NULL);
+
+        if (etag[0] == '"')
+            etag = etag + 1;
+        if (etag[strlen(etag) - 1] == '"')
+            etag[strlen(etag) - 1] = '\0';
+
+        if (strcmp (etag, md5)) {
+            LOG_err (FIO_LOG, "Local MD5 doesn't match Etag !");
+            rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
+            g_free (rdata);
+            return;
+        }
+    }
+
     
     // store it in the local cache
     cache_mng_store_file_buf (application_get_cache_mng (rdata->fop->app), 
@@ -621,11 +641,11 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
     
     // we got data from the cache
     if (success) {
-        LOG_err (FIO_LOG, "Reading from cache");
+        LOG_debug (FIO_LOG, "Reading from cache");
         rdata->on_buffer_read_cb (rdata->ctx, TRUE, (char *)buf, size);
         g_free (rdata);
     } else {
-        LOG_err (FIO_LOG, "Reading from server !!");
+        LOG_debug (FIO_LOG, "Reading from server !!");
         if (!s3client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
             LOG_err (FIO_LOG, "Failed to get HTTP client !");
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
@@ -641,7 +661,7 @@ static void fileio_read_get_buf (FileReadData *rdata)
     if (rdata->fop->file_size && rdata->off + rdata->size > rdata->fop->file_size)
         rdata->size = rdata->fop->file_size - rdata->off;
 
-    LOG_err (FIO_LOG, "requesting [%"G_GUINT64_FORMAT" %zu]", rdata->off, rdata->size);
+    LOG_debug (FIO_LOG, "requesting [%"G_GUINT64_FORMAT" %zu]", rdata->off, rdata->size);
 
     cache_mng_retrieve_file_buf (application_get_cache_mng (rdata->fop->app), 
         rdata->ino, rdata->size, rdata->off,

@@ -482,6 +482,21 @@ int main (int argc, char *argv[])
 
     } else {
         LOG_msg (APP_LOG, "Configuration file does not exist, using predefined values.");
+        conf_set_boolean (app->conf, "log.use_syslog", FALSE);
+        
+        conf_set_int (app->conf, "pool.writers", 2);
+        conf_set_int (app->conf, "pool.readers", 2);
+        conf_set_int (app->conf, "pool.operations", 4);
+        conf_set_uint (app->conf, "pool.max_requests_per_pool", 100);
+
+        conf_set_int (app->conf, "connection.timeout", 20);
+        conf_set_int (app->conf, "connection.retries", -1);
+
+        conf_set_uint (app->conf, "s3.part_size", 5242880);
+
+        conf_set_uint (app->conf, "filesystem.cache_dir_max_size", 1073741824);
+        conf_set_uint (app->conf, "filesystem.dir_cache_max_time", 5);
+        conf_set_boolean (app->conf, "filesystem.cache_enabled", TRUE);
     }
 
     g_free (conf_path);
@@ -528,7 +543,7 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    if (g_strv_length (s_params) != 3) {
+    if (!s_params || g_strv_length (s_params) != 3) {
         LOG_err (APP_LOG, "Wrong number of provided arguments!");
         g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;

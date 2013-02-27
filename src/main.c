@@ -371,6 +371,9 @@ static void application_destroy (Application *app)
     if (app->dir_tree)
         dir_tree_destroy (app->dir_tree);
 
+    if (app->cmng)
+        cache_mng_destroy (app->cmng);
+
     if (app->sigint_ev)
         event_free (app->sigint_ev);
     if (app->sigpipe_ev)
@@ -411,6 +414,7 @@ int main (int argc, char *argv[])
     struct stat st;
     gboolean path_style = FALSE;
     gchar **cache_dir = NULL;
+    guint32 part_size = 0;
 
     conf_path = g_build_filename (SYSCONFDIR, "s3ffs.conf", NULL); 
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
@@ -420,7 +424,8 @@ int main (int argc, char *argv[])
 	    { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
         { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
-        { "path_style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
+        { "path-style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
+        { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
         { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
         { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
@@ -489,14 +494,17 @@ int main (int argc, char *argv[])
         conf_set_int (app->conf, "pool.operations", 4);
         conf_set_uint (app->conf, "pool.max_requests_per_pool", 100);
 
-        conf_set_int (app->conf, "connection.timeout", 20);
+        conf_set_int (app->conf, "connection.timeout", -1);
         conf_set_int (app->conf, "connection.retries", -1);
+        conf_set_int (app->conf, "connection.max_redirects", 20);
 
-        conf_set_uint (app->conf, "s3.part_size", 5242880);
+        conf_set_uint (app->conf, "s3.part_size", 1000);
+        conf_set_uint (app->conf, "s3.keys_per_request", 5242880);
 
         conf_set_uint (app->conf, "filesystem.cache_dir_max_size", 1073741824);
         conf_set_uint (app->conf, "filesystem.dir_cache_max_time", 5);
         conf_set_boolean (app->conf, "filesystem.cache_enabled", TRUE);
+        conf_set_string (app->conf, "filesystem.cache_dir", "/tmp/");
     }
 
     g_free (conf_path);
@@ -575,6 +583,12 @@ int main (int argc, char *argv[])
     // foreground is set
     if (foreground)
         conf_set_boolean (app->conf, "app.foreground", foreground);
+
+    if (path_style)
+        conf_set_boolean (app->conf, "s3.path_style", path_style);
+
+    if (part_size)
+        conf_set_uint (app->conf, "s3.part_size", part_size);
 
     g_option_context_free (context);
 

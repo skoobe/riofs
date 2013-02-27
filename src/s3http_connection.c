@@ -356,10 +356,13 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     if (evhttp_request_get_response_code (req) != 200 && 
         evhttp_request_get_response_code (req) != 204 && 
         evhttp_request_get_response_code (req) != 206) {
+        gchar *tmp = g_new0 (gchar, buf_len + 1);
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
-        LOG_debug (CON_LOG, "Error msg: >>\n%s<<", buf);
-
+        strncpy (tmp, buf, buf_len);
+        LOG_debug (CON_LOG, "Error msg: >>\n%s<<", tmp);
+        g_free (tmp);
+        
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
@@ -478,10 +481,11 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
 
-    //if (conf_get_boolean (con->conf, "s3.path_style")) {
-    //request_str = g_strdup_printf("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), resource_path);
-    request_str = g_strdup_printf("%s", resource_path);
-    //}
+    if (conf_get_boolean (con->conf, "s3.path_style")) {
+        request_str = g_strdup_printf("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), resource_path);
+    } else {
+        request_str = g_strdup_printf("%s", resource_path);
+    }
 
     LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", s3http_connection_get_evcon (con), 
         conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));

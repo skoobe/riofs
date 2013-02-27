@@ -185,7 +185,8 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->dir_cache_size = 0;
     en->dir_cache_created = 0;
 
-    LOG_debug (DIR_TREE_LOG, "Creating new DirEntry: %s, inode: %"INO_FMT", fullpath: %s, mode: %d", en->basename, INO en->ino, en->fullpath, en->mode);
+    LOG_debug (DIR_TREE_LOG, "Creating new DirEntry: %s, inode: %"INO_FMT", fullpath: %s, mode: %d", 
+        en->basename, INO en->ino, en->fullpath, en->mode);
     
     if (type == DET_dir) {
         en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, dir_entry_destroy);

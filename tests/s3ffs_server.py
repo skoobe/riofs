@@ -52,7 +52,7 @@ class s3ffsServer(object):
         if self.pid == 0:
             base_path = os.path.join(os.path.dirname(__file__), '..')
             bin_path = os.path.join(base_path, "src")
-            args = [os.path.join(bin_path, "s3ffs"), self.endpoint, self.bucket, "-f", self.mountpoint]
+            args = [os.path.join(bin_path, "s3ffs"), self.endpoint, self.bucket, "-f", self.mountpoint, "--path-style", "--part-size=2147483647"]
             env = {"AWSACCESSKEYID": os.getenv("AWSACCESSKEYID") or "X",
                    "AWSSECRETACCESSKEY": os.getenv("AWSSECRETACCESSKEY") or "X"}
             os.execve(args[0], args, env)

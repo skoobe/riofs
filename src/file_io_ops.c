@@ -37,7 +37,6 @@ struct _FileIO {
     // read
     gboolean head_req_sent;
     guint64 file_size;
-    gboolean tmp_xx;
 };
 
 typedef struct {
@@ -66,7 +65,6 @@ FileIO *fileio_create (Application *app, const gchar *fname)
     fop->multipart_initiated = FALSE;
     fop->uploadid = NULL;
     fop->l_parts = NULL;
-    fop->tmp_xx = FALSE;
 
     return fop;
 }
@@ -629,8 +627,7 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
     // we got data from the cache
     if (success) {
         LOG_err (FIO_LOG, "Reading from cache");
-        rdata->on_buffer_read_cb (rdata->ctx, TRUE, buf, size);
-        rdata->fop->tmp_xx = FALSE;
+        rdata->on_buffer_read_cb (rdata->ctx, TRUE, (char *)buf, size);
         g_free (rdata);
     } else {
         LOG_err (FIO_LOG, "Reading from server !!");
@@ -729,13 +726,7 @@ void fileio_read_buffer (FileIO *fop,
     rdata->on_buffer_read_cb = on_buffer_read_cb;
     rdata->ctx = ctx;
     rdata->request_offset = off;
-
-    if (rdata->fop->tmp_xx) {
-        LOG_err (FIO_LOG, "xxXXxxx");
-        exit (1);
-    }
-    rdata->fop->tmp_xx = TRUE;
-
+    
     // send HEAD request first
     if (!rdata->fop->head_req_sent) {
          // get HTTP connection to download manifest or a full file

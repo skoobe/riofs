@@ -180,7 +180,8 @@ static gchar *s3http_connection_get_auth_string (Application *app,
             if (content_md5)
                 g_free (content_md5);
             content_md5 = g_strdup (header->value);
-        } else {
+        // select all HTTP request headers that start with 'x-amz-' (using a case-insensitive comparison)
+        } else if (strcasestr (header->key, "x-amz-")) {
             g_string_append_printf (s_headers, "%s:%s\n", header->key, header->value);
         }
     }

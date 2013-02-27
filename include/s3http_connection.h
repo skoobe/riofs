@@ -42,9 +42,6 @@ struct _S3HttpConnection {
 gpointer s3http_connection_create (Application *app);
 void s3http_connection_destroy (gpointer data);
 
-gchar *s3http_connection_get_auth_string (Application *app, 
-        const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str);
-
 void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *key, const gchar *value);
 
 void s3http_connection_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx);

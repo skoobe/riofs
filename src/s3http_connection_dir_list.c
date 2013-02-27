@@ -255,8 +255,6 @@ void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar
         dir_req->dir_path = g_strdup_printf ("%s/", dir_path);
     }
 
-    LOG_err (CON_DIR_LOG, "%d >>%s<<   %d >>%s<<<", strlen (dir_path), dir_path, strlen (dir_req->dir_path), dir_req->dir_path);
-    
     req_path = g_strdup_printf ("/?delimiter=/&max-keys=%u&prefix=%s", dir_req->max_keys, dir_req->dir_path);
 
     res = s3http_connection_make_request (con, 

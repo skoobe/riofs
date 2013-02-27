@@ -33,3 +33,4 @@ src/test_h.sh
 tests/range_test
 tests/conf_test
 tests/tst.py
+tests/core

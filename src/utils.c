@@ -39,11 +39,11 @@ gchar *get_random_string (size_t len, gboolean readable)
     return out;
 }
 
-gchar *get_md5_sum (char *buf, size_t len)
+gboolean get_md5_sum (char *buf, size_t len, gchar **md5str, gchar **md5b)
 {
     unsigned char digest[16];
-    gchar *out;
     size_t i;
+    gchar *out;
 
     MD5 ((const unsigned char *)buf, len, digest);
 
@@ -51,7 +51,34 @@ gchar *get_md5_sum (char *buf, size_t len)
     for (i = 0; i < 16; ++i)
         sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
 
-    return out;
+    *md5b = get_base64 (digest, 16);
+    *md5str = out;
+    return TRUE;
+}
+
+gchar *get_base64 (char *buf, size_t len)
+{
+    int ret;
+    gchar *res;
+    BIO *bmem, *b64;
+    BUF_MEM *bptr;
+    
+    b64 = BIO_new (BIO_f_base64 ());
+    bmem = BIO_new (BIO_s_mem ());
+    b64 = BIO_push (b64, bmem);
+    BIO_write (b64, buf, len);
+    ret = BIO_flush (b64);
+    if (ret != 1) {
+        BIO_free_all (b64);
+        return NULL;
+    }
+    BIO_get_mem_ptr (b64, &bptr);
+    res = g_malloc (bptr->length);
+    memcpy (res, bptr->data, bptr->length);
+    res[bptr->length - 1] = '\0';
+    BIO_free_all (b64);
+
+    return res;
 }
 
 gboolean uri_is_https (const struct evhttp_uri *uri)

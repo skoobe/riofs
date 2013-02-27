@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "s3http_connection.h"
+#include "utils.h"
 
 /*{{{ struct*/
 
@@ -59,6 +60,8 @@ gpointer s3http_connection_create (Application *app)
 
 static gboolean s3http_connection_init (S3HttpConnection *con)
 {
+    struct timeval tv;
+    
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
         conf_get_string (con->conf, "s3.host"),
         conf_get_int (con->conf, "s3.port")
@@ -136,7 +139,7 @@ static void s3http_connection_on_close (struct evhttp_connection *evcon, void *c
 {
     S3HttpConnection *con = (S3HttpConnection *) ctx;
 
-    LOG_debug (CON_LOG, "Connection closed !");
+    LOG_debug (CON_LOG, "[%p] Connection closed !", evcon);
 }
 
 /*{{{ getters */
@@ -155,22 +158,39 @@ struct evhttp_connection *s3http_connection_get_evcon (S3HttpConnection *con)
 /*{{{ get_auth_string */
 // create S3 auth string
 // http://docs.amazonwebservices.com/AmazonS3/2006-03-01/dev/RESTAuthentication.html
-gchar *s3http_connection_get_auth_string (Application *app, 
-        const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str)
+static gchar *s3http_connection_get_auth_string (Application *app, 
+        const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str,
+        GList *l_output_headers)
 {
     gchar *string_to_sign;
     unsigned int md_len;
     unsigned char md[EVP_MAX_MD_SIZE];
-    gchar *res;
-    BIO *bmem, *b64;
-    BUF_MEM *bptr;
-    int ret;
     gchar *tmp;
     ConfData *conf;
+    GList *l;
+    GString *s_headers;
+    gchar *content_md5 = NULL;
 
     conf = application_get_conf (app);
+    s_headers = g_string_new ("");
+    for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
+        S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
+        
+        if (!strcmp ("Content-MD5", header->key)) {
+            if (content_md5)
+                g_free (content_md5);
+            content_md5 = g_strdup (header->value);
+        } else {
+            g_string_append_printf (s_headers, "%s:%s\n", header->key, header->value);
+        }
+    }
 
-    // The list of sub-resources that must be included when constructing the CanonicalizedResource Element are: acl, lifecycle, location, logging, notification, partNumber, policy, requestPayment, torrent, uploadId, uploads, versionId, versioning, versions and website.
+    if (!content_md5)
+        content_md5 = g_strdup ("");
+
+    // The list of sub-resources that must be included when constructing the CanonicalizedResource 
+    // Element are: acl, lifecycle, location, logging, notification, partNumber, policy, 
+    // requestPayment, torrent, uploadId, uploads, versionId, versioning, versions and website.
     if (strlen (resource) > 2 && resource[1] == '?') {
         if (strstr (resource, "?acl"))
             tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
@@ -187,12 +207,14 @@ gchar *s3http_connection_get_auth_string (Application *app,
         "%s"    // CanonicalizedAmzHeaders
         "%s",    // CanonicalizedResource
 
-        method, "", content_type, time_str, "", tmp
+        method, content_md5, content_type, time_str, s_headers->str, tmp
     );
+    g_string_free (s_headers, TRUE);
+    g_free (content_md5);
 
     g_free (tmp);
 
-   LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
+   //LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
 
     HMAC (EVP_sha1(),
         conf_get_string (conf, "s3.secret_access_key"),
@@ -201,29 +223,12 @@ gchar *s3http_connection_get_auth_string (Application *app,
         md, &md_len
     );
     g_free (string_to_sign);
-    
-    b64 = BIO_new (BIO_f_base64 ());
-    bmem = BIO_new (BIO_s_mem ());
-    b64 = BIO_push (b64, bmem);
-    BIO_write (b64, md, md_len);
-    ret = BIO_flush (b64);
-    if (ret != 1) {
-        LOG_err (CON_LOG, "Failed to create base64 of auth string !");
-        return NULL;
-    }
-    BIO_get_mem_ptr (b64, &bptr);
 
-    res = g_malloc (bptr->length);
-    memcpy (res, bptr->data, bptr->length);
-    res[bptr->length - 1] = '\0';
-
-    BIO_free_all (b64);
-
-    return res;
+    return get_base64 (md, md_len);
 }
 /*}}}*/
 
-static const gchar *get_endpoint (const char *xml, size_t xml_len) {
+static gchar *get_endpoint (const char *xml, size_t xml_len) {
     xmlDocPtr doc;
     xmlXPathContextPtr ctx;
     xmlXPathObjectPtr endpoint_xp;
@@ -326,6 +331,8 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
                 data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             goto done;
         }
+        //XXX: free loc if it's parsed from xml
+        // xmlFree (loc)
 
         if (!s3http_connection_init (data->con)) {
             if (data->responce_cb)
@@ -421,6 +428,8 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
         cmd_type = EVHTTP_REQ_GET;
     } else if (!strcasecmp (http_cmd, "PUT")) {
         cmd_type = EVHTTP_REQ_PUT;
+    } else if (!strcasecmp (http_cmd, "POST")) {
+        cmd_type = EVHTTP_REQ_POST;
     } else if (!strcasecmp (http_cmd, "DELETE")) {
         cmd_type = EVHTTP_REQ_DELETE;
     } else if (!strcasecmp (http_cmd, "HEAD")) {
@@ -433,7 +442,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     
     t = time (NULL);
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-    auth_str = s3http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str);
+    auth_str = s3http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str, con->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (con->conf, "s3.access_key_id"), auth_str);
     g_free (auth_str);
 
@@ -472,12 +481,9 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     request_str = g_strdup_printf("%s", resource_path);
     //}
 
-    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", con, 
+    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", s3http_connection_get_evcon (con), 
         conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
 
-
-    evhttp_connection_set_timeout (con->evcon, 100);
-    evhttp_connection_set_retries (con->evcon, 20);
     
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
     g_free (request_str);

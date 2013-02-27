@@ -405,12 +405,12 @@ int main (int argc, char *argv[])
     GOptionContext *context;
     gchar **s_params = NULL;
     gchar **s_config = NULL;
-    gchar *progname;
     gboolean foreground = FALSE;
     gchar conf_str[1023];
     gchar *conf_path;
     struct stat st;
     gboolean path_style = FALSE;
+    gchar **cache_dir = NULL;
 
     conf_path = g_build_filename (SYSCONFDIR, "s3ffs.conf", NULL); 
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
@@ -419,6 +419,7 @@ int main (int argc, char *argv[])
 	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &s_params, NULL, NULL },
 	    { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
+        { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
         { "path_style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
         { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
@@ -427,8 +428,6 @@ int main (int argc, char *argv[])
 
     // init libraries
     ENGINE_register_all_complete ();
-
-    progname = argv[0];
 
     // init main app structure
     app = g_new0 (Application, 1);
@@ -489,6 +488,12 @@ int main (int argc, char *argv[])
 
     // update logging settings
     logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
+
+    if (cache_dir && g_strv_length (cache_dir) > 0) {
+        conf_set_string (app->conf, "filesystem.cache_dir", cache_dir[0]);
+        g_strfreev (cache_dir);
+    }
+
 
 /*}}}*/
     

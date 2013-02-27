@@ -597,7 +597,6 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
         range_hdr = g_strdup_printf ("bytes=%"G_GUINT64_FORMAT"-%"G_GUINT64_FORMAT, 
             rdata->request_offset, rdata->request_offset + part_size);
         s3http_connection_add_output_header (con, "Range", range_hdr);
-        g_printf ("RANGE: %s \n", range_hdr);
         g_free (range_hdr);
     }
     

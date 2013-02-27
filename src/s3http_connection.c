@@ -344,6 +344,10 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
             data->responce_cb, data->ctx);
         goto done;
     }
+    
+    inbuf = evhttp_request_get_input_buffer (req);
+    buf_len = evbuffer_get_length (inbuf);
+    buf = (const char *) evbuffer_pullup (inbuf, buf_len);
 
     // OK codes are:
     // 200
@@ -354,14 +358,13 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
         evhttp_request_get_response_code (req) != 206) {
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
+        LOG_debug (CON_LOG, "Error msg: >>\n%s<<", buf);
+
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
     }
 
-    inbuf = evhttp_request_get_input_buffer (req);
-    buf_len = evbuffer_get_length (inbuf);
-    buf = (const char *) evbuffer_pullup (inbuf, buf_len);
     
     if (data->responce_cb)
         data->responce_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));

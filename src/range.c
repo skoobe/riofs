@@ -160,6 +160,6 @@ void range_print (Range *range)
     g_printf ("===\n");
     for (l = g_list_first (range->l_intervals); l; l = g_list_next (l)) {
         Interval *in = (Interval *) l->data;
-        g_printf ("[%lu %lu]\n", in->start, in->end);
+        g_printf ("[%"G_GUINT64_FORMAT" %"G_GUINT64_FORMAT"]\n", in->start, in->end);
     }
 }

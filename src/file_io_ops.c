@@ -495,14 +495,10 @@ void fileio_write_buffer (FileIO *fop,
     evbuffer_add (fop->write_buf, buf, buf_size);
     fop->current_size += buf_size;
 
-
     // CacheMng
-    /*
     cache_mng_store_file_buf (application_get_cache_mng (fop->app), 
         ino, buf_size, off, (unsigned char *) buf, 
         NULL, NULL);
-    */
-
       
     // if current write buffer exceeds "part_size" - this is a multipart upload
     if (evbuffer_get_length (fop->write_buf) >= conf_get_uint (fop->conf, "s3.part_size")) {

@@ -21,6 +21,7 @@
 #include "conf.h"
 
 #define CACHE_MNGR_DIR "s3ffs_cache"
+#define CMNG_LOG "cmng"
 
 struct _CacheMng {
     Application *app;
@@ -208,6 +209,9 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     char path[PATH_MAX];
     struct event *ev;
     guint64 old_length, new_length;
+    guint64 range_size;
+
+    range_size = (guint64)off + (guint64) size;
 
     // remove data until we have at least size bytes of max_size left
     while (cmng->max_size < cmng->size + size && g_queue_peek_tail (cmng->q_lru)) {
@@ -234,10 +238,10 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     }
 
     old_length = range_length (entry->avail_range);
-    range_add (entry->avail_range, off, off + size - 1);
+    range_add (entry->avail_range, off, range_size);
     new_length = range_length (entry->avail_range);
     cmng->size += new_length - old_length;
-
+    
     context->success = (res == (ssize_t) size);
 
     ev = event_new (application_get_evbase (cmng->app), -1,  0,

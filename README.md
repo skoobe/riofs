@@ -38,7 +38,7 @@ How to start using s3ffs
 ```
 export AWSACCESSKEYID="your AWS access key"
 export AWSSECRETACCESSKEY="your AWS secret access key"
-s3ffs [http://s3.amazonaws.com] [bucketname] [options] [mountpoint]
+s3ffs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 ```
 
 Where options could be:
@@ -47,6 +47,8 @@ Where options could be:
 -v: Verbose output
 -f: Do not daemonize process
 -c path:  Path to configuration file
+--version: Display application version
+--help: Display help
 ```
 
 Please note, that you can specify default S3 service URL (http://s3.amazonaws.com).

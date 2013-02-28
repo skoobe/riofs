@@ -185,6 +185,8 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
                     cache_read_cb, context);
+    // fire this event at once
+    event_active (context->ev, 0, 0);
     event_add (context->ev, NULL);
 }
 
@@ -246,6 +248,8 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
                     cache_write_cb, context);
+    // fire this event at once
+    event_active (context->ev, 0, 0);
     event_add (context->ev, NULL);
 }
 

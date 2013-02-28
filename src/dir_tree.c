@@ -1189,7 +1189,7 @@ static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
 
     s3http_connection_acquire (con);
 
-    req_path = g_strdup_printf ("/%s/%s", data->en->fullpath);
+    req_path = g_strdup_printf ("/%s", data->en->fullpath);
 
     res = s3http_connection_make_request (con, 
         req_path, "DELETE", 

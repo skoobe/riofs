@@ -356,12 +356,17 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     if (evhttp_request_get_response_code (req) != 200 && 
         evhttp_request_get_response_code (req) != 204 && 
         evhttp_request_get_response_code (req) != 206) {
-        gchar *tmp = g_new0 (gchar, buf_len + 1);
         LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
-        strncpy (tmp, buf, buf_len);
-        LOG_debug (CON_LOG, "Error msg: >>\n%s<<", tmp);
-        g_free (tmp);
+        
+        // if it contains any readable information
+        if (buf_len > 1) {
+            gchar *tmp;
+            tmp = g_new0 (gchar, buf_len + 1);
+            strncpy (tmp, buf, buf_len);
+            LOG_debug (CON_LOG, "Error msg: >>\n%s<<", tmp);
+            g_free (tmp);
+        }
         
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);

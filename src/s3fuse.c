@@ -18,6 +18,8 @@
 #include "s3fuse.h"
 #include "dir_tree.h"
 
+// error codes: /usr/include/asm/errno.h /usr/include/asm-generic/errno-base.h
+
 /*{{{ struct / defines */
 
 struct _S3Fuse {
@@ -58,6 +60,7 @@ static void s3fuse_unlink (fuse_req_t req, fuse_ino_t parent_ino, const char *na
 static void s3fuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name, mode_t mode);
 static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg);
+static void s3fuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
 
 static struct fuse_lowlevel_ops s3fuse_opers = {
     .init       = s3fuse_init,
@@ -74,6 +77,7 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
     .unlink     = s3fuse_unlink,
     .mkdir      = s3fuse_mkdir,
     .rmdir      = s3fuse_rmdir,
+    .rename     = s3fuse_rename,
 };
 /*}}}*/
 
@@ -625,3 +629,15 @@ static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
     fuse_reply_err (req, 0);
 }
 /*}}}*/
+
+
+static void s3fuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname)
+{
+    S3Fuse *s3fuse = fuse_req_userdata (req);
+    
+    LOG_debug (FUSE_LOG, "rename  parent_ino: %"INO_FMT", name: %s new_parent_in: %"INO_FMT", newname: %s", 
+        INO parent, name, INO newparent, newname);
+
+    fuse_reply_err (req, EPERM);
+
+}

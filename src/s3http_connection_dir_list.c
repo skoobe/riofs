@@ -73,7 +73,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         size = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
         xmlXPathFreeObject (key);
         
-        if (!strcmp (name, dir_list->dir_path)) {
+        if (!strncmp (name, dir_list->dir_path, strlen (dir_list->dir_path))) {
             xmlFree (size);
             xmlFree (name);
             continue;
@@ -196,7 +196,7 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
     next_marker = get_next_marker (buf, buf_len);
 
     // check if we need to get more data
-    if (!strstr (buf, "<IsTruncated>true</IsTruncated>") && !next_marker) {
+    if (!g_strstr_len (buf, buf_len, "<IsTruncated>true</IsTruncated>") && !next_marker) {
         LOG_debug (CON_DIR_LOG, "Directory listing done !");
         directory_listing_done (con, dir_req, TRUE);
         return;

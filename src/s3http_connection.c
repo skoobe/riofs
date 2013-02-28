@@ -174,7 +174,7 @@ static gchar *s3http_connection_get_auth_string (Application *app,
     for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
         S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
         
-        if (!strcmp ("Content-MD5", header->key)) {
+        if (!strncmp ("Content-MD5", header->key, strlen ("Content-MD5"))) {
             if (content_md5)
                 g_free (content_md5);
             content_md5 = g_strdup (header->value);

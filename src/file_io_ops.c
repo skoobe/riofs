@@ -569,7 +569,7 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
         if (etag[strlen(etag) - 1] == '"')
             etag[strlen(etag) - 1] = '\0';
 
-        if (strcmp (etag, md5)) {
+        if (strncmp (etag, md5, 32)) {
             LOG_err (FIO_LOG, "Local MD5 doesn't match Etag !");
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
             g_free (rdata);

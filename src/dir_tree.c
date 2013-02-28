@@ -746,7 +746,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     */
 
     // hide it
-    if (en->is_modified && !en->is_updating) {
+    if (en->is_modified && !en->is_updating && en->type == DET_dir) {
 
         LookupOpData *op_data;
 
@@ -1190,14 +1190,12 @@ static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
     s3http_connection_acquire (con);
 
     req_path = g_strdup_printf ("/%s", data->en->fullpath);
-
     res = s3http_connection_make_request (con, 
         req_path, "DELETE", 
         NULL,
         dir_tree_file_remove_on_con_data_cb,
         data
     );
-
     g_free (req_path);
 
     if (!res) {

@@ -478,7 +478,7 @@ int main (int argc, char *argv[])
     
     app->conf = conf_create ();
     if (access (conf_path, R_OK) == 0) {
-        LOG_msg (APP_LOG, "Using config file: %s", conf_path);
+        LOG_debug (APP_LOG, "Using config file: %s", conf_path);
         
         if (!conf_parse_file (app->conf, conf_path)) {
             LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
@@ -486,7 +486,7 @@ int main (int argc, char *argv[])
         }
 
     } else {
-        LOG_msg (APP_LOG, "Configuration file does not exist, using predefined values.");
+        LOG_debug (APP_LOG, "Configuration file does not exist, using predefined values.");
         conf_set_boolean (app->conf, "log.use_syslog", FALSE);
         
         conf_set_int (app->conf, "pool.writers", 2);
@@ -546,14 +546,14 @@ int main (int argc, char *argv[])
 
     // check if both strings are set
     if (!conf_get_string (app->conf, "s3.access_key_id") || !conf_get_string (app->conf, "s3.secret_access_key")) {
-        LOG_err (APP_LOG, "Environment variables are not set!");
-        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);
+        //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
 
     if (!s_params || g_strv_length (s_params) != 3) {
-        LOG_err (APP_LOG, "Wrong number of provided arguments!");
-        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
+        //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
 
@@ -568,13 +568,13 @@ int main (int argc, char *argv[])
     if (stat (conf_get_string (app->conf, "app.mountpoint"), &st) == -1) {
         LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", 
             conf_get_string (app->conf, "app.mountpoint"));
-        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
     // check if it's a directory
     if (!S_ISDIR (st.st_mode)) {
         LOG_err (APP_LOG, "Mountpoint %s is not a directory!", conf_get_string (app->conf, "app.mountpoint"));
-        g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         return -1;
     }
     

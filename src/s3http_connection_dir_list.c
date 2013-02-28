@@ -44,9 +44,6 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
     int i;
     xmlXPathObjectPtr key;
     xmlNodeSetPtr key_nodes;
-    gchar *name = NULL;
-    gchar *size;
-    time_t last_modified = time (NULL);
 
     doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
     if (doc == NULL)
@@ -59,7 +56,13 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
     contents_xp = xmlXPathEvalExpression ((xmlChar *) "//s3:Contents", ctx);
     content_nodes = contents_xp->nodesetval;
     for(i = 0; i < content_nodes->nodeNr; i++) {
-        char *bname;
+        gchar *bname = NULL;
+        guint64 size = 0;
+        time_t last_modified;
+        gchar *name = NULL;
+        gchar *s_size = NULL;
+        gchar *s_last_modified = NULL;
+
         ctx->node = content_nodes->nodeTab[i];
 
         // object name
@@ -70,11 +73,28 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         
         key = xmlXPathEvalExpression ((xmlChar *) "s3:Size", ctx);
         key_nodes = key->nodesetval;
-        size = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
+        s_size = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
+        if (s_size) {
+            size = strtoll (s_size, NULL, 10);
+            xmlFree (s_size);
+        }
+        xmlXPathFreeObject (key);
+
+
+        key = xmlXPathEvalExpression ((xmlChar *) "s3:LastModified", ctx);
+        key_nodes = key->nodesetval;
+        s_last_modified = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
+        if (s_last_modified) {
+            struct tm tmp;
+            strptime (s_last_modified, "%FT%T", &tmp);
+            last_modified = mktime(&tmp);
+            xmlFree (s_last_modified);
+        } else 
+            last_modified = time (NULL);
         xmlXPathFreeObject (key);
         
+        // 
         if (!strncmp (name, dir_list->dir_path, strlen (name))) {
-            xmlFree (size);
             xmlFree (name);
             continue;
         }
@@ -82,9 +102,8 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
         dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino, 
-            bname, atoll (size), last_modified);
+            bname, size, last_modified);
         
-        xmlFree (size);
         xmlFree (name);
     }
 
@@ -94,7 +113,9 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
     subdirs_xp = xmlXPathEvalExpression ((xmlChar *) "//s3:CommonPrefixes", ctx);
     subdir_nodes = subdirs_xp->nodesetval;
     for(i = 0; i < subdir_nodes->nodeNr; i++) {
-        char *bname;
+        gchar *bname = NULL;
+        gchar *name = NULL;
+        time_t last_modified;
 
         ctx->node = subdir_nodes->nodeTab[i];
 
@@ -102,7 +123,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         key = xmlXPathEvalExpression((xmlChar *) "s3:Prefix", ctx);
         key_nodes = key->nodesetval;
         name = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
-        xmlXPathFreeObject(key);
+        xmlXPathFreeObject (key);
 
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
@@ -111,6 +132,9 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         if (bname[strlen (bname) - 1] == '/')
             bname[strlen (bname) - 1] = '\0';
         
+        // XXX: ?
+        last_modified = time (NULL);
+
         dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_dir, dir_list->ino, bname, 0, last_modified);
 
         xmlFree (name);

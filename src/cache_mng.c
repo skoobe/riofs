@@ -36,6 +36,7 @@ struct _CacheMng {
 struct _CacheEntry {
     fuse_ino_t ino;
     Range *avail_range;
+    time_t modification_time;
     GList *ll_lru;
 };
 
@@ -93,6 +94,7 @@ static struct _CacheEntry* cache_entry_create (fuse_ino_t ino)
     entry->ino = ino;
     entry->avail_range = range_create ();
     entry->ll_lru = NULL;
+    entry->modification_time = time (NULL);
 
     return entry;
 }
@@ -251,6 +253,9 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     new_length = range_length (entry->avail_range);
     cmng->size += new_length - old_length;
     
+    // update modification time
+    entry->modification_time = time (NULL);
+   
     context->success = (res == (ssize_t) size);
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,

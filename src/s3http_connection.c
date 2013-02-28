@@ -173,7 +173,7 @@ static gchar *s3http_connection_get_auth_string (Application *app,
     s_headers = g_string_new ("");
     for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
         S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
-        
+
         if (!strncmp ("Content-MD5", header->key, strlen ("Content-MD5"))) {
             if (content_md5)
                 g_free (content_md5);
@@ -213,7 +213,7 @@ static gchar *s3http_connection_get_auth_string (Application *app,
 
     g_free (tmp);
 
-   //LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
+   LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
 
     HMAC (EVP_sha1(),
         conf_get_string (conf, "s3.secret_access_key"),
@@ -265,6 +265,8 @@ typedef struct {
     gchar *resource_path;
     gchar *http_cmd;
     struct evbuffer *out_buffer;
+
+    struct timeval start_tv;
 } RequestData;
 
 static void request_data_free (RequestData *data)
@@ -280,8 +282,11 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
     struct evbuffer *inbuf;
     const char *buf = NULL;
     size_t buf_len;
+    struct timeval end_tv;
 
-    LOG_debug (CON_LOG, "Got HTTP response from server !");
+    gettimeofday (&end_tv, NULL);
+
+    LOG_debug (CON_LOG, "Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)", timeval_diff (&data->start_tv, &end_tv));
 
     if (!req) {
         LOG_err (CON_LOG, "Request failed !");
@@ -383,6 +388,10 @@ done:
     request_data_free (data);
 }
 
+static gint hdr_compare (const S3HttpConnectionHeader *a, const S3HttpConnectionHeader *b)
+{
+    return strcmp (a->key, b->key);
+}
 // add an header to the outgoing request
 void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *key, const gchar *value)
 {
@@ -392,7 +401,7 @@ void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *ke
     header->key = g_strdup (key);
     header->value = g_strdup (value);
 
-    con->l_output_headers = g_list_insert_sorted (con->l_output_headers, header, (GCompareFunc) strcmp);
+    con->l_output_headers = g_list_insert_sorted (con->l_output_headers, header, (GCompareFunc) hdr_compare);
 }
 
 static void s3http_connection_free_headers (GList *l_headers)
@@ -496,7 +505,7 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", s3http_connection_get_evcon (con), 
         conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
 
-    
+    gettimeofday (&data->start_tv, NULL);
     res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
     g_free (request_str);
 

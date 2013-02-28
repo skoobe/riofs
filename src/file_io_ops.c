@@ -89,6 +89,73 @@ void fileio_destroy (FileIO *fop)
 
 /*{{{ fileio_release*/
 
+/*{{{ update headers on uploaded object */
+static void fileio_release_on_update_header_cb (S3HttpConnection *con, void *ctx, gboolean success,
+    const gchar *buf, size_t buf_len, 
+    struct evkeyvalq *headers)
+{   
+    FileIO *fop = (FileIO *) ctx;
+    
+    s3http_connection_release (con);
+
+    if (!success) {
+        LOG_err (FIO_LOG, "Failed to update headers on the server !");
+        fileio_destroy (fop);
+        return;
+    }
+
+    // done 
+    LOG_debug (FIO_LOG, "Headers are updated !");
+
+    fileio_destroy (fop);
+}
+
+// got S3HttpConnection object
+static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer ctx)
+{
+    S3HttpConnection *con = (S3HttpConnection *) client;
+    FileIO *fop = (FileIO *) ctx;
+    gchar *path;
+    gchar *cpy_path;
+    gboolean res;
+
+    LOG_debug (FIO_LOG, "Updating object's headers..");
+
+    s3http_connection_acquire (con);
+    
+    cpy_path = g_strdup_printf ("%s%s", conf_get_string (fop->conf, "s3.bucket_name"), fop->fname);
+    s3http_connection_add_output_header (con, "x-amz-meta-md5", "xxx");
+    s3http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
+    s3http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
+    g_free (cpy_path);
+
+    path = g_strdup_printf ("%s", fop->fname);
+    res = s3http_connection_make_request (con, 
+        path, "PUT", NULL,
+        fileio_release_on_update_header_cb,
+        fop
+    );
+    g_free (path);
+
+    if (!res) {
+        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        s3http_connection_release (con);
+        fileio_destroy (fop);
+        return;
+    }
+}
+
+static void fileio_release_update_headers (FileIO *fop)
+{
+    if (!s3client_pool_get_client (application_get_write_client_pool (fop->app), 
+        fileio_release_on_update_headers_con_cb, fop)) {
+        LOG_err (FIO_LOG, "Failed to get HTTP client !");
+        fileio_destroy (fop);
+        return;
+     }
+}
+/*}}}*/
+
 /*{{{ Complete Multipart Upload */
 // multipart is sent
 static void fileio_release_on_complete_cb (S3HttpConnection *con, void *ctx, gboolean success,
@@ -108,7 +175,8 @@ static void fileio_release_on_complete_cb (S3HttpConnection *con, void *ctx, gbo
     // done 
     LOG_debug (FIO_LOG, "Multipart Upload is done !");
 
-    fileio_destroy (fop);
+    // fileio_destroy (fop);
+    fileio_release_update_headers (fop);
 }
 
 // got S3HttpConnection object
@@ -193,7 +261,8 @@ static void fileio_release_on_part_sent_cb (S3HttpConnection *con, void *ctx, gb
     
     // or we are done
     } else {
-        fileio_destroy (fop);
+        fileio_release_update_headers (fop);
+        //fileio_destroy (fop);
     }
 }
 

@@ -29,4 +29,7 @@ gint uri_get_port (const struct evhttp_uri *uri);
 // remove directory tree
 int utils_del_tree (const gchar *path, int depth);
 
+// returns the difference in milliseconds
+guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime);
+
 #endif

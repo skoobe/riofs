@@ -137,3 +137,21 @@ int utils_del_tree (const gchar *path, int depth)
 {
     return nftw (path, on_unlink_cb, depth, FTW_DEPTH | FTW_PHYS);
 }
+
+guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime)
+{
+    guint64 msec = 0;
+    
+    // special case, when finishtime is not set
+    if (!finishtime->tv_sec && !finishtime->tv_usec)
+        return 0;
+
+    if (finishtime->tv_sec > starttime->tv_sec) {
+        msec = (guint64)((finishtime->tv_sec - starttime->tv_sec) * 1000);
+        msec += (guint64)((finishtime->tv_usec - starttime->tv_usec) / 1000);
+    } else if (finishtime->tv_usec > starttime->tv_usec) {
+        msec = (guint64)((finishtime->tv_usec - starttime->tv_usec) / 1000);
+    }
+    
+    return msec;
+}

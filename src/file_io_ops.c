@@ -75,6 +75,8 @@ void fileio_destroy (FileIO *fop)
     
     for (l = g_list_first (fop->l_parts); l; l = g_list_next (l)) {
         FileIOPart *part = (FileIOPart *) l->data;
+        g_free (part->md5str);
+        g_free (part->md5b);
         g_free (part);
     }
     evbuffer_free (fop->write_buf);

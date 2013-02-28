@@ -48,6 +48,7 @@ struct _CacheContext {
         cache_mng_on_store_file_buf_cb store_cb;
     } cb;
     void *user_ctx;
+    struct event *ev;
 };
 
 static void cache_entry_destroy (gpointer data);
@@ -112,6 +113,7 @@ static struct _CacheContext* cache_context_create (size_t size, void *user_ctx)
     context->success = FALSE;
     context->size = size;
     context->buf = NULL;
+    context->ev = NULL;
 
     return context;
 }
@@ -126,6 +128,7 @@ static void cache_mng_rm_cache_dir (CacheMng *cmng)
 
 static void cache_context_destroy (struct _CacheContext* context)
 {
+    event_free (context->ev);
     g_free (context->buf);
     g_free (context);
 }
@@ -151,7 +154,6 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
 {
     struct _CacheContext *context;
     struct _CacheEntry *entry;
-    struct event *ev;
 
     context = cache_context_create (size, ctx);
     context->cb.retrieve_cb = on_retrieve_file_buf_cb;
@@ -181,10 +183,9 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         g_queue_push_head_link (cmng->q_lru, entry->ll_lru);
     }
 
-    ev = event_new (application_get_evbase (cmng->app), -1,  0,
+    context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
                     cache_read_cb, context);
-    event_active (ev, 0, 0);
-    event_add (ev, NULL);
+    event_add (context->ev, NULL);
 }
 
 static void cache_write_cb (evutil_socket_t fd, short flags, void *ctx)
@@ -207,7 +208,6 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     ssize_t res;
     int fd;
     char path[PATH_MAX];
-    struct event *ev;
     guint64 old_length, new_length;
     guint64 range_size;
 
@@ -244,10 +244,9 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     
     context->success = (res == (ssize_t) size);
 
-    ev = event_new (application_get_evbase (cmng->app), -1,  0,
+    context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
                     cache_write_cb, context);
-    event_active (ev, 0, 0);
-    event_add (ev, NULL);
+    event_add (context->ev, NULL);
 }
 
 // removes file from local storage

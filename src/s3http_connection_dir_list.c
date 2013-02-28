@@ -73,7 +73,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         size = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
         xmlXPathFreeObject (key);
         
-        if (!strncmp (name, dir_list->dir_path, strlen (dir_list->dir_path))) {
+        if (!strncmp (name, dir_list->dir_path, strlen (name))) {
             xmlFree (size);
             xmlFree (name);
             continue;

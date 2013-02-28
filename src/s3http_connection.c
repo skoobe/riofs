@@ -397,6 +397,7 @@ static void s3http_connection_free_headers (GList *l_headers)
         S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
         g_free (header->key);
         g_free (header->value);
+        g_free (header);
     }
 
     g_list_free (l_headers);

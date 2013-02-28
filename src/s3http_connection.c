@@ -392,7 +392,7 @@ void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *ke
     header->key = g_strdup (key);
     header->value = g_strdup (value);
 
-    con->l_output_headers = g_list_append (con->l_output_headers, header);
+    con->l_output_headers = g_list_insert_sorted (con->l_output_headers, header, (GCompareFunc) strcmp);
 }
 
 static void s3http_connection_free_headers (GList *l_headers)

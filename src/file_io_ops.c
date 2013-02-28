@@ -585,7 +585,7 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
         rdata->ino, buf_len, rdata->request_offset, (unsigned char *) buf,
         NULL, NULL);
 
-    LOG_err (FIO_LOG, "Storing [%"G_GUINT64_FORMAT" %zu]", rdata->request_offset, buf_len);
+    LOG_debug (FIO_LOG, "Storing [%"G_GUINT64_FORMAT" %zu]", rdata->request_offset, buf_len);
 
     // and read it
     fileio_read_get_buf (rdata);

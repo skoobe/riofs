@@ -90,4 +90,9 @@ typedef void (*dir_tree_mkdir_cb) (fuse_req_t req, gboolean success, fuse_ino_t 
 void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,
      dir_tree_mkdir_cb mkdir_cb, fuse_req_t req);
 
+typedef void (*DirTree_rename_cb) (fuse_req_t req, gboolean success);
+void dir_tree_rename (DirTree *dtree, 
+    fuse_ino_t parent_ino, const char *name, fuse_ino_t newparent_ino, const char *newname,
+    DirTree_rename_cb rename_cb, fuse_req_t req);
+
 #endif

@@ -28,8 +28,8 @@ struct _CacheMng {
     ConfData *conf;
     GHashTable *h_entries; 
     GQueue *q_lru;
-    size_t size;
-    size_t max_size;
+    guint64 size;
+    guint64 max_size;
     gchar *cache_dir;
 };
 
@@ -40,7 +40,7 @@ struct _CacheEntry {
 };
 
 struct _CacheContext {
-    size_t size;
+    guint64 size;
     unsigned char *buf;
     gboolean success;
     union {
@@ -69,7 +69,7 @@ CacheMng *cache_mng_create (Application *app)
 
     cache_mng_rm_cache_dir (cmng);
     if (g_mkdir_with_parents (cmng->cache_dir, 0700) != 0) {
-        perror("g_mkdir_with_parents");
+        LOG_err (CMNG_LOG, "Failed to remove directory: %s", cmng->cache_dir);
         cache_mng_destroy (cmng);
         return NULL;
     }
@@ -105,7 +105,7 @@ static void cache_entry_destroy (gpointer data)
     g_free(entry);
 }
 
-static struct _CacheContext* cache_context_create (size_t size, void *user_ctx)
+static struct _CacheContext* cache_context_create (guint64 size, void *user_ctx)
 {
     struct _CacheContext *context = g_malloc (sizeof (struct _CacheContext));
 
@@ -122,8 +122,9 @@ static void cache_mng_rm_cache_dir (CacheMng *cmng)
 {
     if (cmng->cache_dir && strstr (cmng->cache_dir, CACHE_MNGR_DIR))
         utils_del_tree (cmng->cache_dir, 1);
-    else
-        g_assert (0);
+    else {
+        LOG_err (CMNG_LOG, "Cache directory not found: %s", cmng->cache_dir);
+    }
 }
 
 static void cache_context_destroy (struct _CacheContext* context)
@@ -159,12 +160,18 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
     context->cb.retrieve_cb = on_retrieve_file_buf_cb;
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
 
-    if (entry && range_contain (entry->avail_range, off, off + size - 1)) {
+    if (entry && range_contain (entry->avail_range, off, off + size)) {
         int fd;
         ssize_t res;
         char path[PATH_MAX];
 
-        g_assert (ino == entry->ino);
+        if (ino != entry->ino) {
+            LOG_err (CMNG_LOG, "Requested inode doesn't match hashed value !");
+            if (context->cb.retrieve_cb)
+                context->cb.retrieve_cb (NULL, 0, FALSE, context->user_ctx);
+            cache_context_destroy (context);
+            return;
+        }
 
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         fd = open (path, O_RDONLY);
@@ -269,7 +276,30 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
     }
 }
 
-size_t cache_mng_size (CacheMng *cmng)
+guint64 cache_mng_size (CacheMng *cmng)
 {
     return cmng->size;
+}
+
+guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino)
+{
+    struct _CacheEntry *entry;
+
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return 0;
+
+    return range_length (entry->avail_range);
+}
+
+// XXX: not implemented yet
+gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
+{
+    struct _CacheEntry *entry;
+
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return FALSE;
+
+    return FALSE;
 }

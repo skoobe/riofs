@@ -592,7 +592,7 @@ static void s3fuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 	e.entry_timeout = 1.0;
     //e.attr.st_mode = S_IFDIR | 0755;
     e.attr.st_mode = mode;
-	e.attr.st_nlink = 2;
+	e.attr.st_nlink = 1;
     e.attr.st_ctime = ctime;
     e.attr.st_atime = ctime;
     e.attr.st_mtime = ctime;
@@ -652,7 +652,7 @@ static void s3fuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, 
     
     LOG_debug (FUSE_LOG, "rename  parent_ino: %"INO_FMT", name: %s new_parent_in: %"INO_FMT", newname: %s", 
         INO parent, name, INO newparent, newname);
-    
-    s3fuse_rename_cb (req, FALSE);
+   
+    dir_tree_rename (s3fuse->dir_tree, parent, name, newparent, newname, s3fuse_rename_cb, req);
 }
 /*}}}*/

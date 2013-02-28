@@ -39,5 +39,14 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
 void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino);
 
 // get current size of cache
-size_t cache_mng_size (CacheMng *cmng);
+guint64 cache_mng_size (CacheMng *cmng);
+
+// return total size of cached file
+guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino);
+
+// return MD5 of cached file.
+// if result is TRUE then md5str will containd string with MD5 sum 
+// XXX: not implemented yet
+gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str);
+
 #endif

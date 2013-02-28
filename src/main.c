@@ -415,6 +415,7 @@ int main (int argc, char *argv[])
     gboolean path_style = FALSE;
     gchar **cache_dir = NULL;
     guint32 part_size = 0;
+    gboolean disable_syslog = FALSE;
 
     conf_path = g_build_filename (SYSCONFDIR, "s3ffs.conf", NULL); 
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
@@ -425,6 +426,7 @@ int main (int argc, char *argv[])
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
         { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
         { "path-style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
+        { "disable-syslog", 0, 0, G_OPTION_ARG_NONE, &disable_syslog, "Flag. Disable logging to syslog.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
         { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
@@ -509,6 +511,9 @@ int main (int argc, char *argv[])
 
     g_free (conf_path);
 
+    if (disable_syslog) {
+        conf_set_boolean (app->conf, "log.use_syslog", FALSE);
+    }
     // update logging settings
     logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
 
@@ -516,7 +521,6 @@ int main (int argc, char *argv[])
         conf_set_string (app->conf, "filesystem.cache_dir", cache_dir[0]);
         g_strfreev (cache_dir);
     }
-
 
 /*}}}*/
     
@@ -538,11 +542,11 @@ int main (int argc, char *argv[])
     }
     
     // get access parameters from the environment
-    if (getenv("AWSACCESSKEYID")) 
-        conf_set_string (app->conf, "s3.access_key_id", getenv("AWSACCESSKEYID"));
+    if (getenv ("AWSACCESSKEYID")) 
+        conf_set_string (app->conf, "s3.access_key_id", getenv ("AWSACCESSKEYID"));
     
-    if (getenv("AWSSECRETACCESSKEY"))
-        conf_set_string (app->conf, "s3.secret_access_key", getenv("AWSSECRETACCESSKEY"));
+    if (getenv ("AWSSECRETACCESSKEY"))
+        conf_set_string (app->conf, "s3.secret_access_key", getenv ("AWSSECRETACCESSKEY"));
 
     // check if both strings are set
     if (!conf_get_string (app->conf, "s3.access_key_id") || !conf_get_string (app->conf, "s3.secret_access_key")) {
@@ -597,7 +601,6 @@ int main (int argc, char *argv[])
     if (!app->service_con) 
         return -1;
     bucket_client_get_acl (app->service_con, application_on_bucket_acl_cb, app);
-
 
     // start the loop
     event_base_dispatch (app->evbase);

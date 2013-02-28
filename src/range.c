@@ -147,7 +147,7 @@ guint64 range_length (Range *range)
         Interval *in = (Interval *) l->data;
 
         g_assert (in->start <= in->end);
-        length += in->end - in->start + 1;
+        length += in->end - in->start;
     }
 
     return length;

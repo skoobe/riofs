@@ -630,14 +630,29 @@ static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 }
 /*}}}*/
 
+/*{{{ rename operator */
 
+static void s3fuse_rename_cb (fuse_req_t req, gboolean success)
+{
+    LOG_debug (FUSE_LOG, "rename_cb  success: %s", success?"YES":"NO");
+
+    if (!success) {
+		fuse_reply_err (req, EPERM);
+        return;
+    }
+    
+    fuse_reply_err (req, 0);
+}
+
+// Rename file or directory
+// Valid replies: fuse_reply_err
 static void s3fuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname)
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
     LOG_debug (FUSE_LOG, "rename  parent_ino: %"INO_FMT", name: %s new_parent_in: %"INO_FMT", newname: %s", 
         INO parent, name, INO newparent, newname);
-
-    fuse_reply_err (req, EPERM);
-
+    
+    s3fuse_rename_cb (req, FALSE);
 }
+/*}}}*/

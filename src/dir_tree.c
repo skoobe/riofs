@@ -1595,6 +1595,24 @@ void dir_tree_rename (DirTree *dtree,
             rename_cb (req, FALSE);
         return;
     }
+    
+    // we need to rename each object, which contains this directory in the path
+    // could take a quite amount of time
+    if (en->type == DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Removing directories is not supported !");
+        if (rename_cb)
+            rename_cb (req, FALSE);
+        return;
+    }
+
+    // You create a copy of your object up to 5 GB in size in a single atomic operation using this API. 
+    // However, for copying an object greater than 5 GB, you must use the multipart upload API
+    if (en->size >= 1024 * 1024 * 1024 * 5) {
+        LOG_err (DIR_TREE_LOG, "Removing files larger than 5Gb is not currently supported !");
+        if (rename_cb)
+            rename_cb (req, FALSE);
+        return;
+    }
 
     rdata = g_new0 (RenameData, 1);
     rdata->parent_ino = parent_ino;

@@ -297,14 +297,47 @@ guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino)
     return range_length (entry->avail_range);
 }
 
-// XXX: not implemented yet
+// we can only get md5 of an object containing 1 range
+// XXX: move code to separate thread
 gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
 {
     struct _CacheEntry *entry;
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5_CTX md5ctx;
+    ssize_t bytes;
+    unsigned char data[1024];
+    char path[PATH_MAX];
+    size_t i;
+    gchar *out;
+    FILE *in;
 
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (!entry)
         return FALSE;
+    
+    if (range_count (entry->avail_range) != 1) {
+        LOG_debug (CMNG_LOG, "Entry contains more than 1 range, can't take MD5 sum of such obeject !");
+        return FALSE;
+    }
 
-    return FALSE;
+    cache_mng_file_name (cmng, path, sizeof (path), ino);
+    in = fopen (path, "rb");
+    if (in == NULL) {
+        LOG_debug (CMNG_LOG, "Cant open file for reading: %s", path);
+        return FALSE;
+    }
+
+    MD5_Init (&md5ctx);
+    while ((bytes = fread (data, 1, 1024, in)) != 0)
+        MD5_Update (&md5ctx, data, bytes);
+    MD5_Final (digest, &md5ctx);
+    fclose (in);
+
+    out = g_malloc (33);
+    for (i = 0; i < 16; ++i)
+        sprintf (&out[i*2], "%02x", (unsigned int)digest[i]);
+
+    *md5str = out;
+
+    return TRUE;
 }

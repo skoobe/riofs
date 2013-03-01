@@ -33,6 +33,7 @@ struct _FileIO {
     gchar *uploadid;
     guint part_number;
     GList *l_parts; // list of FileIOPart
+    MD5_CTX md5;
 
     // read
     gboolean head_req_sent;
@@ -65,6 +66,7 @@ FileIO *fileio_create (Application *app, const gchar *fname)
     fop->multipart_initiated = FALSE;
     fop->uploadid = NULL;
     fop->l_parts = NULL;
+    MD5_Init (&fop->md5);
 
     return fop;
 }
@@ -118,14 +120,24 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     gchar *path;
     gchar *cpy_path;
     gboolean res;
+    unsigned char digest[16];
+    gchar *md5str;
+    size_t i;
 
     LOG_debug (FIO_LOG, "Updating object's headers..");
 
     s3http_connection_acquire (con);
     
-    cpy_path = g_strdup_printf ("%s%s", conf_get_string (fop->conf, "s3.bucket_name"), fop->fname);
-    s3http_connection_add_output_header (con, "x-amz-meta-md5", "xxx");
     s3http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
+    
+    MD5_Final (digest, &fop->md5);
+    md5str = g_malloc (33);
+    for (i = 0; i < 16; ++i)
+        sprintf(&md5str[i*2], "%02x", (unsigned int)digest[i]);
+    s3http_connection_add_output_header (con, "x-amz-meta-md5", md5str);
+    g_free (md5str);
+
+    cpy_path = g_strdup_printf ("%s%s", conf_get_string (fop->conf, "s3.bucket_name"), fop->fname);
     s3http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
     g_free (cpy_path);
 
@@ -284,7 +296,13 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     part->part_number = fop->part_number;
     buf_len = evbuffer_get_length (fop->write_buf);
     buf = evbuffer_pullup (fop->write_buf, buf_len);
+    
+    // XXX: move to separate thread
+    // 1. calculate MD5 of a part.
     get_md5_sum (buf, buf_len, &part->md5str, &part->md5b);
+    // 2. calculate MD5 of multiple message blocks
+    MD5_Update (&fop->md5, buf, buf_len);
+
     fop->l_parts = g_list_append (fop->l_parts, part);
 
     // if this is a multipart 
@@ -400,12 +418,20 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     part->part_number = wdata->fop->part_number;
     buf_len = evbuffer_get_length (wdata->fop->write_buf);
     buf = evbuffer_pullup (wdata->fop->write_buf, buf_len);
+    
+    // XXX: move to separate thread
+    // 1. calculate MD5 of a part.
     get_md5_sum (buf, buf_len, &part->md5str, &part->md5b);
+    // 2. calculate MD5 of multiple message blocks
+    MD5_Update (&wdata->fop->md5, buf, buf_len);
+
     wdata->fop->l_parts = g_list_append (wdata->fop->l_parts, part);
 
     path = g_strdup_printf ("%s?partNumber=%u&uploadId=%s", 
         wdata->fop->fname, wdata->fop->part_number, wdata->fop->uploadid);
-    
+   
+
+
     // increase part number
     wdata->fop->part_number++;
     // XXX: check that part_number does not exceeds 10000
@@ -748,6 +774,7 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
 {   
     FileReadData *rdata = (FileReadData *) ctx;
     const char *content_len_header;
+    const char *md5_header;
      
     // release S3HttpConnection
     s3http_connection_release (con);
@@ -765,7 +792,23 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
     if (content_len_header) {
         rdata->fop->file_size = strtoll ((char *)content_len_header, NULL, 10);
     }
-    //XXX : MD5
+    
+    md5_header = evhttp_find_header (headers, "x-amz-meta-md5");
+    if (md5_header) {
+        gchar *md5str;
+
+        // at this point we have both remote and local MD5 sums
+        if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
+            if (!strncmp (md5_header, md5str, 32)) {
+                LOG_debug (FIO_LOG, "MD5 sums match, using local cached file!");
+            } else {
+                LOG_debug (FIO_LOG, "MD5 sums do not match, invalidating local cached file!");
+                cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+            }
+        }
+
+        g_free (md5str);
+    }
     
     // resume downloading file
     fileio_read_get_buf (rdata);

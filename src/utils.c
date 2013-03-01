@@ -56,7 +56,7 @@ gboolean get_md5_sum (const gchar *buf, size_t len, gchar **md5str, gchar **md5b
     if (md5str) {
         out = g_malloc (33);
         for (i = 0; i < 16; ++i)
-        sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
+            sprintf(&out[i*2], "%02x", (unsigned int)digest[i]);
         *md5str = out;
     }
     return TRUE;

@@ -785,9 +785,10 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     
     t = time (NULL);
     
-  //  if (!en->is_updating && en->type == DET_file && en->size == 0) {
+    // compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory
     if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&
-        t - en->updated_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+        t - en->updated_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
+        conf_get_boolean (dtree->conf, "s3.check_empty_files")) {
 
         LookupOpData *op_data;
 

@@ -191,7 +191,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
         en->basename, INO en->ino, en->fullpath, en->mode);
     
     if (type == DET_dir) {
-        en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, dir_entry_destroy);
+        en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
     }
     
     // add to global inode hash
@@ -199,7 +199,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
 
     // add to the parent's hash
     if (parent_ino)
-        g_hash_table_insert (parent_en->h_dir_tree, en->basename, en);
+        g_hash_table_insert (parent_en->h_dir_tree, g_strdup (en->basename), en);
 
     return en;
 }
@@ -507,7 +507,7 @@ static void dir_tree_lookup_on_attr_cb (S3HttpConnection *con, void *ctx, gboole
         en->mode = DIR_DEFAULT_MODE;
         
         if (!en->h_dir_tree)
-            en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, dir_entry_destroy);
+            en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
         
         LOG_debug (DIR_TREE_LOG, "Converting to directory: %s", en->fullpath);
     }
@@ -578,7 +578,7 @@ static void dir_tree_lookup_on_not_found_data_cb (S3HttpConnection *con, void *c
 
     // file not found
     if (!success) {
-        LOG_err (DIR_TREE_LOG, "FileEntry not found %s", op_data->name);
+        LOG_debug (DIR_TREE_LOG, "FileEntry not found %s", op_data->name);
 
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
@@ -604,7 +604,7 @@ static void dir_tree_lookup_on_not_found_data_cb (S3HttpConnection *con, void *c
 
     last_modified_header = evhttp_find_header (headers, "Last-Modified");
     if (last_modified_header) {
-        struct tm tmp;
+        struct tm tmp = {0};
         strptime (last_modified_header, "%FT%T", &tmp);
         last_modified = mktime (&tmp);
     }

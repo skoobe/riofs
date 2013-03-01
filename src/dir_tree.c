@@ -1280,14 +1280,14 @@ void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *na
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en) {
-        LOG_err (DIR_TREE_LOG, "Parent not found: %"INO_FMT, parent_ino);
+        LOG_err (DIR_TREE_LOG, "Parent not found: %"INO_FMT, INO parent_ino);
         file_remove_cb (req, FALSE);
         return;
     }
 
     en = g_hash_table_lookup (parent_en->h_dir_tree, name);
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Parent not found: %"INO_FMT, parent_ino);
+        LOG_err (DIR_TREE_LOG, "Parent not found: %"INO_FMT, INO parent_ino);
         file_remove_cb (req, FALSE);
         return;
 
@@ -1436,11 +1436,11 @@ void dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
     DirEntry *parent_en;
     DirEntry *en;
 
-    LOG_debug (DIR_TREE_LOG, "Removing dir: %s parent: %"INO_FMT, name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Removing dir: %s parent: %"INO_FMT, name, INO parent_ino);
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", parent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO parent_ino);
         if (dir_remove_cb)
             dir_remove_cb (req, FALSE);
         return;
@@ -1485,7 +1485,7 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
     
     // entry not found
     if (!dir_en || dir_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Directory (%"INO_FMT") not found !", parent_ino);
+        LOG_err (DIR_TREE_LOG, "Directory (%"INO_FMT") not found !", INO parent_ino);
         mkdir_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }
@@ -1549,7 +1549,7 @@ static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, g
     
     parent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->parent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO rdata->parent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1567,7 +1567,7 @@ static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, g
     
     newparent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->newparent_ino));
     if (!newparent_en || newparent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->newparent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO rdata->newparent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1598,7 +1598,7 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
     
     parent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->parent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO rdata->parent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1677,7 +1677,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
     
     parent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->parent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO rdata->parent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1695,7 +1695,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
 
     newparent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->newparent_ino));
     if (!newparent_en || newparent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->newparent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO rdata->newparent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1743,7 +1743,7 @@ void dir_tree_rename (DirTree *dtree,
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", parent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO parent_ino);
         if (rename_cb)
             rename_cb (req, FALSE);
         return;
@@ -1751,7 +1751,7 @@ void dir_tree_rename (DirTree *dtree,
 
     newparent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (newparent_ino));
     if (!newparent_en || newparent_en->type != DET_dir) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", newparent_ino);
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO newparent_ino);
         if (rename_cb)
             rename_cb (req, FALSE);
         return;

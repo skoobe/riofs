@@ -191,7 +191,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         g_queue_unlink (cmng->q_lru, entry->ll_lru);
         g_queue_push_head_link (cmng->q_lru, entry->ll_lru);
     } else {
-        LOG_debug (CMNG_LOG, "Entry isn't found or doesn't contain requested range: %"INO_FMT, ino);
+        LOG_debug (CMNG_LOG, "Entry isn't found or doesn't contain requested range: %"INO_FMT, INO ino);
     }
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
@@ -280,9 +280,9 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
         g_hash_table_remove (cmng->h_entries, GUINT_TO_POINTER (ino));
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         unlink (path);
-        LOG_debug (CMNG_LOG, "Entry is removed: %"INO_FMT, ino);
+        LOG_debug (CMNG_LOG, "Entry is removed: %"INO_FMT, INO ino);
     } else {
-        LOG_debug (CMNG_LOG, "Entry not found: %"INO_FMT, ino);
+        LOG_debug (CMNG_LOG, "Entry not found: %"INO_FMT, INO ino);
     }
 }
 

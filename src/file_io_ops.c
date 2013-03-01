@@ -667,11 +667,13 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
             etag[strlen(etag) - 1] = '\0';
 
         if (strncmp (etag, md5, 32)) {
-            LOG_err (FIO_LOG, "Local MD5 doesn't match Etag !");
+            LOG_err (FIO_LOG, "Local MD5 doesn't match Etag: %s != %s", etag, md5);
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
+            g_free (md5);
             g_free (rdata);
             return;
         }
+        g_free (md5);
     }
 
     
@@ -788,11 +790,20 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
 
     rdata->fop->head_req_sent = TRUE;
     
+    // consistency checking:
+
+    // 1. check local and remote file sizes
     content_len_header = evhttp_find_header (headers, "Content-Length");
     if (content_len_header) {
+        guint64 local_size;
+
         rdata->fop->file_size = strtoll ((char *)content_len_header, NULL, 10);
+        local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
+        if (local_size != rdata->fop->file_size) {
+        }
     }
-    
+
+    // 2. check for Md5
     md5_header = evhttp_find_header (headers, "x-amz-meta-md5");
     if (md5_header) {
         gchar *md5str = NULL;

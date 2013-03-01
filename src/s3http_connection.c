@@ -213,7 +213,7 @@ static gchar *s3http_connection_get_auth_string (Application *app,
 
     g_free (tmp);
 
-   LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
+    //LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (conf, "s3.secret_access_key"));
 
     HMAC (EVP_sha1(),
         conf_get_string (conf, "s3.secret_access_key"),

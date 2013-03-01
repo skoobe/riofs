@@ -93,8 +93,8 @@ void fileio_destroy (FileIO *fop)
 
 /*{{{ update headers on uploaded object */
 static void fileio_release_on_update_header_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
     
@@ -171,8 +171,8 @@ static void fileio_release_update_headers (FileIO *fop)
 /*{{{ Complete Multipart Upload */
 // multipart is sent
 static void fileio_release_on_complete_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
     
@@ -200,7 +200,6 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     gboolean res;
     struct evbuffer *xml_buf;
     GList *l;
-    gchar *buf;
 
     xml_buf = evbuffer_new ();
     evbuffer_add_printf (xml_buf, "%s", "<CompleteMultipartUpload>");
@@ -254,8 +253,8 @@ static void fileio_release_complete_multipart (FileIO *fop)
 /*{{{ sent part*/
 // file is sent
 static void fileio_release_on_part_sent_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
     
@@ -287,7 +286,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     gboolean res;
     FileIOPart *part;
     size_t buf_len;
-    char *buf;
+    const gchar *buf;
 
     LOG_debug (FIO_LOG, "[s3http_con: %p] Releasing fop. Size: %zu", con, evbuffer_get_length (fop->write_buf));
     
@@ -295,7 +294,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     part = g_new0 (FileIOPart, 1);
     part->part_number = fop->part_number;
     buf_len = evbuffer_get_length (fop->write_buf);
-    buf = evbuffer_pullup (fop->write_buf, buf_len);
+    buf = (const gchar *)evbuffer_pullup (fop->write_buf, buf_len);
     
     // XXX: move to separate thread
     // 1. calculate MD5 of a part.
@@ -381,8 +380,8 @@ typedef struct {
 
 // buffer is sent
 static void fileio_write_on_send_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileWriteData *wdata = (FileWriteData *) ctx;
     
@@ -409,7 +408,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     gboolean res;
     FileIOPart *part;
     size_t buf_len;
-    char *buf;
+    const gchar *buf;
 
     s3http_connection_acquire (con);
 
@@ -417,7 +416,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     part = g_new0 (FileIOPart, 1);
     part->part_number = wdata->fop->part_number;
     buf_len = evbuffer_get_length (wdata->fop->write_buf);
-    buf = evbuffer_pullup (wdata->fop->write_buf, buf_len);
+    buf = (const gchar *) evbuffer_pullup (wdata->fop->write_buf, buf_len);
     
     // XXX: move to separate thread
     // 1. calculate MD5 of a part.
@@ -504,7 +503,7 @@ static gchar *get_uploadid (const char *xml, size_t xml_len) {
 
 static void fileio_write_on_multipart_init_cb (S3HttpConnection *con, void *ctx, gboolean success,
     const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileWriteData *wdata = (FileWriteData *) ctx;
     gchar *uploadid;
@@ -641,10 +640,10 @@ static void fileio_read_get_buf (FileReadData *rdata);
 /*{{{ GET request */
 static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean success,
     const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileReadData *rdata = (FileReadData *) ctx;
-    gchar *etag;
+    // gchar *etag;
     
     // release S3HttpConnection
     s3http_connection_release (con);
@@ -710,7 +709,6 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
     
     // calculate offset
     else {
-        guint64 part_id;
         gchar *range_hdr;
 
         if (part_size < rdata->size)
@@ -761,7 +759,7 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 static void fileio_read_get_buf (FileReadData *rdata)
 {
     // make sure request does not exceed file size
-    if (rdata->fop->file_size && rdata->off + rdata->size > rdata->fop->file_size)
+    if (rdata->fop->file_size && (guint64) (rdata->off + rdata->size) > rdata->fop->file_size)
         rdata->size = rdata->fop->file_size - rdata->off;
 
     LOG_debug (FIO_LOG, "requesting [%"G_GUINT64_FORMAT" %zu]", rdata->off, rdata->size);
@@ -775,7 +773,7 @@ static void fileio_read_get_buf (FileReadData *rdata)
 /*{{{ HEAD request*/
 
 static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {   
     FileReadData *rdata = (FileReadData *) ctx;

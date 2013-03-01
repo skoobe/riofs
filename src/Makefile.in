@@ -68,7 +68,6 @@ PROGRAMS = $(bin_PROGRAMS)
 am_s3ffs_OBJECTS = s3ffs-log.$(OBJEXT) s3ffs-dir_tree.$(OBJEXT) \
 	s3ffs-s3fuse.$(OBJEXT) s3ffs-s3http_connection.$(OBJEXT) \
 	s3ffs-s3http_connection_dir_list.$(OBJEXT) \
-	s3ffs-s3http_connection_file_send.$(OBJEXT) \
 	s3ffs-bucket_client.$(OBJEXT) s3ffs-s3http_client.$(OBJEXT) \
 	s3ffs-s3client_pool.$(OBJEXT) s3ffs-file_io_ops.$(OBJEXT) \
 	s3ffs-cache_mng.$(OBJEXT) s3ffs-utils.$(OBJEXT) \
@@ -201,9 +200,9 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include -DSYSCONFDIR=\""$(sysconfdir)/@PACKAGE@/"\" 
 s3ffs_SOURCES = log.c dir_tree.c s3fuse.c s3http_connection.c \
-	s3http_connection_dir_list.c s3http_connection_file_send.c \
-	bucket_client.c s3http_client.c s3client_pool.c file_io_ops.c \
-	cache_mng.c utils.c conf.c range.c main.c
+	s3http_connection_dir_list.c bucket_client.c s3http_client.c \
+	s3client_pool.c file_io_ops.c cache_mng.c utils.c conf.c \
+	range.c main.c
 s3ffs_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3ffs_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
@@ -303,7 +302,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection_dir_list.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection_file_send.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-utils.Po@am__quote@
 
 .c.o:
@@ -389,20 +387,6 @@ s3ffs-s3http_connection_dir_list.obj: s3http_connection_dir_list.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='s3http_connection_dir_list.c' object='s3ffs-s3http_connection_dir_list.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-s3http_connection_dir_list.obj `if test -f 's3http_connection_dir_list.c'; then $(CYGPATH_W) 's3http_connection_dir_list.c'; else $(CYGPATH_W) '$(srcdir)/s3http_connection_dir_list.c'; fi`
-
-s3ffs-s3http_connection_file_send.o: s3http_connection_file_send.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-s3http_connection_file_send.o -MD -MP -MF $(DEPDIR)/s3ffs-s3http_connection_file_send.Tpo -c -o s3ffs-s3http_connection_file_send.o `test -f 's3http_connection_file_send.c' || echo '$(srcdir)/'`s3http_connection_file_send.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-s3http_connection_file_send.Tpo $(DEPDIR)/s3ffs-s3http_connection_file_send.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='s3http_connection_file_send.c' object='s3ffs-s3http_connection_file_send.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-s3http_connection_file_send.o `test -f 's3http_connection_file_send.c' || echo '$(srcdir)/'`s3http_connection_file_send.c
-
-s3ffs-s3http_connection_file_send.obj: s3http_connection_file_send.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-s3http_connection_file_send.obj -MD -MP -MF $(DEPDIR)/s3ffs-s3http_connection_file_send.Tpo -c -o s3ffs-s3http_connection_file_send.obj `if test -f 's3http_connection_file_send.c'; then $(CYGPATH_W) 's3http_connection_file_send.c'; else $(CYGPATH_W) '$(srcdir)/s3http_connection_file_send.c'; fi`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-s3http_connection_file_send.Tpo $(DEPDIR)/s3ffs-s3http_connection_file_send.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='s3http_connection_file_send.c' object='s3ffs-s3http_connection_file_send.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-s3http_connection_file_send.obj `if test -f 's3http_connection_file_send.c'; then $(CYGPATH_W) 's3http_connection_file_send.c'; else $(CYGPATH_W) '$(srcdir)/s3http_connection_file_send.c'; fi`
 
 s3ffs-bucket_client.o: bucket_client.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-bucket_client.o -MD -MP -MF $(DEPDIR)/s3ffs-bucket_client.Tpo -c -o s3ffs-bucket_client.o `test -f 'bucket_client.c' || echo '$(srcdir)/'`bucket_client.c

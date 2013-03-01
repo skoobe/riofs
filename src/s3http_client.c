@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "s3http_client.h"
+#include "utils.h"
 
 /*{{{ declaration */
 
@@ -199,10 +200,11 @@ void s3http_client_request_reset (S3HttpClient *http)
 /*{{{ bufferevent callback functions*/
 
 // outgoing data buffer is sent
-static void s3http_client_write_cb (struct bufferevent *bev, void *ctx)
+static void s3http_client_write_cb (G_GNUC_UNUSED struct bufferevent *bev, void *ctx)
 {
     S3HttpClient *http = (S3HttpClient *) ctx;
-    LOG_debug (HTTP_LOG, "Data sent !");
+    
+    LOG_debug (HTTP_LOG, "[%p] Data sent !", http);
 }
 
 // parse the first HTTP response line
@@ -387,7 +389,7 @@ static void s3http_client_read_cb (struct bufferevent *bev, void *ctx)
 }
 
 // socket event during downloading / uploading
-static void s3http_client_event_cb (struct bufferevent *bev, short what, void *ctx)
+static void s3http_client_event_cb (G_GNUC_UNUSED struct bufferevent *bev, short what, void *ctx)
 {
     S3HttpClient *http = (S3HttpClient *) ctx;
     

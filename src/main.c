@@ -340,7 +340,8 @@ static gint application_finish_initialization_and_run (Application *app)
 }
 
 // S3 replies on bucket ACL
-static void application_on_bucket_acl_cb (gpointer ctx, gboolean success, const gchar *buf, size_t buf_len)
+static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len)
 {
     Application *app = (Application *)ctx;
     
@@ -390,6 +391,7 @@ static void application_destroy (Application *app)
     evhttp_uri_free (app->uri);
 
     conf_destroy (app->conf);
+    logger_destroy ();
     g_free (app);
     
     ENGINE_cleanup ();

@@ -58,9 +58,12 @@ void bucket_client_get_acl (S3HttpConnection *con,
 }
 
 static void bucket_client_on_acl_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
-    const gchar *buf, size_t buf_len, struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     BucketClient *bclient = (BucketClient *) ctx;
+
+    s3http_connection_release (con);
 
     if (!success) {
         LOG_err (BCLIENT_LOG, "Failed to execute HTTP request !");

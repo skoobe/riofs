@@ -205,7 +205,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
 }
 
 // increase the age of directory
-void dir_tree_start_update (DirTree *dtree, const gchar *dir_path)
+void dir_tree_start_update (DirTree *dtree, G_GNUC_UNUSED const gchar *dir_path)
 {
     //XXX: per directory ?
     dtree->current_age++;
@@ -253,7 +253,7 @@ void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino)
     g_hash_table_foreach_remove (parent_en->h_dir_tree, dir_tree_stop_update_on_remove_child_cb, dtree);
 }
 
-DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType type, 
+DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path, DirEntryType type, 
     fuse_ino_t parent_ino, const gchar *entry_name, long long size, time_t last_modified)
 {
     DirEntry *parent_en;
@@ -417,7 +417,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
 
     // already have directory buffer in the cache
     if (en->dir_cache_size && t >= en->dir_cache_created && 
-        t - en->dir_cache_created <= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+        t - en->dir_cache_created <= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
         return;
@@ -463,12 +463,12 @@ typedef struct {
 } LookupOpData;
 
 static void dir_tree_lookup_on_attr_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
     LookupOpData *op_data = (LookupOpData *) ctx;
-    const unsigned char *size_header;
-    const unsigned char *content_type;
+    const gchar *size_header;
+    const gchar *content_type;
     DirEntry  *en;
     
     LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT, INO op_data->ino);
@@ -560,7 +560,7 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
 }
 
 static void dir_tree_lookup_on_not_found_data_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
     LookupOpData *op_data = (LookupOpData *) ctx;
@@ -787,7 +787,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     
     // compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory
     if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&
-        t - en->updated_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
+        t - en->updated_time >= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
         conf_get_boolean (dtree->conf, "s3.check_empty_files")) {
 
         LookupOpData *op_data;
@@ -826,13 +826,12 @@ typedef struct {
     fuse_req_t req;
     fuse_ino_t ino;
 } GetAttrOpData;
-
+/*
 static void dir_tree_getattr_on_attr_cb (S3HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len, 
-    struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     GetAttrOpData *op_data = (GetAttrOpData *) ctx;
-    const unsigned char *size_header;
     DirEntry  *en;
 
     // release S3HttpConnection
@@ -862,7 +861,6 @@ static void dir_tree_getattr_on_attr_cb (S3HttpConnection *con, void *ctx, gbool
     op_data->getattr_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
     g_free (op_data);
 }
-
 
 //send s3http HEAD request
 static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
@@ -904,6 +902,7 @@ static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
         return;
     }
 }
+*/
 
 // return entry attributes
 void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino, 
@@ -954,9 +953,10 @@ void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
 /*{{{ dir_tree_setattr */
 // set entry's attributes
 // update directory cache
+// XXX: not fully implemented
 void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino, 
-    struct stat *attr, int to_set,
-    dir_tree_setattr_cb setattr_cb, fuse_req_t req, void *fi)
+    G_GNUC_UNUSED struct stat *attr, G_GNUC_UNUSED int to_set,
+    dir_tree_setattr_cb setattr_cb, fuse_req_t req, G_GNUC_UNUSED void *fi)
 {
     DirEntry  *en;
     
@@ -1042,7 +1042,7 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
 
 /*{{{ dir_tree_file_release*/
 // file is closed, free context data
-void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     DirEntry *en;
     FileIO *fop;
@@ -1094,10 +1094,9 @@ static void dir_tree_on_buffer_read_cb (gpointer ctx, gboolean success, char *bu
 void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino, 
     size_t size, off_t off,
     DirTree_file_read_cb file_read_cb, fuse_req_t req,
-    struct fuse_file_info *fi)
+    G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     DirEntry *en;
-    char full_name[1024];
     FileIO *fop;
     FileReadOpData *op_data;
     
@@ -1147,7 +1146,7 @@ static void dir_tree_on_buffer_written_cb (FileIO *fop, gpointer ctx, gboolean s
 void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino, 
     const char *buf, size_t size, off_t off, 
     DirTree_file_write_cb file_write_cb, fuse_req_t req,
-    struct fuse_file_info *fi)
+    G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     DirEntry *en;
     FileIO *fop;
@@ -1190,7 +1189,8 @@ typedef struct {
 
 // file is removed
 static void dir_tree_file_remove_on_con_data_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
-        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileRemoveData *data = (FileRemoveData *) ctx;
     
@@ -1272,10 +1272,10 @@ void dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remove_c
         dir_tree_file_remove_on_con_cb, data);
 }
 
-void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *name, DirTree_file_remove_cb file_remove_cb, fuse_req_t req)
+void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *name, 
+    DirTree_file_remove_cb file_remove_cb, fuse_req_t req)
 {
     DirEntry *en, *parent_en;
-    FileRemoveData *data;
     
     LOG_debug (DIR_TREE_LOG, "Unlinking %s", name);
 
@@ -1313,8 +1313,10 @@ typedef struct {
 static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, DirRemoveData *data);
 
 // object is removed, call remove function again
-static void dir_tree_dir_remove_on_object_removed_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
-        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
+static void dir_tree_dir_remove_on_object_removed_cb (S3HttpConnection *con, gpointer ctx, 
+    G_GNUC_UNUSED gboolean success,
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     DirRemoveData *data = (DirRemoveData *) ctx;
 
@@ -1531,7 +1533,8 @@ static void rename_data_destroy (RenameData *rdata)
 /*{{{ delete object */
 
 static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
-        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     RenameData *rdata = (RenameData *) ctx;
     DirEntry *en;
@@ -1638,7 +1641,8 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
 
 /*{{{ copy object */
 static void dir_tree_on_rename_copy_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
-        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     RenameData *rdata = (RenameData *) ctx;
     
@@ -1777,7 +1781,7 @@ void dir_tree_rename (DirTree *dtree,
 
     // You create a copy of your object up to 5 GB in size in a single atomic operation using this API. 
     // However, for copying an object greater than 5 GB, you must use the multipart upload API
-    if (en->size >= 1073741824 * 5) {
+    if (en->size >= (size_t) (1073741824 * 5)) {
         LOG_err (DIR_TREE_LOG, "Removing files larger than 5Gb is not currently supported !");
         if (rename_cb)
             rename_cb (req, FALSE);

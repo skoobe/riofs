@@ -136,7 +136,7 @@ static void cache_context_destroy (struct _CacheContext* context)
     g_free (context);
 }
 
-static void cache_read_cb (evutil_socket_t fd, short flags, void *ctx)
+static void cache_read_cb (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short flags, void *ctx)
 {
     struct _CacheContext *context = (struct _CacheContext *) ctx;
 
@@ -201,7 +201,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
     event_add (context->ev, NULL);
 }
 
-static void cache_write_cb (evutil_socket_t fd, short flags, void *ctx)
+static void cache_write_cb (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short flags, void *ctx)
 {
     struct _CacheContext *context = (struct _CacheContext *) ctx;
 

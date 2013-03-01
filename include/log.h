@@ -31,6 +31,7 @@ void logger_log_msg (const gchar *file, gint line, const gchar *func,
         const gchar *format, ...);
 
 void logger_set_syslog (gboolean use);
+void logger_destroy (void);
 
 #define LOG_debug(subsystem, x...) \
 G_STMT_START { \

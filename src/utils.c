@@ -122,7 +122,8 @@ gint uri_get_port (const struct evhttp_uri *uri)
     return port;
 }
 
-static int on_unlink_cb (const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+static int on_unlink_cb (const char *fpath, G_GNUC_UNUSED const struct stat *sb, 
+    G_GNUC_UNUSED int typeflag, G_GNUC_UNUSED struct FTW *ftwbuf)
 {
     int rv = remove (fpath);
 

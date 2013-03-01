@@ -59,7 +59,7 @@ static void s3fuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup
 static void s3fuse_unlink (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 static void s3fuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name, mode_t mode);
 static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
-static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg);
+//static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg);
 static void s3fuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
 
 static struct fuse_lowlevel_ops s3fuse_opers = {
@@ -88,7 +88,7 @@ static struct fuse_lowlevel_ops s3fuse_opers = {
 S3Fuse *s3fuse_new (Application *app, const gchar *mountpoint)
 {
     S3Fuse *s3fuse;
-    struct timeval tv;
+    //struct timeval tv;
 
     s3fuse = g_new0 (S3Fuse, 1);
     s3fuse->app = app;
@@ -159,6 +159,7 @@ void s3fuse_destroy (S3Fuse *s3fuse)
     g_free (s3fuse);
 }
 
+/*
 static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg)
 {
     struct timeval tv;
@@ -173,22 +174,22 @@ static void s3fuse_on_timer (evutil_socket_t fd, short what, void *arg)
         LOG_err (FUSE_LOG, "No FUSE session !");
         return;
     }
-/*
+    
     if (event_add (s3fuse->ev_timer, &tv)) {
         LOG_err (FUSE_LOG, "event_add");
         return NULL;
     }
-*/
 }
+*/
 
 // turn ASYNC read off
-static void s3fuse_init (void *userdata, struct fuse_conn_info *conn)
+static void s3fuse_init (G_GNUC_UNUSED void *userdata, struct fuse_conn_info *conn)
 {
     conn->async_read = 0;
 }
 
 // low level fuse reading operations
-static void s3fuse_on_read (evutil_socket_t fd, short what, void *arg)
+static void s3fuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short what, void *arg)
 {
     S3Fuse *s3fuse = (S3Fuse *)arg;
     struct fuse_chan *ch = s3fuse->chan;
@@ -274,7 +275,7 @@ static void s3fuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size
 
 // FUSE lowlevel operation: readdir
 // Valid replies: fuse_reply_buf() fuse_reply_err()
-static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
+static void s3fuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
 
@@ -311,7 +312,7 @@ static void s3fuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
 
 // FUSE lowlevel operation: getattr
 // Valid replies: fuse_reply_attr() fuse_reply_err()
-static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void s3fuse_getattr (fuse_req_t req, fuse_ino_t ino, G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
@@ -624,7 +625,7 @@ static void s3fuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 {
     S3Fuse *s3fuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "rmdir  parent_ino: %"INO_FMT", name: %s", INO parent_ino, name);
+    LOG_debug (FUSE_LOG, "[%p] rmdir  parent_ino: %"INO_FMT", name: %s", s3fuse, INO parent_ino, name);
 
     fuse_reply_err (req, 0);
 }

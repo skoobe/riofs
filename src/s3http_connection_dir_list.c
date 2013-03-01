@@ -80,7 +80,6 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         }
         xmlXPathFreeObject (key);
 
-
         key = xmlXPathEvalExpression ((xmlChar *) "s3:LastModified", ctx);
         key_nodes = key->nodesetval;
         s_last_modified = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);

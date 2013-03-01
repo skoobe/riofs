@@ -137,7 +137,7 @@ static void s3http_connection_on_close (struct evhttp_connection *evcon, void *c
 {
     S3HttpConnection *con = (S3HttpConnection *) ctx;
 
-    LOG_debug (CON_LOG, "[%p] Connection closed !", evcon);
+    LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
 }
 
 /*{{{ getters */

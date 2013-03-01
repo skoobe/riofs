@@ -150,8 +150,10 @@ gboolean s3client_pool_get_client (S3ClientPool *pool, S3ClientPool_on_client_re
 }
 
 // Add request to request queue
+/*
 void s3client_pool_add_request (S3ClientPool *pool, 
     S3ClientPool_on_request_done on_request_done, gpointer callback_data)
 {
 
 }
+*/

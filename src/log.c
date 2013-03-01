@@ -63,7 +63,12 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
                 g_fprintf (stdout, "%s\n", out_str);
         }
     }
+}
 
+void logger_destroy (void)
+{
+    if (use_syslog)
+        closelog ();
 }
 
 void logger_set_syslog (gboolean use)

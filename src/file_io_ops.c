@@ -795,7 +795,7 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
     
     md5_header = evhttp_find_header (headers, "x-amz-meta-md5");
     if (md5_header) {
-        gchar *md5str;
+        gchar *md5str = NULL;
 
         // at this point we have both remote and local MD5 sums
         if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
@@ -807,7 +807,8 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
             }
         }
 
-        g_free (md5str);
+        if (md5str)
+            g_free (md5str);
     }
     
     // resume downloading file

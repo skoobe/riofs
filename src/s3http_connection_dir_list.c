@@ -100,6 +100,13 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
 
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
+
+        if (strlen (bname) == 1 && bname[0] == '/')  {
+            LOG_err (CON_DIR_LOG, "Wrong file name !");
+            xmlFree (name);
+            continue;
+        }
+
         dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino, 
             bname, size, last_modified);
         
@@ -128,8 +135,14 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         bname = bname + strlen (dir_list->dir_path);
     
         //XXX: remove trailing '/' characters
-        if (bname[strlen (bname) - 1] == '/')
+        if (strlen (bname) > 1 && bname[strlen (bname) - 1] == '/') {
             bname[strlen (bname) - 1] = '\0';
+        // XXX: 
+        } else if (strlen (bname) == 1 && bname[0] == '/')  {
+            LOG_err (CON_DIR_LOG, "Wrong directory name !");
+            xmlFree (name);
+            continue;
+        }
         
         // XXX: ?
         last_modified = time (NULL);

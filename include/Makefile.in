@@ -206,7 +206,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 include_HEADERS = global.h log.h conf.h dir_tree.h s3client_pool.h \
 	s3fuse.h s3http_client.h s3http_connection.h file_io_ops.h \
-	cache_mng.h range.h utils.h
+	cache_mng.h stat_srv.h range.h utils.h
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 

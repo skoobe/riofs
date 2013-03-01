@@ -70,9 +70,9 @@ am_s3ffs_OBJECTS = s3ffs-log.$(OBJEXT) s3ffs-dir_tree.$(OBJEXT) \
 	s3ffs-s3http_connection_dir_list.$(OBJEXT) \
 	s3ffs-bucket_client.$(OBJEXT) s3ffs-s3http_client.$(OBJEXT) \
 	s3ffs-s3client_pool.$(OBJEXT) s3ffs-file_io_ops.$(OBJEXT) \
-	s3ffs-cache_mng.$(OBJEXT) s3ffs-utils.$(OBJEXT) \
-	s3ffs-conf.$(OBJEXT) s3ffs-range.$(OBJEXT) \
-	s3ffs-main.$(OBJEXT)
+	s3ffs-cache_mng.$(OBJEXT) s3ffs-stat_srv.$(OBJEXT) \
+	s3ffs-utils.$(OBJEXT) s3ffs-conf.$(OBJEXT) \
+	s3ffs-range.$(OBJEXT) s3ffs-main.$(OBJEXT)
 s3ffs_OBJECTS = $(am_s3ffs_OBJECTS)
 am__DEPENDENCIES_1 =
 s3ffs_DEPENDENCIES = $(am__DEPENDENCIES_1)
@@ -201,8 +201,8 @@ top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include -DSYSCONFDIR=\""$(sysconfdir)/@PACKAGE@/"\" 
 s3ffs_SOURCES = log.c dir_tree.c s3fuse.c s3http_connection.c \
 	s3http_connection_dir_list.c bucket_client.c s3http_client.c \
-	s3client_pool.c file_io_ops.c cache_mng.c utils.c conf.c \
-	range.c main.c
+	s3client_pool.c file_io_ops.c cache_mng.c stat_srv.c utils.c \
+	conf.c range.c main.c
 s3ffs_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
 s3ffs_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 all: all-am
@@ -302,6 +302,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-s3http_connection_dir_list.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-stat_srv.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/s3ffs-utils.Po@am__quote@
 
 .c.o:
@@ -457,6 +458,20 @@ s3ffs-cache_mng.obj: cache_mng.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cache_mng.c' object='s3ffs-cache_mng.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-cache_mng.obj `if test -f 'cache_mng.c'; then $(CYGPATH_W) 'cache_mng.c'; else $(CYGPATH_W) '$(srcdir)/cache_mng.c'; fi`
+
+s3ffs-stat_srv.o: stat_srv.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-stat_srv.o -MD -MP -MF $(DEPDIR)/s3ffs-stat_srv.Tpo -c -o s3ffs-stat_srv.o `test -f 'stat_srv.c' || echo '$(srcdir)/'`stat_srv.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-stat_srv.Tpo $(DEPDIR)/s3ffs-stat_srv.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stat_srv.c' object='s3ffs-stat_srv.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-stat_srv.o `test -f 'stat_srv.c' || echo '$(srcdir)/'`stat_srv.c
+
+s3ffs-stat_srv.obj: stat_srv.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-stat_srv.obj -MD -MP -MF $(DEPDIR)/s3ffs-stat_srv.Tpo -c -o s3ffs-stat_srv.obj `if test -f 'stat_srv.c'; then $(CYGPATH_W) 'stat_srv.c'; else $(CYGPATH_W) '$(srcdir)/stat_srv.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/s3ffs-stat_srv.Tpo $(DEPDIR)/s3ffs-stat_srv.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stat_srv.c' object='s3ffs-stat_srv.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -c -o s3ffs-stat_srv.obj `if test -f 'stat_srv.c'; then $(CYGPATH_W) 'stat_srv.c'; else $(CYGPATH_W) '$(srcdir)/stat_srv.c'; fi`
 
 s3ffs-utils.o: utils.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(s3ffs_CFLAGS) $(CFLAGS) -MT s3ffs-utils.o -MD -MP -MF $(DEPDIR)/s3ffs-utils.Tpo -c -o s3ffs-utils.o `test -f 'utils.c' || echo '$(srcdir)/'`utils.c

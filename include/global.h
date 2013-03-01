@@ -91,6 +91,7 @@ typedef struct _S3ClientPool S3ClientPool;
 typedef enum _LogLevel LogLevel;
 typedef struct _ConfData ConfData;
 typedef struct _CacheMng CacheMng;
+typedef struct _StatSrv StatSrv;
 
 struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
@@ -101,6 +102,7 @@ S3ClientPool *application_get_write_client_pool (Application *app);
 S3ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 CacheMng *application_get_cache_mng (Application *app);
+StatSrv *application_get_stat_srv (Application *app);
 
 // sets new S3 URL in case of redirect
 gboolean application_set_url (Application *app, const gchar *url);

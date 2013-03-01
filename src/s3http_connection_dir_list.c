@@ -144,7 +144,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
             continue;
         }
         
-        // XXX: ?
+        // XXX: save / restore directory mtime
         last_modified = time (NULL);
 
         dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_dir, dir_list->ino, bname, 0, last_modified);

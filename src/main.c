@@ -23,6 +23,7 @@
 #include "s3client_pool.h"
 #include "s3http_client.h"
 #include "cache_mng.h"
+#include "stat_srv.h"
 
 #define APP_LOG "main"
 
@@ -34,6 +35,7 @@ struct _Application {
     S3Fuse *s3fuse;
     DirTree *dir_tree;
     CacheMng *cmng;
+    StatSrv *stat_srv;
 
     // initial bucket ACL request
     S3HttpConnection *service_con;
@@ -94,6 +96,10 @@ CacheMng *application_get_cache_mng (Application *app)
     return app->cmng;
 }
 
+StatSrv *application_get_stat_srv (Application *app)
+{
+    return app->stat_srv;
+}
 
 /*}}}*/
 
@@ -300,6 +306,12 @@ static gint application_finish_initialization_and_run (Application *app)
     }
 /*}}}*/
 
+    app->stat_srv = stat_srv_create (app);
+    if (!app->stat_srv) {
+        event_base_loopexit (app->evbase, NULL);
+        return -1;
+    }
+    
     // set global App variable
     _app = app;
 
@@ -384,6 +396,9 @@ static void application_destroy (Application *app)
     
     if (app->service_con)
         s3http_connection_destroy (app->service_con);
+
+    if (app->stat_srv)
+        stat_srv_destroy (app->stat_srv);
 
     evdns_base_free (app->dns_base, 0);
     event_base_free (app->evbase);

@@ -52,3 +52,12 @@
     <!-- maximum time of cached object, 10 min -->
     <cache_object_ttl type="uint">600</cache_object_ttl>
 </filesystem>
+
+<statistics>
+    <!-- set True to enable statistics server -->
+    <enabled type="boolean">True</enabled>
+    <!-- set host to bind server to, or 0.0.0.0 -->
+    <host type="string">0.0.0.0</host>
+    <port type="int">8011</port>
+    <stats_path type="string">/stats</stats_path>
+</statistics>

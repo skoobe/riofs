@@ -10,5 +10,6 @@ include_HEADERS += s3http_client.h
 include_HEADERS += s3http_connection.h
 include_HEADERS += file_io_ops.h
 include_HEADERS += cache_mng.h
+include_HEADERS += stat_srv.h
 include_HEADERS += range.h
 include_HEADERS += utils.h

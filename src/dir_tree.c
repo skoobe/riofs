@@ -51,6 +51,7 @@ struct _DirEntry {
 
     FileIO *fop; // file operation object
     gboolean is_updating; // TRUE if getting attributes
+    time_t updated_time; // time when entry were updated
 };
 
 struct _DirTree {
@@ -179,6 +180,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->ctime = ctime;
     en->is_modified = FALSE;
     en->removed = FALSE;
+    en->updated_time = 0;
 
     // cache is empty
     en->dir_cache = NULL;
@@ -414,7 +416,8 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     t = time (NULL);
 
     // already have directory buffer in the cache
-    if (en->dir_cache_size && t >= en->dir_cache_created && t - en->dir_cache_created <= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+    if (en->dir_cache_size && t >= en->dir_cache_created && 
+        t - en->dir_cache_created <= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
         return;
@@ -511,6 +514,7 @@ static void dir_tree_lookup_on_attr_cb (S3HttpConnection *con, void *ctx, gboole
 
     op_data->lookup_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
     en->is_updating = FALSE;
+    en->updated_time = time (NULL);
     g_free (op_data);
 }
 
@@ -676,6 +680,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_lookup_cb lookup_cb, fuse_req_t req)
 {
     DirEntry *dir_en, *en;
+    time_t t;
     
     LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %"INO_FMT, name, INO parent_ino);
     
@@ -778,7 +783,12 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         return;
     }
     
-    if (!en->is_updating && en->type == DET_file && en->size == 0) {
+    t = time (NULL);
+    
+  //  if (!en->is_updating && en->type == DET_file && en->size == 0) {
+    if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&
+        t - en->updated_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+
         LookupOpData *op_data;
 
         //XXX: CacheMng !
@@ -1153,6 +1163,9 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     }
     
     fop = en->fop;
+
+    // set updated time for write op
+    en->updated_time = time (NULL);
     
     LOG_debug (DIR_TREE_LOG, "[fop: %p] write inode %"INO_FMT", size: %zd, off: %"OFF_FMT, fop, INO ino, size, off);
 
@@ -1498,6 +1511,7 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
 /*{{{ dir_tree_rename */
 
 typedef struct {
+    DirTree *dtree;
     fuse_ino_t parent_ino;
     char *name;
     fuse_ino_t newparent_ino;
@@ -1513,12 +1527,122 @@ static void rename_data_destroy (RenameData *rdata)
     g_free (rdata);
 }
 
-static void dir_tree_on_rename_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
+/*{{{ delete object */
+
+static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
+        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
+{
+    RenameData *rdata = (RenameData *) ctx;
+    DirEntry *en;
+    DirEntry *parent_en;
+    DirEntry *newparent_en;
+    
+    s3http_connection_release (con);
+
+    if (!success) {
+        LOG_err (DIR_TREE_LOG, "Failed to rename !");
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+    
+    parent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->parent_ino));
+    if (!parent_en || parent_en->type != DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->parent_ino);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+   
+    en = g_hash_table_lookup (parent_en->h_dir_tree, rdata->name);
+    if (!en) {
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found !", rdata->name);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+    
+    newparent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->newparent_ino));
+    if (!newparent_en || newparent_en->type != DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->newparent_ino);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+
+    // 1. inform that source was removed
+    en->removed = TRUE;
+    dir_tree_entry_modified (rdata->dtree, en);
+
+    // 2. inform that desination dir was modified
+    dir_tree_entry_modified (rdata->dtree, newparent_en);
+
+    // done !
+    if (rdata->rename_cb)
+        rdata->rename_cb (rdata->req, TRUE);
+    rename_data_destroy (rdata);
+}
+
+static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
+{
+    S3HttpConnection *con = (S3HttpConnection *) client;
+    RenameData *rdata = (RenameData *) ctx;
+    gchar *req_path = NULL;
+    gboolean res;
+    DirEntry *en;
+    DirEntry *parent_en;
+    
+    parent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->parent_ino));
+    if (!parent_en || parent_en->type != DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->parent_ino);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+   
+    en = g_hash_table_lookup (parent_en->h_dir_tree, rdata->name);
+    if (!en) {
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found !", rdata->name);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+
+    s3http_connection_acquire (con);
+    req_path = g_strdup_printf ("/%s", en->fullpath);
+    res = s3http_connection_make_request (con, 
+        req_path, "DELETE", 
+        NULL,
+        dir_tree_on_rename_delete_cb,
+        rdata
+    );
+    g_free (req_path);
+    
+    if (!res) {
+        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        s3http_connection_release (con);
+        rename_data_destroy (rdata);
+        return;
+    }
+}
+/*}}}*/
+
+/*{{{ copy object */
+static void dir_tree_on_rename_copy_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
         const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     RenameData *rdata = (RenameData *) ctx;
     
     s3http_connection_release (con);
+
     if (!success) {
         LOG_err (DIR_TREE_LOG, "Failed to rename !");
         if (rdata->rename_cb)
@@ -1527,29 +1651,72 @@ static void dir_tree_on_rename_cb (S3HttpConnection *con, gpointer ctx, gboolean
         return;
     }
 
-    // copied
-    rdata->rename_cb (rdata->req, FALSE);
-    rename_data_destroy (rdata);
+    //XXX: a 200 OK response can contain either a success or an error
+
+    //XXX: reuse file_delete code
+    if (!s3client_pool_get_client (application_get_ops_client_pool (rdata->dtree->app),
+        dir_tree_on_rename_delete_con_cb, rdata)) {
+        LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
+        if (rdata->rename_cb)
+           rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
 }
 
-static void dir_tree_on_rename_con_cb (gpointer client, gpointer ctx)
+static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
 {
     S3HttpConnection *con = (S3HttpConnection *) client;
     RenameData *rdata = (RenameData *) ctx;
-    gchar *req_path = NULL;
+    gchar *dst_path = NULL;
+    gchar *src_path = NULL;
     gboolean res;
+    DirEntry *en;
+    DirEntry *parent_en;
+    DirEntry *newparent_en;
+    
+    parent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->parent_ino));
+    if (!parent_en || parent_en->type != DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->parent_ino);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+   
+    en = g_hash_table_lookup (parent_en->h_dir_tree, rdata->name);
+    if (!en) {
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found !", rdata->name);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+
+    newparent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->newparent_ino));
+    if (!newparent_en || newparent_en->type != DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", rdata->newparent_ino);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
 
     s3http_connection_acquire (con);
+    
+    // source
+    src_path = g_strdup_printf ("%s/%s", conf_get_string (rdata->dtree->conf, "s3.bucket_name"), en->fullpath);
+    s3http_connection_add_output_header (con, "x-amz-copy-source", src_path);
+    g_free (src_path);
 
-#warning "xxx"
-//    req_path = g_strdup_printf ("%s", rdata->en->fullpath);
+    dst_path = g_strdup_printf ("/%s/%s", newparent_en->fullpath, rdata->newname);
     res = s3http_connection_make_request (con, 
-        req_path, "GET", 
+        dst_path, "PUT", 
         NULL,
-        dir_tree_on_rename_cb,
+        dir_tree_on_rename_copy_cb,
         rdata
     );
-    g_free (req_path);
+    g_free (dst_path);
 
     if (!res) {
         LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
@@ -1557,8 +1724,10 @@ static void dir_tree_on_rename_con_cb (gpointer client, gpointer ctx)
             rdata->rename_cb (rdata->req, FALSE);
         s3http_connection_release (con);
         rename_data_destroy (rdata);
+        return;
     }
 }
+/*}}}*/
 
 void dir_tree_rename (DirTree *dtree, 
     fuse_ino_t parent_ino, const char *name, fuse_ino_t newparent_ino, const char *newname,
@@ -1607,7 +1776,7 @@ void dir_tree_rename (DirTree *dtree,
 
     // You create a copy of your object up to 5 GB in size in a single atomic operation using this API. 
     // However, for copying an object greater than 5 GB, you must use the multipart upload API
-    if (en->size >= 1024 * 1024 * 1024 * 5) {
+    if (en->size >= 1073741824 * 5) {
         LOG_err (DIR_TREE_LOG, "Removing files larger than 5Gb is not currently supported !");
         if (rename_cb)
             rename_cb (req, FALSE);
@@ -1615,6 +1784,7 @@ void dir_tree_rename (DirTree *dtree,
     }
 
     rdata = g_new0 (RenameData, 1);
+    rdata->dtree = dtree;
     rdata->parent_ino = parent_ino;
     rdata->name = g_strdup (name);
     rdata->newparent_ino = newparent_ino;
@@ -1623,13 +1793,12 @@ void dir_tree_rename (DirTree *dtree,
     rdata->req = req;
     
     if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app),
-        dir_tree_on_rename_con_cb, rdata)) {
+        dir_tree_on_rename_copy_con_cb, rdata)) {
         LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
         if (rename_cb)
            rename_cb (req, FALSE);
         rename_data_destroy (rdata);
         return;
     }
-
 }
 /*}}}*/

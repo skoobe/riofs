@@ -656,26 +656,30 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
         return;
     }
 
-    etag = evhttp_find_header (headers, "ETag");
-    if (etag && strlen (etag) > 3 && strlen (etag) == 32 + 2) { //Etag: "etag"
-        gchar *md5;
-        get_md5_sum (buf, buf_len, &md5, NULL);
+    // we can only check etag when downloading the whole file, without ranges
+    /*
+    if (!rdata->request_offset) {
+        etag = evhttp_find_header (headers, "ETag");
+        if (etag && strlen (etag) > 3 && strlen (etag) == 32 + 2) { //Etag: "etag"
+            gchar *md5;
+            get_md5_sum (buf, buf_len, &md5, NULL);
 
-        if (etag[0] == '"')
-            etag = etag + 1;
-        if (etag[strlen(etag) - 1] == '"')
-            etag[strlen(etag) - 1] = '\0';
+            if (etag[0] == '"')
+                etag = etag + 1;
+            if (etag[strlen(etag) - 1] == '"')
+                etag[strlen(etag) - 1] = '\0';
 
-        if (strncmp (etag, md5, 32)) {
-            LOG_err (FIO_LOG, "Local MD5 doesn't match Etag: %s != %s", etag, md5);
-            rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
+            if (strncmp (etag, md5, 32)) {
+                LOG_err (FIO_LOG, "Local MD5 doesn't match Etag: %s != %s", etag, md5);
+                rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
+                g_free (md5);
+                g_free (rdata);
+                return;
+            }
             g_free (md5);
-            g_free (rdata);
-            return;
         }
-        g_free (md5);
     }
-
+    */
     
     // store it in the local cache
     cache_mng_store_file_buf (application_get_cache_mng (rdata->fop->app), 

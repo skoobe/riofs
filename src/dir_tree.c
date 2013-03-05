@@ -38,7 +38,7 @@ struct _DirEntry {
 
     gboolean is_modified; // do not show it
 
-    off_t size;
+    guint64 size;
     mode_t mode;
     time_t ctime;
 
@@ -325,7 +325,7 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
 typedef struct {
     DirTree *dtree;
     fuse_ino_t ino;
-    size_t size;
+    guint64 size;
     off_t off;
     dir_tree_readdir_cb readdir_cb;
     fuse_req_t req;
@@ -1781,7 +1781,7 @@ void dir_tree_rename (DirTree *dtree,
 
     // You create a copy of your object up to 5 GB in size in a single atomic operation using this API. 
     // However, for copying an object greater than 5 GB, you must use the multipart upload API
-    if (en->size >= (size_t) (1073741824 * 5)) {
+    if (en->size >= FIVEG) {
         LOG_err (DIR_TREE_LOG, "Removing files larger than 5Gb is not currently supported !");
         if (rename_cb)
             rename_cb (req, FALSE);

@@ -27,7 +27,7 @@ struct _FileIO {
     gchar *fname;
 
     // write
-    size_t current_size;
+    guint64 current_size;
     struct evbuffer *write_buf;
     gboolean multipart_initiated;
     gchar *uploadid;
@@ -627,7 +627,7 @@ void fileio_write_buffer (FileIO *fop,
 
 typedef struct {
     FileIO *fop;
-    size_t size;
+    guint64 size;
     off_t off;
     fuse_ino_t ino;
     off_t request_offset;

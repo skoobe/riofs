@@ -115,5 +115,6 @@ LogLevel log_level;
 #define OFF_FMT "ju"
 #define INO_FMT "llu"
 #define INO (unsigned long long)
+#define FIVEG 5368709120  // five gigabytes
 
 #endif

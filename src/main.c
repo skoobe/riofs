@@ -203,7 +203,7 @@ static void sigpipe_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
 }
 
 // XXX: re-read config or do some useful work here
-static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
+G_GNUC_NORETURN static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
 	LOG_err (APP_LOG, "Got SIGUSR1");
 
@@ -400,12 +400,17 @@ static void application_destroy (Application *app)
     if (app->stat_srv)
         stat_srv_destroy (app->stat_srv);
 
-    evdns_base_free (app->dns_base, 0);
-    event_base_free (app->evbase);
+    if (app->dns_base)
+        evdns_base_free (app->dns_base, 0);
+    if (app->evbase)
+        event_base_free (app->evbase);
 
-    evhttp_uri_free (app->uri);
+    if (app->uri)
+        evhttp_uri_free (app->uri);
 
-    conf_destroy (app->conf);
+    if (app->conf)
+        conf_destroy (app->conf);
+    
     logger_destroy ();
     g_free (app);
     
@@ -459,12 +464,14 @@ int main (int argc, char *argv[])
 
     if (!app->evbase) {
         LOG_err (APP_LOG, "Failed to create event base !");
+        application_destroy (app);
         return -1;
     }
 
     app->dns_base = evdns_base_new (app->evbase, 1);
     if (!app->dns_base) {
         LOG_err (APP_LOG, "Failed to create DNS base !");
+        application_destroy (app);
         return -1;
     }
 
@@ -476,7 +483,8 @@ int main (int argc, char *argv[])
     g_option_context_set_description (context, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables!");
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
         g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
-        return FALSE;
+        application_destroy (app);
+        return -1;
     }
 
     if (verbose)
@@ -501,6 +509,7 @@ int main (int argc, char *argv[])
         
         if (!conf_parse_file (app->conf, conf_path)) {
             LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
+            application_destroy (app);
             return -1;
         }
 
@@ -569,17 +578,20 @@ int main (int argc, char *argv[])
     if (!conf_get_string (app->conf, "s3.access_key_id") || !conf_get_string (app->conf, "s3.secret_access_key")) {
         LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);
         //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        application_destroy (app);
         return -1;
     }
 
     if (!s_params || g_strv_length (s_params) != 3) {
         LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
         //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        application_destroy (app);
         return -1;
     }
 
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     if (!application_set_url (app, s_params[0])) {
+        application_destroy (app);
         return -1;
     }
 
@@ -590,12 +602,14 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", 
             conf_get_string (app->conf, "app.mountpoint"));
         // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        application_destroy (app);
         return -1;
     }
     // check if it's a directory
     if (!S_ISDIR (st.st_mode)) {
         LOG_err (APP_LOG, "Mountpoint %s is not a directory!", conf_get_string (app->conf, "app.mountpoint"));
         // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        application_destroy (app);
         return -1;
     }
     
@@ -615,8 +629,10 @@ int main (int argc, char *argv[])
 
     // perform the initial request to get S3 bucket ACL (handles redirect as well)
     app->service_con = s3http_connection_create (app);
-    if (!app->service_con) 
+    if (!app->service_con)  {
+        application_destroy (app);
         return -1;
+    }
     bucket_client_get_acl (app->service_con, application_on_bucket_acl_cb, app);
 
     // start the loop

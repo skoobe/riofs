@@ -52,8 +52,10 @@ gpointer s3http_connection_create (Application *app)
 
     con->is_acquired = FALSE;
     
-    if (!s3http_connection_init (con))
+    if (!s3http_connection_init (con)) {
+        g_free (con);
         return NULL;
+    }
 
     return (gpointer)con;
 }

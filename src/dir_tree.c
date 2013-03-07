@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "dir_tree.h"
-#include "s3fuse.h"
-#include "s3http_connection.h"
-#include "s3http_client.h"
-#include "s3client_pool.h"
+#include "rfuse.h"
+#include "http_connection.h"
+#include "client_pool.h"
 #include "file_io_ops.h"
 #include "cache_mng.h"
 
@@ -349,8 +348,8 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         // construct directory buffer
         // add "." and ".."
         memset (&b, 0, sizeof(b));
-        s3fuse_add_dirbuf (dir_fill_data->req, &b, ".", dir_fill_data->en->ino, 0);
-        s3fuse_add_dirbuf (dir_fill_data->req, &b, "..", dir_fill_data->en->ino, 0);
+        rfuse_add_dirbuf (dir_fill_data->req, &b, ".", dir_fill_data->en->ino, 0);
+        rfuse_add_dirbuf (dir_fill_data->req, &b, "..", dir_fill_data->en->ino, 0);
 
         LOG_debug (DIR_TREE_LOG, "Entries in directory : %u", g_hash_table_size (dir_fill_data->en->h_dir_tree));
         
@@ -360,7 +359,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
             DirEntry *tmp_en = (DirEntry *) value;
             // add only updated entries
             if (tmp_en->age >= dir_fill_data->dtree->current_age)
-                s3fuse_add_dirbuf (dir_fill_data->req, &b, tmp_en->basename, tmp_en->ino, tmp_en->size);
+                rfuse_add_dirbuf (dir_fill_data->req, &b, tmp_en->basename, tmp_en->ino, tmp_en->size);
         }
         // done, save as cache
         dir_fill_data->en->dir_cache_size = b.size;
@@ -379,13 +378,13 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     g_free (dir_fill_data);
 }
 
-static void dir_tree_fill_dir_on_s3http_ready (gpointer client, gpointer ctx)
+static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     DirTreeFillDirData *dir_fill_data = (DirTreeFillDirData *) ctx;
 
-    //send s3http request
-    s3http_connection_get_directory_listing (con, 
+    //send http request
+    http_connection_get_directory_listing (con, 
         dir_fill_data->en->fullpath, dir_fill_data->ino,
         dir_tree_fill_on_dir_buf_cb, dir_fill_data
     );
@@ -440,8 +439,8 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->req = req;
     dir_fill_data->en = en;
 
-    if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_s3http_ready, dir_fill_data)) {
-        LOG_err (DIR_TREE_LOG, "Failed to get s3http client !");
+    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
+        LOG_err (DIR_TREE_LOG, "Failed to get http client !");
         readdir_cb (req, FALSE, size, off, NULL, 0);
         g_free (dir_fill_data);
     }
@@ -462,7 +461,7 @@ typedef struct {
     fuse_ino_t parent_ino;
 } LookupOpData;
 
-static void dir_tree_lookup_on_attr_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void dir_tree_lookup_on_attr_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
@@ -473,8 +472,8 @@ static void dir_tree_lookup_on_attr_cb (S3HttpConnection *con, void *ctx, gboole
     
     LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT, INO op_data->ino);
 
-    // release S3HttpConnection
-    s3http_connection_release (con);
+    // release HttpConnection
+    http_connection_release (con);
 
     en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
     
@@ -518,10 +517,10 @@ static void dir_tree_lookup_on_attr_cb (S3HttpConnection *con, void *ctx, gboole
     g_free (op_data);
 }
 
-//send s3http HEAD request
+//send http HEAD request
 static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     LookupOpData *op_data = (LookupOpData *) ctx;
     gchar *req_path = NULL;
     gboolean res;
@@ -537,11 +536,11 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
         return;
     }
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     req_path = g_strdup_printf ("/%s", en->fullpath);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "HEAD", NULL,
         dir_tree_lookup_on_attr_cb,
         op_data
@@ -550,8 +549,8 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
-        s3http_connection_release (con);
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
+        http_connection_release (con);
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         en->is_updating = FALSE;
         g_free (op_data);
@@ -559,7 +558,7 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
     }
 }
 
-static void dir_tree_lookup_on_not_found_data_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void dir_tree_lookup_on_not_found_data_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
@@ -573,8 +572,8 @@ static void dir_tree_lookup_on_not_found_data_cb (S3HttpConnection *con, void *c
     
     LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT, INO op_data->ino);
 
-    // release S3HttpConnection
-    s3http_connection_release (con);
+    // release HttpConnection
+    http_connection_release (con);
 
     // file not found
     if (!success) {
@@ -626,10 +625,10 @@ static void dir_tree_lookup_on_not_found_data_cb (S3HttpConnection *con, void *c
     g_free (op_data);
 }
 
-//send s3http HEAD request when a file "not found"
+//send http HEAD request when a file "not found"
 static void dir_tree_lookup_on_not_found_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     LookupOpData *op_data = (LookupOpData *) ctx;
     gchar *req_path = NULL;
     gboolean res;
@@ -646,7 +645,7 @@ static void dir_tree_lookup_on_not_found_con_cb (gpointer client, gpointer ctx)
         return;
     }
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     if (op_data->parent_ino == FUSE_ROOT_ID)
         fullpath = g_strdup_printf ("%s", op_data->name);
@@ -657,7 +656,7 @@ static void dir_tree_lookup_on_not_found_con_cb (gpointer client, gpointer ctx)
 
     g_free (fullpath);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "HEAD", NULL,
         dir_tree_lookup_on_not_found_data_cb,
         op_data
@@ -666,8 +665,8 @@ static void dir_tree_lookup_on_not_found_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
-        s3http_connection_release (con);
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
+        http_connection_release (con);
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
         g_free (op_data);
@@ -709,8 +708,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         LOG_debug (DIR_TREE_LOG, "Entry not found, sending request to storage server, name: %s", name);
 
-        if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_not_found_con_cb, op_data)) {
-            LOG_err (DIR_TREE_LOG, "Failed to get s3http client !");
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_not_found_con_cb, op_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             g_free (op_data->name);
             g_free (op_data);
@@ -743,8 +742,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         LOG_debug (DIR_TREE_LOG, "Getting information, ino: %"INO_FMT, INO en->ino);
 
-        if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
-            LOG_err (DIR_TREE_LOG, "Failed to get s3http client !");
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             en->is_updating = FALSE;
             g_free (op_data);
@@ -772,8 +771,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         LOG_debug (DIR_TREE_LOG, "Entry '%s' is modified !", name);
         
         
-        if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
-            LOG_err (DIR_TREE_LOG, "Failed to get s3http client !");
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             en->is_updating = FALSE;
             g_free (op_data);
@@ -785,7 +784,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     
     t = time (NULL);
     
-    // compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory
+    // compatibility with fs: send HEAD request to  if file size is 0 to check if it's a directory
     if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&
         t - en->updated_time >= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
         conf_get_boolean (dtree->conf, "s3.check_empty_files")) {
@@ -804,8 +803,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         en->is_updating = TRUE;
 
-        if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
-            LOG_err (DIR_TREE_LOG, "Failed to get s3http client !");
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             en->is_updating = FALSE;
             g_free (op_data);
@@ -827,15 +826,15 @@ typedef struct {
     fuse_ino_t ino;
 } GetAttrOpData;
 /*
-static void dir_tree_getattr_on_attr_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void dir_tree_getattr_on_attr_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     GetAttrOpData *op_data = (GetAttrOpData *) ctx;
     DirEntry  *en;
 
-    // release S3HttpConnection
-    s3http_connection_release (con);
+    // release HttpConnection
+    http_connection_release (con);
 
     en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
     
@@ -862,10 +861,10 @@ static void dir_tree_getattr_on_attr_cb (S3HttpConnection *con, void *ctx, gbool
     g_free (op_data);
 }
 
-//send s3http HEAD request
+//send http HEAD request
 static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     GetAttrOpData *op_data = (GetAttrOpData *) ctx;
     gchar *req_path = NULL;
     gboolean res;
@@ -881,11 +880,11 @@ static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
         return;
     }
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     req_path = g_strdup_printf ("/%s", en->fullpath);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "HEAD", NULL,
         dir_tree_getattr_on_attr_cb,
         op_data
@@ -894,8 +893,8 @@ static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
-        s3http_connection_release (con);
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
+        http_connection_release (con);
         op_data->getattr_cb (op_data->req, FALSE, 0, 0, 0, 0);
         en->is_updating = FALSE;
         g_free (op_data);
@@ -936,8 +935,8 @@ void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
 
         en->is_updating = TRUE;
 
-        if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_getattr_on_con_cb, op_data)) {
-            LOG_err (DIR_TREE_LOG, "Failed to get s3http client !");
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_getattr_on_con_cb, op_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             getattr_cb (req, FALSE, 0, 0, 0, 0);
             g_free (op_data);
         }
@@ -1142,7 +1141,7 @@ static void dir_tree_on_buffer_written_cb (FileIO *fop, gpointer ctx, gboolean s
     g_free (op_data);
 }
 
-// send data via s3http client
+// send data via http client
 void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino, 
     const char *buf, size_t size, off_t off, 
     DirTree_file_write_cb file_write_cb, fuse_req_t req,
@@ -1188,7 +1187,7 @@ typedef struct {
 } FileRemoveData;
 
 // file is removed
-static void dir_tree_file_remove_on_con_data_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
+static void dir_tree_file_remove_on_con_data_cb (HttpConnection *con, gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
@@ -1201,23 +1200,23 @@ static void dir_tree_file_remove_on_con_data_cb (S3HttpConnection *con, gpointer
         data->file_remove_cb (data->req, success);
 
     
-    s3http_connection_release (con);
+    http_connection_release (con);
 
     g_free (data);
 }
 
-// s3http client is ready for a new request
+// http client is ready for a new request
 static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileRemoveData *data = (FileRemoveData *) ctx;
     gchar *req_path;
     gboolean res;
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     req_path = g_strdup_printf ("/%s", data->en->fullpath);
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "DELETE", 
         NULL,
         dir_tree_file_remove_on_con_data_cb,
@@ -1226,10 +1225,10 @@ static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
         data->file_remove_cb (data->req, FALSE);
         
-        s3http_connection_release (con);
+        http_connection_release (con);
         g_free (data);
     }
 }
@@ -1268,7 +1267,7 @@ void dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remove_c
     data->file_remove_cb = file_remove_cb;
     data->req = req;
 
-    s3client_pool_get_client (application_get_ops_client_pool (dtree->app),
+    client_pool_get_client (application_get_ops_client_pool (dtree->app),
         dir_tree_file_remove_on_con_cb, data);
 }
 
@@ -1310,10 +1309,10 @@ typedef struct {
     GQueue *q_objects_to_remove;
 } DirRemoveData;
 
-static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, DirRemoveData *data);
+static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRemoveData *data);
 
 // object is removed, call remove function again
-static void dir_tree_dir_remove_on_object_removed_cb (S3HttpConnection *con, gpointer ctx, 
+static void dir_tree_dir_remove_on_object_removed_cb (HttpConnection *con, gpointer ctx, 
     G_GNUC_UNUSED gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
@@ -1324,7 +1323,7 @@ static void dir_tree_dir_remove_on_object_removed_cb (S3HttpConnection *con, gpo
 }
 
 // check if there is any object left in the queue and remove it
-static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, DirRemoveData *data)
+static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRemoveData *data)
 {
     gchar *line;
     gchar *req_path;
@@ -1333,7 +1332,7 @@ static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, Dir
     // check if all objects are removed
     if (g_queue_is_empty (data->q_objects_to_remove)) {
         LOG_debug (DIR_TREE_LOG, "All objects are removed !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         g_queue_free_full (data->q_objects_to_remove, g_free);
         if (data->dir_remove_cb)
             data->dir_remove_cb (data->req, TRUE);
@@ -1346,7 +1345,7 @@ static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, Dir
     req_path = g_strdup_printf ("/%s", line);
     g_free (line);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "DELETE", 
         NULL,
         dir_tree_dir_remove_on_object_removed_cb,
@@ -1356,8 +1355,8 @@ static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, Dir
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
-        s3http_connection_release (con);
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
+        http_connection_release (con);
         g_queue_free_full (data->q_objects_to_remove, g_free);
         if (data->dir_remove_cb)
             data->dir_remove_cb (data->req, FALSE);
@@ -1368,7 +1367,7 @@ static void dir_tree_dir_remove_try_to_remove_object (S3HttpConnection *con, Dir
 
 // got the list of all objects in the directory
 // create list to-remove
-static void dir_tree_dir_remove_on_con_objects_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
+static void dir_tree_dir_remove_on_con_objects_cb (HttpConnection *con, gpointer ctx, gboolean success,
         const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     DirRemoveData *data = (DirRemoveData *) ctx;
@@ -1377,7 +1376,7 @@ static void dir_tree_dir_remove_on_con_objects_cb (S3HttpConnection *con, gpoint
 
     if (!success) {
         LOG_err (DIR_TREE_LOG, "Failed to get directory's content !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         if (data->dir_remove_cb)
             data->dir_remove_cb (data->req, FALSE);
         g_free (data);
@@ -1399,20 +1398,20 @@ static void dir_tree_dir_remove_on_con_objects_cb (S3HttpConnection *con, gpoint
 
 }
 
-// s3http Connection is ready
+// http Connection is ready
 static void dir_tree_dir_remove_on_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     DirRemoveData *data = (DirRemoveData *) ctx;
     gchar *req_path;
     gboolean res;
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     // XXX: max keys
     req_path = g_strdup_printf ("?prefix=%s/", data->en->fullpath);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "GET", 
         NULL,
         dir_tree_dir_remove_on_con_objects_cb,
@@ -1422,11 +1421,11 @@ static void dir_tree_dir_remove_on_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
         if (data->dir_remove_cb)
             data->dir_remove_cb (data->req, FALSE);
         
-        s3http_connection_release (con);
+        http_connection_release (con);
         g_free (data);
     }
 }
@@ -1457,7 +1456,7 @@ void dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
         return;
     }
     
-    // ok, directory is found, get S3HttpConnection
+    // ok, directory is found, get HttpConnection
     data = g_new0 (DirRemoveData, 1);
     data->dtree = dtree;
     data->dir_remove_cb = dir_remove_cb;
@@ -1465,7 +1464,7 @@ void dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
     data->ino = en->ino;
     data->en = en;
 
-    if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app),
+    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app),
         dir_tree_dir_remove_on_con_cb, data)) {
         LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
         if (dir_remove_cb)
@@ -1532,7 +1531,7 @@ static void rename_data_destroy (RenameData *rdata)
 
 /*{{{ delete object */
 
-static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
+static void dir_tree_on_rename_delete_cb (HttpConnection *con, gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
@@ -1541,7 +1540,7 @@ static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, g
     DirEntry *parent_en;
     DirEntry *newparent_en;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
 
     if (!success) {
         LOG_err (DIR_TREE_LOG, "Failed to rename !");
@@ -1593,7 +1592,7 @@ static void dir_tree_on_rename_delete_cb (S3HttpConnection *con, gpointer ctx, g
 
 static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     RenameData *rdata = (RenameData *) ctx;
     gchar *req_path = NULL;
     gboolean res;
@@ -1618,9 +1617,9 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
         return;
     }
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
     req_path = g_strdup_printf ("/%s", en->fullpath);
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "DELETE", 
         NULL,
         dir_tree_on_rename_delete_cb,
@@ -1629,10 +1628,10 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
     
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
-        s3http_connection_release (con);
+        http_connection_release (con);
         rename_data_destroy (rdata);
         return;
     }
@@ -1640,13 +1639,13 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
 /*}}}*/
 
 /*{{{ copy object */
-static void dir_tree_on_rename_copy_cb (S3HttpConnection *con, gpointer ctx, gboolean success,
+static void dir_tree_on_rename_copy_cb (HttpConnection *con, gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     RenameData *rdata = (RenameData *) ctx;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
 
     if (!success) {
         LOG_err (DIR_TREE_LOG, "Failed to rename !");
@@ -1659,7 +1658,7 @@ static void dir_tree_on_rename_copy_cb (S3HttpConnection *con, gpointer ctx, gbo
     //XXX: a 200 OK response can contain either a success or an error
 
     //XXX: reuse file_delete code
-    if (!s3client_pool_get_client (application_get_ops_client_pool (rdata->dtree->app),
+    if (!client_pool_get_client (application_get_ops_client_pool (rdata->dtree->app),
         dir_tree_on_rename_delete_con_cb, rdata)) {
         LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
         if (rdata->rename_cb)
@@ -1671,7 +1670,7 @@ static void dir_tree_on_rename_copy_cb (S3HttpConnection *con, gpointer ctx, gbo
 
 static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     RenameData *rdata = (RenameData *) ctx;
     gchar *dst_path = NULL;
     gchar *src_path = NULL;
@@ -1707,15 +1706,15 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
         return;
     }
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
     
     // source
     src_path = g_strdup_printf ("%s/%s", conf_get_string (rdata->dtree->conf, "s3.bucket_name"), en->fullpath);
-    s3http_connection_add_output_header (con, "x-amz-copy-source", src_path);
+    http_connection_add_output_header (con, "x-amz-copy-source", src_path);
     g_free (src_path);
 
     dst_path = g_strdup_printf ("/%s/%s", newparent_en->fullpath, rdata->newname);
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         dst_path, "PUT", 
         NULL,
         dir_tree_on_rename_copy_cb,
@@ -1724,10 +1723,10 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
     g_free (dst_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create s3http request !");
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
-        s3http_connection_release (con);
+        http_connection_release (con);
         rename_data_destroy (rdata);
         return;
     }
@@ -1797,7 +1796,7 @@ void dir_tree_rename (DirTree *dtree,
     rdata->rename_cb = rename_cb;
     rdata->req = req;
     
-    if (!s3client_pool_get_client (application_get_ops_client_pool (dtree->app),
+    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app),
         dir_tree_on_rename_copy_con_cb, rdata)) {
         LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
         if (rename_cb)

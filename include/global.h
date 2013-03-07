@@ -84,10 +84,10 @@
 #include "config.h" 
 
 typedef struct _Application Application;
-typedef struct _S3HttpConnection S3HttpConnection;
+typedef struct _HttpConnection HttpConnection;
 typedef struct _DirTree DirTree;
-typedef struct _S3Fuse S3Fuse;
-typedef struct _S3ClientPool S3ClientPool;
+typedef struct _RFuse RFuse;
+typedef struct _ClientPool ClientPool;
 typedef enum _LogLevel LogLevel;
 typedef struct _ConfData ConfData;
 typedef struct _CacheMng CacheMng;
@@ -97,9 +97,9 @@ struct event_base *application_get_evbase (Application *app);
 struct evdns_base *application_get_dnsbase (Application *app);
 ConfData *application_get_conf (Application *app);
 
-S3ClientPool *application_get_read_client_pool (Application *app);
-S3ClientPool *application_get_write_client_pool (Application *app);
-S3ClientPool *application_get_ops_client_pool (Application *app);
+ClientPool *application_get_read_client_pool (Application *app);
+ClientPool *application_get_write_client_pool (Application *app);
+ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 CacheMng *application_get_cache_mng (Application *app);
 StatSrv *application_get_stat_srv (Application *app);

@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "global.h"
-#include "s3http_connection.h"
+#include "http_connection.h"
 #include "dir_tree.h"
-#include "s3fuse.h"
+#include "rfuse.h"
 #include "utils.h"
-#include "s3client_pool.h"
-#include "s3http_client.h"
+#include "client_pool.h"
 #include "cache_mng.h"
 #include "stat_srv.h"
 
@@ -32,17 +31,17 @@ struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
     
-    S3Fuse *s3fuse;
+    RFuse *rfuse;
     DirTree *dir_tree;
     CacheMng *cmng;
     StatSrv *stat_srv;
 
     // initial bucket ACL request
-    S3HttpConnection *service_con;
+    HttpConnection *service_con;
 
-    S3ClientPool *write_client_pool;
-    S3ClientPool *read_client_pool;
-    S3ClientPool *ops_client_pool;
+    ClientPool *write_client_pool;
+    ClientPool *read_client_pool;
+    ClientPool *ops_client_pool;
 
     struct evhttp_uri *uri;
 
@@ -71,17 +70,17 @@ DirTree *application_get_dir_tree (Application *app)
     return app->dir_tree;
 }
 
-S3ClientPool *application_get_write_client_pool (Application *app)
+ClientPool *application_get_write_client_pool (Application *app)
 {
     return app->write_client_pool;
 }
 
-S3ClientPool *application_get_read_client_pool (Application *app)
+ClientPool *application_get_read_client_pool (Application *app)
 {
     return app->read_client_pool;
 }
 
-S3ClientPool *application_get_ops_client_pool (Application *app)
+ClientPool *application_get_ops_client_pool (Application *app)
 {
     return app->ops_client_pool;
 }
@@ -121,7 +120,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 
 
     if (!app->uri) {
-        LOG_err (APP_LOG, "S3 URL (%s) is not valid!", url);
+        LOG_err (APP_LOG, " URL (%s) is not valid!", url);
 
         event_base_loopexit (app->evbase, NULL);
         return FALSE;
@@ -192,8 +191,8 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 	LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 
     // try to unmount FUSE mountpoint
-    if (_app && _app->s3fuse)
-        s3fuse_destroy (_app->s3fuse);
+    if (_app && _app->rfuse)
+        rfuse_destroy (_app->rfuse);
 }
 
 // ignore SIGPIPE
@@ -208,8 +207,8 @@ G_GNUC_NORETURN static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNU
 	LOG_err (APP_LOG, "Got SIGUSR1");
 
     // try to unmount FUSE mountpoint
-    if (_app && _app->s3fuse)
-        s3fuse_destroy (_app->s3fuse);
+    if (_app && _app->rfuse)
+        rfuse_destroy (_app->rfuse);
     
     exit (1);
 }
@@ -231,49 +230,49 @@ static gint application_finish_initialization_and_run (Application *app)
     struct sigaction sigact;
 
 /*{{{ create POOLs */
-    // create S3ClientPool for reading operations
+    // create ClientPool for reading operations
     /*
-    app->read_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
-        s3http_client_create,
-        s3http_client_destroy,
-        s3http_client_set_on_released_cb,
-        s3http_client_check_rediness
+    app->read_client_pool = client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
+        http_client_create,
+        http_client_destroy,
+        http_client_set_on_released_cb,
+        http_client_check_rediness
         );
     */
-    app->read_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
-        s3http_connection_create,
-        s3http_connection_destroy,
-        s3http_connection_set_on_released_cb,
-        s3http_connection_check_rediness
+    app->read_client_pool = client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
+        http_connection_create,
+        http_connection_destroy,
+        http_connection_set_on_released_cb,
+        http_connection_check_rediness
         );
     if (!app->read_client_pool) {
-        LOG_err (APP_LOG, "Failed to create S3ClientPool !");
+        LOG_err (APP_LOG, "Failed to create ClientPool !");
         event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 
-    // create S3ClientPool for writing operations
-    app->write_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.writers"),
-        s3http_connection_create,
-        s3http_connection_destroy,
-        s3http_connection_set_on_released_cb,
-        s3http_connection_check_rediness
+    // create ClientPool for writing operations
+    app->write_client_pool = client_pool_create (app, conf_get_int (app->conf, "pool.writers"),
+        http_connection_create,
+        http_connection_destroy,
+        http_connection_set_on_released_cb,
+        http_connection_check_rediness
         );
     if (!app->write_client_pool) {
-        LOG_err (APP_LOG, "Failed to create S3ClientPool !");
+        LOG_err (APP_LOG, "Failed to create ClientPool !");
         event_base_loopexit (app->evbase, NULL);
         return -1;
     }
 
-    // create S3ClientPool for various operations
-    app->ops_client_pool = s3client_pool_create (app, conf_get_int (app->conf, "pool.operations"),
-        s3http_connection_create,
-        s3http_connection_destroy,
-        s3http_connection_set_on_released_cb,
-        s3http_connection_check_rediness
+    // create ClientPool for various operations
+    app->ops_client_pool = client_pool_create (app, conf_get_int (app->conf, "pool.operations"),
+        http_connection_create,
+        http_connection_destroy,
+        http_connection_set_on_released_cb,
+        http_connection_check_rediness
         );
     if (!app->ops_client_pool) {
-        LOG_err (APP_LOG, "Failed to create S3ClientPool !");
+        LOG_err (APP_LOG, "Failed to create ClientPool !");
         event_base_loopexit (app->evbase, NULL);
         return -1;
     }
@@ -298,8 +297,8 @@ static gint application_finish_initialization_and_run (Application *app)
 /*}}}*/
 
 /*{{{ FUSE*/
-    app->s3fuse = s3fuse_new (app, conf_get_string (app->conf, "app.mountpoint"));
-    if (!app->s3fuse) {
+    app->rfuse = rfuse_new (app, conf_get_string (app->conf, "app.mountpoint"));
+    if (!app->rfuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs ! Mount point: %s", conf_get_string (app->conf, "app.mountpoint"));
         event_base_loopexit (app->evbase, NULL);
         return -1;
@@ -351,7 +350,7 @@ static gint application_finish_initialization_and_run (Application *app)
     return 0;
 }
 
-// S3 replies on bucket ACL
+//  replies on bucket ACL
 static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len)
 {
@@ -370,16 +369,16 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
 
 static void application_destroy (Application *app)
 {
-    // destroy S3Fuse
-    if (app->s3fuse)
-        s3fuse_destroy (app->s3fuse);
+    // destroy Fuse
+    if (app->rfuse)
+        rfuse_destroy (app->rfuse);
 
     if (app->read_client_pool)
-        s3client_pool_destroy (app->read_client_pool);
+        client_pool_destroy (app->read_client_pool);
     if (app->write_client_pool)
-        s3client_pool_destroy (app->write_client_pool);
+        client_pool_destroy (app->write_client_pool);
     if (app->ops_client_pool)
-        s3client_pool_destroy (app->ops_client_pool);
+        client_pool_destroy (app->ops_client_pool);
 
     if (app->dir_tree)
         dir_tree_destroy (app->dir_tree);
@@ -395,7 +394,7 @@ static void application_destroy (Application *app)
         event_free (app->sigusr1_ev);
     
     if (app->service_con)
-        s3http_connection_destroy (app->service_con);
+        http_connection_destroy (app->service_con);
 
     if (app->stat_srv)
         stat_srv_destroy (app->stat_srv);
@@ -439,7 +438,7 @@ int main (int argc, char *argv[])
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
 
-    conf_path = g_build_filename (SYSCONFDIR, "s3ffs.conf", NULL); 
+    conf_path = g_build_filename (SYSCONFDIR, "riofs.conf", NULL); 
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
 
     GOptionEntry entries[] = {
@@ -552,7 +551,7 @@ int main (int argc, char *argv[])
     
     // check if --version is specified
     if (version) {
-            g_fprintf (stdout, "S3 Fast File System v%s\n", VERSION);
+            g_fprintf (stdout, " Fast File System v%s\n", VERSION);
             g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
             g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
             g_fprintf (stdout, "Libraries:\n");
@@ -627,8 +626,8 @@ int main (int argc, char *argv[])
 
     g_option_context_free (context);
 
-    // perform the initial request to get S3 bucket ACL (handles redirect as well)
-    app->service_con = s3http_connection_create (app);
+    // perform the initial request to get  bucket ACL (handles redirect as well)
+    app->service_con = http_connection_create (app);
     if (!app->service_con)  {
         application_destroy (app);
         return -1;

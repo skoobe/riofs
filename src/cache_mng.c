@@ -20,7 +20,7 @@
 #include "utils.h"
 #include "conf.h"
 
-#define CACHE_MNGR_DIR "s3ffs_cache"
+#define CACHE_MNGR_DIR "riofs_cache"
 #define CMNG_LOG "cmng"
 
 struct _CacheMng {

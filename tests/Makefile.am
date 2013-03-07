@@ -1,24 +1,16 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-bin_PROGRAMS = s3http_client_test s3client_pool_test conf_test range_test cache_mng_test
+bin_PROGRAMS = client_pool_test conf_test range_test cache_mng_test
 EXTRA_DIST = test.conf.xml
 
-s3http_client_test_SOURCES = $(top_srcdir)/src/s3http_client.c 
-s3http_client_test_SOURCES += $(top_srcdir)/src/log.c
-s3http_client_test_SOURCES += $(top_srcdir)/src/utils.c
-s3http_client_test_SOURCES += s3http_client_test.c
-s3http_client_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
-s3http_client_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
-
-s3client_pool_test_SOURCES = $(top_srcdir)/src/s3http_client.c
-s3client_pool_test_SOURCES += $(top_srcdir)/src/s3client_pool.c 
-s3client_pool_test_SOURCES += $(top_srcdir)/src/log.c
-s3client_pool_test_SOURCES += test_application.c
-s3client_pool_test_SOURCES += $(top_srcdir)/src/utils.c
-s3client_pool_test_SOURCES += $(top_srcdir)/src/conf.c
-s3client_pool_test_SOURCES += $(top_srcdir)/src/s3http_connection.c
-s3client_pool_test_SOURCES += s3client_pool_test.c
-s3client_pool_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
-s3client_pool_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
+client_pool_test_SOURCES = $(top_srcdir)/src/client_pool.c 
+client_pool_test_SOURCES += $(top_srcdir)/src/log.c
+client_pool_test_SOURCES += test_application.c
+client_pool_test_SOURCES += $(top_srcdir)/src/utils.c
+client_pool_test_SOURCES += $(top_srcdir)/src/conf.c
+client_pool_test_SOURCES += $(top_srcdir)/src/http_connection.c
+client_pool_test_SOURCES += client_pool_test.c
+client_pool_test_CFLAGS = $(AM_CFLAGS) $(DEPS_CFLAGS)
+client_pool_test_LDADD = $(AM_LDADD) $(DEPS_LIBS)
 
 conf_test_SOURCES = $(top_srcdir)/src/log.c
 conf_test_SOURCES += $(top_srcdir)/src/utils.c

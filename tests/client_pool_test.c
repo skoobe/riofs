@@ -17,9 +17,8 @@
  */
 #include "global.h"
 #include "test_application.h"
-#include "s3http_client.h"
-#include "s3http_connection.h"
-#include "s3client_pool.h"
+#include "http_connection.h"
+#include "client_pool.h"
 #include "utils.h"
 
 #define POOL_TEST "pool_test"
@@ -36,7 +35,7 @@ typedef struct {
 } FileData;
 
 typedef struct {
-    S3ClientPool *pool;
+    ClientPool *pool;
     GList *l_files;
 } CBData;
 
@@ -105,69 +104,17 @@ gboolean check_list (GList *l)
     return TRUE;
 }
 
-static void on_last_chunk_cb (S3HttpClient *http, struct evbuffer *input_buf, gpointer ctx)
-{
-    gchar *buf = NULL;
-    size_t buf_len;
-    FileData *fdata = (FileData *) ctx;
-    gchar *md5;
-
-    buf_len = evbuffer_get_length (input_buf);
-    buf = (gchar *) evbuffer_pullup (input_buf, buf_len);
-
-    get_md5_sum (buf, buf_len, *md5, NULL);
-
-    LOG_debug (POOL_TEST, "%s == %s", fdata->md5, md5);
-    g_assert_cmpstr (fdata->md5, ==, md5);
-
-    fdata->checked = TRUE;
-
-    s3http_client_release (http);
-
-    if (check_list (app->l_files)) {
-        event_base_loopbreak (app->evbase);
-        LOG_debug (POOL_TEST, "Test passed !");
-    }
-}
-
-static void on_get_http_client (S3HttpClient *http, gpointer pool_ctx)
-{
-    FileData *fd = (FileData *) pool_ctx;
-    gpointer p;
-    gint i;
-
-    LOG_debug (POOL_TEST, "Got http client %p, sending request for: %s", http, fd->in_name);
-
-    if ((p = g_hash_table_lookup (app->h_clients_freq, http)) != NULL) {
-        i = GPOINTER_TO_INT (p) + 1;
-        g_hash_table_replace (app->h_clients_freq, http, GINT_TO_POINTER (i));
-    } else {
-        i = 1;
-        g_hash_table_insert (app->h_clients_freq, http, GINT_TO_POINTER (i));
-    }
-
-    s3http_client_acquire (http);
-
-    s3http_client_request_reset (http);
-
-    s3http_client_set_cb_ctx (http, fd);
-    s3http_client_set_on_last_chunk_cb (http, on_last_chunk_cb);
-
-    s3http_client_set_output_length (http, 0);
-    s3http_client_start_request (http, S3Method_get, fd->url);
-}
-
 static void on_output_timer (evutil_socket_t fd, short event, void *ctx)
 {
     gint i;
     GList *l;
 
     CBData *cb = (CBData *) ctx;
-    S3ClientPool *pool = cb->pool;
+    ClientPool *pool = cb->pool;
 
     for (l = g_list_first (cb->l_files); l; l = g_list_next (l)) {
         FileData *fd = (FileData *) l->data;
-        g_assert (s3client_pool_get_client (pool, on_get_http_client, fd));
+      //  g_assert (s3client_pool_get_client (pool, on_get_http_client, fd));
     }
 }
 
@@ -232,7 +179,7 @@ static gboolean print_foreach (gconstpointer a, gconstpointer b)
 
 int main (int argc, char *argv[])
 {
-    S3ClientPool *pool;
+    ClientPool *pool;
     struct event *timeout;
     struct timeval tv;
     GList *l_files = NULL;
@@ -260,12 +207,14 @@ int main (int argc, char *argv[])
     // start server
     start_srv (app->evbase, in_dir);
     
-    pool = s3client_pool_create (app, 12,
-        s3http_client_create,
-        s3http_client_destroy,
-        s3http_client_set_on_released_cb,
-        s3http_client_check_rediness
+    /*
+    pool = client_pool_create (app, 12,
+        http_client_create,
+        http_client_destroy,
+        http_client_set_on_released_cb,
+        http_client_check_rediness
     );
+    */
 
     cb = g_new (CBData, 1);
     cb->pool = pool;

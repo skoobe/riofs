@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "file_io_ops.h"
-#include "s3http_connection.h"
+#include "http_connection.h"
 #include "cache_mng.h"
 #include "utils.h"
 
@@ -92,13 +92,13 @@ void fileio_destroy (FileIO *fop)
 /*{{{ fileio_release*/
 
 /*{{{ update headers on uploaded object */
-static void fileio_release_on_update_header_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_release_on_update_header_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
 
     if (!success) {
         LOG_err (FIO_LOG, "Failed to update headers on the server !");
@@ -112,10 +112,10 @@ static void fileio_release_on_update_header_cb (S3HttpConnection *con, void *ctx
     fileio_destroy (fop);
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileIO *fop = (FileIO *) ctx;
     gchar *path;
     gchar *cpy_path;
@@ -126,23 +126,23 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
 
     LOG_debug (FIO_LOG, "Updating object's headers..");
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
     
-    s3http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
+    http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
     
     MD5_Final (digest, &fop->md5);
     md5str = g_malloc (33);
     for (i = 0; i < 16; ++i)
         sprintf(&md5str[i*2], "%02x", (unsigned int)digest[i]);
-    s3http_connection_add_output_header (con, "x-amz-meta-md5", md5str);
+    http_connection_add_output_header (con, "x-amz-meta-md5", md5str);
     g_free (md5str);
 
     cpy_path = g_strdup_printf ("%s%s", conf_get_string (fop->conf, "s3.bucket_name"), fop->fname);
-    s3http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
+    http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
     g_free (cpy_path);
 
     path = g_strdup_printf ("%s", fop->fname);
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         path, "PUT", NULL,
         fileio_release_on_update_header_cb,
         fop
@@ -151,7 +151,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         fileio_destroy (fop);
         return;
     }
@@ -159,7 +159,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
 
 static void fileio_release_update_headers (FileIO *fop)
 {
-    if (!s3client_pool_get_client (application_get_write_client_pool (fop->app), 
+    if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
         fileio_release_on_update_headers_con_cb, fop)) {
         LOG_err (FIO_LOG, "Failed to get HTTP client !");
         fileio_destroy (fop);
@@ -170,13 +170,13 @@ static void fileio_release_update_headers (FileIO *fop)
 
 /*{{{ Complete Multipart Upload */
 // multipart is sent
-static void fileio_release_on_complete_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
 
     if (!success) {
         LOG_err (FIO_LOG, "Failed to send Multipart data to the server !");
@@ -191,10 +191,10 @@ static void fileio_release_on_complete_cb (S3HttpConnection *con, void *ctx, gbo
     fileio_release_update_headers (fop);
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileIO *fop = (FileIO *) ctx;
     gchar *path;
     gboolean res;
@@ -213,11 +213,11 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
 
     LOG_debug (FIO_LOG, "Sending Multipart Final part..");
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
     
     path = g_strdup_printf ("%s?uploadId=%s", 
         fop->fname, fop->uploadid);
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         path, "POST", xml_buf,
         fileio_release_on_complete_cb,
         fop
@@ -227,7 +227,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         fileio_destroy (fop);
         return;
     }
@@ -241,7 +241,7 @@ static void fileio_release_complete_multipart (FileIO *fop)
         return;
     }
 
-    if (!s3client_pool_get_client (application_get_write_client_pool (fop->app), 
+    if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
         fileio_release_on_complete_con_cb, fop)) {
         LOG_err (FIO_LOG, "Failed to get HTTP client !");
         fileio_destroy (fop);
@@ -252,13 +252,13 @@ static void fileio_release_complete_multipart (FileIO *fop)
 
 /*{{{ sent part*/
 // file is sent
-static void fileio_release_on_part_sent_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
 
     if (!success) {
         LOG_err (FIO_LOG, "Failed to send bufer to server !");
@@ -277,10 +277,10 @@ static void fileio_release_on_part_sent_cb (S3HttpConnection *con, void *ctx, gb
     }
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileIO *fop = (FileIO *) ctx;
     gchar *path;
     gboolean res;
@@ -288,7 +288,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     size_t buf_len;
     const gchar *buf;
 
-    LOG_debug (FIO_LOG, "[s3http_con: %p] Releasing fop. Size: %zu", con, evbuffer_get_length (fop->write_buf));
+    LOG_debug (FIO_LOG, "[http_con: %p] Releasing fop. Size: %zu", con, evbuffer_get_length (fop->write_buf));
     
     // add part information to the list
     part = g_new0 (FileIOPart, 1);
@@ -321,12 +321,12 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
         path = g_strdup (fop->fname);
     }
     
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     // add output headers
-    s3http_connection_add_output_header (con, "Content-MD5", part->md5b);
+    http_connection_add_output_header (con, "Content-MD5", part->md5b);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         path, "PUT", fop->write_buf,
         fileio_release_on_part_sent_cb,
         fop
@@ -335,7 +335,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         fileio_destroy (fop);
         return;
     }
@@ -347,7 +347,7 @@ void fileio_release (FileIO *fop)
 {
     // if write buffer has some data left - send it to the server
     if (evbuffer_get_length (fop->write_buf)) {
-        if (!s3client_pool_get_client (application_get_write_client_pool (fop->app), 
+        if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
             fileio_release_on_part_con_cb, fop)) {
             LOG_err (FIO_LOG, "Failed to get HTTP client !");
             fileio_destroy (fop);
@@ -379,13 +379,13 @@ typedef struct {
 /*{{{ send part */
 
 // buffer is sent
-static void fileio_write_on_send_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileWriteData *wdata = (FileWriteData *) ctx;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
     
     if (!success) {
         LOG_err (FIO_LOG, "Failed to send bufer to server !");
@@ -399,10 +399,10 @@ static void fileio_write_on_send_cb (S3HttpConnection *con, void *ctx, gboolean 
     g_free (wdata);
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileWriteData *wdata = (FileWriteData *) ctx;
     gchar *path;
     gboolean res;
@@ -410,7 +410,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     size_t buf_len;
     const gchar *buf;
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     // add part information to the list
     part = g_new0 (FileIOPart, 1);
@@ -436,9 +436,9 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     // XXX: check that part_number does not exceeds 10000
 
     // add output headers
-    s3http_connection_add_output_header (con, "Content-MD5", part->md5b);
+    http_connection_add_output_header (con, "Content-MD5", part->md5b);
     
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         path, "PUT", wdata->fop->write_buf,
         fileio_write_on_send_cb,
         wdata
@@ -447,7 +447,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -463,7 +463,7 @@ static void fileio_write_send_part (FileWriteData *wdata)
         return;
     }
 
-    if (!s3client_pool_get_client (application_get_write_client_pool (wdata->fop->app), 
+    if (!client_pool_get_client (application_get_write_client_pool (wdata->fop->app), 
         fileio_write_on_send_con_cb, wdata)) {
         LOG_err (FIO_LOG, "Failed to get HTTP client !");
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
@@ -501,14 +501,14 @@ static gchar *get_uploadid (const char *xml, size_t xml_len) {
     return uploadid;
 }
 
-static void fileio_write_on_multipart_init_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, gboolean success,
     const gchar *buf, size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileWriteData *wdata = (FileWriteData *) ctx;
     gchar *uploadid;
     
-    s3http_connection_release (con);
+    http_connection_release (con);
     
     wdata->fop->multipart_initiated = TRUE;
     
@@ -534,18 +534,18 @@ static void fileio_write_on_multipart_init_cb (S3HttpConnection *con, void *ctx,
     fileio_write_send_part (wdata);
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileWriteData *wdata = (FileWriteData *) ctx;
     gboolean res;
     gchar *path;
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
     path = g_strdup_printf ("%s?uploads", wdata->fop->fname);
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         path, "POST", NULL,
         fileio_write_on_multipart_init_cb,
         wdata
@@ -554,7 +554,7 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -563,7 +563,7 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
 
 static void fileio_write_init_multipart (FileWriteData *wdata)
 {
-    if (!s3client_pool_get_client (application_get_write_client_pool (wdata->fop->app), 
+    if (!client_pool_get_client (application_get_write_client_pool (wdata->fop->app), 
         fileio_write_on_multipart_init_con_cb, wdata)) {
         LOG_err (FIO_LOG, "Failed to get HTTP client !");
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
@@ -638,15 +638,15 @@ typedef struct {
 static void fileio_read_get_buf (FileReadData *rdata);
 
 /*{{{ GET request */
-static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean success,
     const gchar *buf, size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileReadData *rdata = (FileReadData *) ctx;
     // gchar *etag;
     
-    // release S3HttpConnection
-    s3http_connection_release (con);
+    // release HttpConnection
+    http_connection_release (con);
    
     if (!success) {
         LOG_err (FIO_LOG, "Failed to get file from server !");
@@ -691,15 +691,15 @@ static void fileio_read_on_get_cb (S3HttpConnection *con, void *ctx, gboolean su
     fileio_read_get_buf (rdata);
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileReadData *rdata = (FileReadData *) ctx;
     gboolean res;
     guint64 part_size;
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
     
     part_size = conf_get_uint (rdata->fop->conf, "s3.part_size");
 
@@ -717,11 +717,11 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
         rdata->request_offset = rdata->off;
         range_hdr = g_strdup_printf ("bytes=%"G_GUINT64_FORMAT"-%"G_GUINT64_FORMAT, 
             rdata->request_offset, rdata->request_offset + part_size);
-        s3http_connection_add_output_header (con, "Range", range_hdr);
+        http_connection_add_output_header (con, "Range", range_hdr);
         g_free (range_hdr);
     }
     
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         rdata->fop->fname, "GET", NULL,
         fileio_read_on_get_cb,
         rdata
@@ -729,7 +729,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;
@@ -747,7 +747,7 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
         g_free (rdata);
     } else {
         LOG_debug (FIO_LOG, "Reading from server !!");
-        if (!s3client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
+        if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
             LOG_err (FIO_LOG, "Failed to get HTTP client !");
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
             g_free (rdata);
@@ -772,7 +772,7 @@ static void fileio_read_get_buf (FileReadData *rdata)
 
 /*{{{ HEAD request*/
 
-static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean success,
+static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {   
@@ -780,8 +780,8 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
     const char *content_len_header;
     const char *md5_header;
      
-    // release S3HttpConnection
-    s3http_connection_release (con);
+    // release HttpConnection
+    http_connection_release (con);
 
     if (!success) {
         LOG_err (FIO_LOG, "Failed to get head from server !");
@@ -828,16 +828,16 @@ static void fileio_read_on_head_cb (S3HttpConnection *con, void *ctx, gboolean s
     fileio_read_get_buf (rdata);
 }
 
-// got S3HttpConnection object
+// got HttpConnection object
 static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
     FileReadData *rdata = (FileReadData *) ctx;
     gboolean res;
 
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         rdata->fop->fname, "HEAD", NULL,
         fileio_read_on_head_cb,
         rdata
@@ -845,7 +845,7 @@ static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
 
     if (!res) {
         LOG_err (FIO_LOG, "Failed to create HTTP request !");
-        s3http_connection_release (con);
+        http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;
@@ -873,7 +873,7 @@ void fileio_read_buffer (FileIO *fop,
     // send HEAD request first
     if (!rdata->fop->head_req_sent) {
          // get HTTP connection to download manifest or a full file
-        if (!s3client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_head_con_cb, rdata)) {
+        if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_head_con_cb, rdata)) {
             LOG_err (FIO_LOG, "Failed to get HTTP client !");
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
             g_free (rdata);

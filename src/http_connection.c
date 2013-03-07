@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#include "s3http_connection.h"
+#include "http_connection.h"
 #include "utils.h"
 
 /*{{{ struct*/
@@ -24,25 +24,25 @@
 typedef struct {
     gchar *key;
     gchar *value;
-} S3HttpConnectionHeader;
+} HttpConnectionHeader;
 
 #define CON_LOG "con"
 
-static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
-static gboolean s3http_connection_init (S3HttpConnection *con);
+static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
+static gboolean http_connection_init (HttpConnection *con);
 
 /*}}}*/
 
 /*{{{ create / destroy */
-// create S3HttpConnection object
-// establish HTTP connections to S3
-gpointer s3http_connection_create (Application *app)
+// create HttpConnection object
+// establish HTTP connections to 
+gpointer http_connection_create (Application *app)
 {
-    S3HttpConnection *con;
+    HttpConnection *con;
 
-    con = g_new0 (S3HttpConnection, 1);
+    con = g_new0 (HttpConnection, 1);
     if (!con) {
-        LOG_err (CON_LOG, "Failed to create S3HttpConnection !");
+        LOG_err (CON_LOG, "Failed to create HttpConnection !");
         return NULL;
     }
     
@@ -52,7 +52,7 @@ gpointer s3http_connection_create (Application *app)
 
     con->is_acquired = FALSE;
     
-    if (!s3http_connection_init (con)) {
+    if (!http_connection_init (con)) {
         g_free (con);
         return NULL;
     }
@@ -60,7 +60,7 @@ gpointer s3http_connection_create (Application *app)
     return (gpointer)con;
 }
 
-static gboolean s3http_connection_init (S3HttpConnection *con)
+static gboolean http_connection_init (HttpConnection *con)
 {
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
         conf_get_string (con->conf, "s3.host"),
@@ -86,15 +86,15 @@ static gboolean s3http_connection_init (S3HttpConnection *con)
     evhttp_connection_set_timeout (con->evcon, conf_get_int (con->conf, "connection.timeout"));
     evhttp_connection_set_retries (con->evcon, conf_get_int (con->conf, "connection.retries"));
 
-    evhttp_connection_set_closecb (con->evcon, s3http_connection_on_close, con);
+    evhttp_connection_set_closecb (con->evcon, http_connection_on_close, con);
     
     return TRUE;
 }
 
-// destory S3HttpConnection)
-void s3http_connection_destroy (gpointer data)
+// destory HttpConnection)
+void http_connection_destroy (gpointer data)
 {
-    S3HttpConnection *con = (S3HttpConnection *) data;
+    HttpConnection *con = (HttpConnection *) data;
     
     if (con->evcon)
         evhttp_connection_free (con->evcon);
@@ -102,29 +102,29 @@ void s3http_connection_destroy (gpointer data)
 }
 /*}}}*/
 
-void s3http_connection_set_on_released_cb (gpointer client, S3ClientPool_on_released_cb client_on_released_cb, gpointer ctx)
+void http_connection_set_on_released_cb (gpointer client, ClientPool_on_released_cb client_on_released_cb, gpointer ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
 
     con->client_on_released_cb = client_on_released_cb;
     con->pool_ctx = ctx;
 }
 
-gboolean s3http_connection_check_rediness (gpointer client)
+gboolean http_connection_check_rediness (gpointer client)
 {
-    S3HttpConnection *con = (S3HttpConnection *) client;
+    HttpConnection *con = (HttpConnection *) client;
 
     return !con->is_acquired;
 }
 
-gboolean s3http_connection_acquire (S3HttpConnection *con)
+gboolean http_connection_acquire (HttpConnection *con)
 {
     con->is_acquired = TRUE;
 
     return TRUE;
 }
 
-gboolean s3http_connection_release (S3HttpConnection *con)
+gboolean http_connection_release (HttpConnection *con)
 {
     con->is_acquired = FALSE;
 
@@ -135,20 +135,20 @@ gboolean s3http_connection_release (S3HttpConnection *con)
 }
 
 // callback connection is closed
-static void s3http_connection_on_close (struct evhttp_connection *evcon, void *ctx)
+static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx)
 {
-    S3HttpConnection *con = (S3HttpConnection *) ctx;
+    HttpConnection *con = (HttpConnection *) ctx;
 
     LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
 }
 
 /*{{{ getters */
-Application *s3http_connection_get_app (S3HttpConnection *con)
+Application *http_connection_get_app (HttpConnection *con)
 {
     return con->app;
 }
 
-struct evhttp_connection *s3http_connection_get_evcon (S3HttpConnection *con)
+struct evhttp_connection *http_connection_get_evcon (HttpConnection *con)
 {
     return con->evcon;
 }
@@ -156,9 +156,9 @@ struct evhttp_connection *s3http_connection_get_evcon (S3HttpConnection *con)
 /*}}}*/
 
 /*{{{ get_auth_string */
-// create S3 auth string
-// http://docs.amazonwebservices.com/AmazonS3/2006-03-01/dev/RESTAuthentication.html
-static gchar *s3http_connection_get_auth_string (Application *app, 
+// create  auth string
+// http://docs.amazonwebservices.com/Amazon/2006-03-01/dev/RESTAuthentication.html
+static gchar *http_connection_get_auth_string (Application *app, 
         const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str,
         GList *l_output_headers)
 {
@@ -174,7 +174,7 @@ static gchar *s3http_connection_get_auth_string (Application *app,
     conf = application_get_conf (app);
     s_headers = g_string_new ("");
     for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
-        S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
+        HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
 
         if (!strncmp ("Content-MD5", header->key, strlen ("Content-MD5"))) {
             if (content_md5)
@@ -256,8 +256,8 @@ static gchar *get_endpoint (const char *xml, size_t xml_len) {
 
 
 typedef struct {
-    S3HttpConnection *con;
-    S3HttpConnection_responce_cb responce_cb;
+    HttpConnection *con;
+    HttpConnection_responce_cb responce_cb;
     gpointer ctx;
 
     // number of redirects so far
@@ -278,7 +278,7 @@ static void request_data_free (RequestData *data)
     g_free (data);
 }
 
-static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *ctx)
+static void http_connection_on_responce_cb (struct evhttp_request *req, void *ctx)
 {
     RequestData *data = (RequestData *) ctx;
     struct evbuffer *inbuf;
@@ -340,14 +340,14 @@ static void s3http_connection_on_responce_cb (struct evhttp_request *req, void *
         //XXX: free loc if it's parsed from xml
         // xmlFree (loc)
 
-        if (!s3http_connection_init (data->con)) {
+        if (!http_connection_init (data->con)) {
             if (data->responce_cb)
                 data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             goto done;
         }
 
         // re-send request
-        s3http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer,
+        http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer,
             data->responce_cb, data->ctx);
         goto done;
     }
@@ -390,27 +390,27 @@ done:
     request_data_free (data);
 }
 
-static gint hdr_compare (const S3HttpConnectionHeader *a, const S3HttpConnectionHeader *b)
+static gint hdr_compare (const HttpConnectionHeader *a, const HttpConnectionHeader *b)
 {
     return strcmp (a->key, b->key);
 }
 // add an header to the outgoing request
-void s3http_connection_add_output_header (S3HttpConnection *con, const gchar *key, const gchar *value)
+void http_connection_add_output_header (HttpConnection *con, const gchar *key, const gchar *value)
 {
-    S3HttpConnectionHeader *header;
+    HttpConnectionHeader *header;
 
-    header = g_new0 (S3HttpConnectionHeader, 1);
+    header = g_new0 (HttpConnectionHeader, 1);
     header->key = g_strdup (key);
     header->value = g_strdup (value);
 
     con->l_output_headers = g_list_insert_sorted (con->l_output_headers, header, (GCompareFunc) hdr_compare);
 }
 
-static void s3http_connection_free_headers (GList *l_headers)
+static void http_connection_free_headers (GList *l_headers)
 {
     GList *l;
     for (l = g_list_first (l_headers); l; l = g_list_next (l)) {
-        S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
+        HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
         g_free (header->key);
         g_free (header->value);
         g_free (header);
@@ -419,11 +419,11 @@ static void s3http_connection_free_headers (GList *l_headers)
     g_list_free (l_headers);
 }
 
-gboolean s3http_connection_make_request (S3HttpConnection *con, 
+gboolean http_connection_make_request (HttpConnection *con, 
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
-    S3HttpConnection_responce_cb responce_cb,
+    HttpConnection_responce_cb responce_cb,
     gpointer ctx)
 {
     gchar *auth_str;
@@ -464,11 +464,11 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
     
     t = time (NULL);
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-    auth_str = s3http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str, con->l_output_headers);
+    auth_str = http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str, con->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (con->conf, "s3.access_key_id"), auth_str);
     g_free (auth_str);
 
-    req = evhttp_request_new (s3http_connection_on_responce_cb, data);
+    req = evhttp_request_new (http_connection_on_responce_cb, data);
     if (!req) {
         LOG_err (CON_LOG, "Failed to create HTTP request object !");
         request_data_free (data);
@@ -484,13 +484,13 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
 
     // add headers
     for (l = g_list_first (con->l_output_headers); l; l = g_list_next (l)) {
-        S3HttpConnectionHeader *header = (S3HttpConnectionHeader *) l->data;
+        HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
         evhttp_add_header (req->output_headers, 
             header->key, header->value
         );
     }
 
-    s3http_connection_free_headers (con->l_output_headers);
+    http_connection_free_headers (con->l_output_headers);
     con->l_output_headers = NULL;
 
 
@@ -504,11 +504,11 @@ gboolean s3http_connection_make_request (S3HttpConnection *con,
         request_str = g_strdup_printf("%s", resource_path);
     }
 
-    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", s3http_connection_get_evcon (con), 
+    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
         conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
 
     gettimeofday (&data->start_tv, NULL);
-    res = evhttp_make_request (s3http_connection_get_evcon (con), req, cmd_type, request_str);
+    res = evhttp_make_request (http_connection_get_evcon (con), req, cmd_type, request_str);
     g_free (request_str);
 
     if (res < 0) {

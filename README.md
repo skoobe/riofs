@@ -1,8 +1,8 @@
-# s3ffs
+# RioFS
 
 [![Build Status](https://secure.travis-ci.org/skoobe/s3ffs.png)](https://travis-ci.org/skoobe/s3ffs)
 
-s3ffs (S3 Fast File System) is a userspace filesystem to mount Amazon S3 buckets
+RioFS (Remote input/output File System) is a userspace filesystem to mount Amazon S3 buckets
 
 Requirements
 ------------
@@ -21,7 +21,7 @@ This is a command line to install all requirements to build this project on Ubun
 sudo apt-get install build-essential gcc make automake autoconf libtool pkg-config intltool libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
 ```
 
-How to build s3ffs
+How to build RioFS
 ------------------
 
 ```
@@ -32,13 +32,13 @@ sudo make install
 
 Provide configure script with --enable-debug-mode flag if you want to get a debug build.
 
-How to start using s3ffs
+How to start using RioFS
 ------------------------
 
 ```
 export AWSACCESSKEYID="your AWS access key"
 export AWSSECRETACCESSKEY="your AWS secret access key"
-s3ffs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
+riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 ```
 
 Where options could be:
@@ -56,13 +56,13 @@ Please note, that you can specify default S3 service URL (http://s3.amazonaws.co
 Configuration file
 ------------------
     
-Configuration file (s3ffs.conf.xml) is located in $(prefix)/etc directory.
+Configuration file (riofs.conf.xml) is located in $(prefix)/etc directory.
 
 Bug reporting
 -------------
     
-Please include version of s3ffs and libraries by running:
+Please include version of riofs and libraries by running:
 
 ```
-s3ffs --version
+riofs --version
 ```

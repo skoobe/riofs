@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef _S3_FUSE_H_
-#define _S3_FUSE_H_
+#ifndef _RIOFS_FUSE_H_
+#define _RIOFS_FUSE_H_
 
 #include "global.h"
 
@@ -25,9 +25,9 @@ struct dirbuf {
 	size_t size;
 };
 
-S3Fuse *s3fuse_new (Application *app, const gchar *mountpoint);
-void s3fuse_destroy (S3Fuse *s3fuse);
+RFuse *rfuse_new (Application *app, const gchar *mountpoint);
+void rfuse_destroy (RFuse *rfuse);
 
-void s3fuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, off_t file_size);
+void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, off_t file_size);
 
 #endif

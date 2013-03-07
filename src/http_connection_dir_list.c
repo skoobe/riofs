@@ -15,23 +15,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#include "s3http_connection.h"
+#include "http_connection.h"
 #include "dir_tree.h"
 
 typedef struct {
     Application *app;
     DirTree *dir_tree;
-    S3HttpConnection *con;
+    HttpConnection *con;
     gchar *dir_path;
     fuse_ino_t ino;
-    S3HttpConnection_directory_listing_callback directory_listing_callback;
+    HttpConnection_directory_listing_callback directory_listing_callback;
     gpointer callback_data;
     guint max_keys;
 } DirListRequest;
 
 #define CON_DIR_LOG "con_dir"
 
-// parses S3 directory XML 
+// parses  directory XML 
 // returns TRUE if ok
 static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t xml_len)
 {
@@ -188,7 +188,7 @@ static const char *get_next_marker(const char *xml, size_t xml_len) {
 
 
 // free DirListRequest, release HTTPConnection, call callback function
-static void directory_listing_done (S3HttpConnection *con, DirListRequest *dir_req, gboolean success)
+static void directory_listing_done (HttpConnection *con, DirListRequest *dir_req, gboolean success)
 {
     if (dir_req->directory_listing_callback)
         dir_req->directory_listing_callback (dir_req->callback_data, success);
@@ -198,7 +198,7 @@ static void directory_listing_done (S3HttpConnection *con, DirListRequest *dir_r
         
     // release HTTP client
     if (con)
-        s3http_connection_release (con);
+        http_connection_release (con);
 
     g_free (dir_req->dir_path);
     g_free (dir_req);
@@ -206,7 +206,7 @@ static void directory_listing_done (S3HttpConnection *con, DirListRequest *dir_r
 }
 
 // Directory read callback function
-static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, void *ctx, gboolean success,
+static void http_connection_on_directory_listing_data (HttpConnection *con, void *ctx, gboolean success,
         const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     DirListRequest *dir_req = (DirListRequest *) ctx;
@@ -243,10 +243,10 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
     
     xmlFree ((void *) next_marker);
 
-    res = s3http_connection_make_request (dir_req->con, 
+    res = http_connection_make_request (dir_req->con, 
         req_path, "GET",
         NULL,
-        s3http_connection_on_directory_listing_data,
+        http_connection_on_directory_listing_data,
         dir_req
     );
     g_free (req_path);
@@ -259,8 +259,8 @@ static void s3http_connection_on_directory_listing_data (S3HttpConnection *con, 
 }
 
 // create DirListRequest
-void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar *dir_path, fuse_ino_t ino,
-    S3HttpConnection_directory_listing_callback directory_listing_callback, gpointer callback_data)
+void http_connection_get_directory_listing (HttpConnection *con, const gchar *dir_path, fuse_ino_t ino,
+    HttpConnection_directory_listing_callback directory_listing_callback, gpointer callback_data)
 {
     DirListRequest *dir_req;
     gchar *req_path;
@@ -270,7 +270,7 @@ void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar
 
     dir_req = g_new0 (DirListRequest, 1);
     dir_req->con = con;
-    dir_req->app = s3http_connection_get_app (con);
+    dir_req->app = http_connection_get_app (con);
     dir_req->dir_tree = application_get_dir_tree (dir_req->app);
     dir_req->ino = ino;
     dir_req->max_keys = conf_get_uint (con->conf, "s3.keys_per_request");
@@ -278,7 +278,7 @@ void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar
     dir_req->callback_data = callback_data;
 
     // acquire HTTP client
-    s3http_connection_acquire (con);
+    http_connection_acquire (con);
     
     // inform that we started to update the directory
     dir_tree_start_update (dir_req->dir_tree, dir_path);
@@ -293,10 +293,10 @@ void s3http_connection_get_directory_listing (S3HttpConnection *con, const gchar
 
     req_path = g_strdup_printf ("/?delimiter=/&max-keys=%u&prefix=%s", dir_req->max_keys, dir_req->dir_path);
 
-    res = s3http_connection_make_request (con, 
+    res = http_connection_make_request (con, 
         req_path, "GET",
         NULL,
-        s3http_connection_on_directory_listing_data,
+        http_connection_on_directory_listing_data,
         dir_req
     );
     

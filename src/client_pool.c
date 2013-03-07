@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "global.h"
-#include "s3client_pool.h"
+#include "client_pool.h"
 
-struct _S3ClientPool {
+struct _ClientPool {
     Application *app;
     ConfData *conf;
     struct event_base *evbase;
@@ -28,37 +28,37 @@ struct _S3ClientPool {
 };
 
 typedef struct {
-    S3ClientPool *pool;
-    S3ClientPool_client_check_rediness client_check_rediness; // is client ready for a new request
-    S3ClientPool_client_destroy client_destroy;
+    ClientPool *pool;
+    ClientPool_client_check_rediness client_check_rediness; // is client ready for a new request
+    ClientPool_client_destroy client_destroy;
     gpointer client;
 } PoolClient;
 
 typedef struct {
-    S3ClientPool_on_client_ready on_client_ready;
+    ClientPool_on_client_ready on_client_ready;
     gpointer ctx;
 } RequestData;
 
 #define POOL "pool"
 
-static void s3client_pool_on_client_released (gpointer client, gpointer ctx);
+static void client_pool_on_client_released (gpointer client, gpointer ctx);
 
 // creates connection pool object
 // create client_count clients
 // return NULL if error
-S3ClientPool *s3client_pool_create (Application *app, 
+ClientPool *client_pool_create (Application *app, 
     gint client_count,
-    S3ClientPool_client_create client_create, 
-    S3ClientPool_client_destroy client_destroy, 
-    S3ClientPool_client_set_on_released_cb client_set_on_released_cb,
-    S3ClientPool_client_check_rediness client_check_rediness)
+    ClientPool_client_create client_create, 
+    ClientPool_client_destroy client_destroy, 
+    ClientPool_client_set_on_released_cb client_set_on_released_cb,
+    ClientPool_client_check_rediness client_check_rediness)
 {
-    S3ClientPool *pool;
+    ClientPool *pool;
     gint i;
     PoolClient *pc;
 
 
-    pool = g_new0 (S3ClientPool, 1);
+    pool = g_new0 (ClientPool, 1);
     pool->app = app;
     pool->conf = application_get_conf (app);
     pool->evbase = application_get_evbase (app);
@@ -75,13 +75,13 @@ S3ClientPool *s3client_pool_create (Application *app,
         // add to the list
         pool->l_clients = g_list_append (pool->l_clients, pc);
         // add callback
-        client_set_on_released_cb (pc->client, s3client_pool_on_client_released, pc);
+        client_set_on_released_cb (pc->client, client_pool_on_client_released, pc);
     }
 
     return pool;
 }
 
-void s3client_pool_destroy (S3ClientPool *pool)
+void client_pool_destroy (ClientPool *pool)
 {
     GList *l;
     PoolClient *pc;
@@ -99,7 +99,7 @@ void s3client_pool_destroy (S3ClientPool *pool)
 }
 
 // callback executed when a client done with a request
-static void s3client_pool_on_client_released (gpointer client, gpointer ctx)
+static void client_pool_on_client_released (gpointer client, gpointer ctx)
 {
     PoolClient *pc = (PoolClient *) ctx;
     RequestData *data;
@@ -115,7 +115,7 @@ static void s3client_pool_on_client_released (gpointer client, gpointer ctx)
 
 // add client's callback to the awaiting queue
 // return TRUE if added, FALSE if list is full
-gboolean s3client_pool_get_client (S3ClientPool *pool, S3ClientPool_on_client_ready on_client_ready, gpointer ctx)
+gboolean client_pool_get_client (ClientPool *pool, ClientPool_on_client_ready on_client_ready, gpointer ctx)
 {
     GList *l;
     RequestData *data;
@@ -151,8 +151,8 @@ gboolean s3client_pool_get_client (S3ClientPool *pool, S3ClientPool_on_client_re
 
 // Add request to request queue
 /*
-void s3client_pool_add_request (S3ClientPool *pool, 
-    S3ClientPool_on_request_done on_request_done, gpointer callback_data)
+void client_pool_add_request (ClientPool *pool, 
+    ClientPool_on_request_done on_request_done, gpointer callback_data)
 {
 
 }

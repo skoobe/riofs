@@ -126,12 +126,17 @@ gboolean application_set_url (Application *app, const gchar *url)
         return FALSE;
     }
 
-    if (!strcmp (evhttp_uri_get_host (app->uri), "s3.amazonaws.com")) {
-        gchar *tmp = g_strdup_printf ("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
-        conf_set_string (app->conf, "s3.host", tmp);
-        g_free (tmp);
-    } else
+    if (conf_get_boolean (app->conf, "s3.path_style")) {
         conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
+    } else {
+        // add bucket name to s3.amazonaws.com
+        if (!strcmp (evhttp_uri_get_host (app->uri), "s3.amazonaws.com")) {
+            gchar *tmp = g_strdup_printf ("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
+            conf_set_string (app->conf, "s3.host", tmp);
+            g_free (tmp);
+        } else
+            conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
+    }
 
     conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
     
@@ -588,6 +593,16 @@ int main (int argc, char *argv[])
         return -1;
     }
 
+    // foreground is set
+    if (foreground)
+        conf_set_boolean (app->conf, "app.foreground", foreground);
+
+    if (path_style)
+        conf_set_boolean (app->conf, "s3.path_style", path_style);
+
+    if (part_size)
+        conf_set_uint (app->conf, "s3.part_size", part_size);
+
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     if (!application_set_url (app, s_params[0])) {
         application_destroy (app);
@@ -614,15 +629,6 @@ int main (int argc, char *argv[])
     
     g_strfreev (s_params);
 
-    // foreground is set
-    if (foreground)
-        conf_set_boolean (app->conf, "app.foreground", foreground);
-
-    if (path_style)
-        conf_set_boolean (app->conf, "s3.path_style", path_style);
-
-    if (part_size)
-        conf_set_uint (app->conf, "s3.part_size", part_size);
 
     g_option_context_free (context);
 

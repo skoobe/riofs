@@ -31,6 +31,7 @@ struct _CacheMng {
     guint64 size;
     guint64 max_size;
     gchar *cache_dir;
+    time_t check_time; // last check time of stored objects
 };
 
 struct _CacheEntry {
@@ -65,6 +66,7 @@ CacheMng *cache_mng_create (Application *app)
     cmng->h_entries = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, cache_entry_destroy);
     cmng->q_lru = g_queue_new ();
     cmng->size = 0;
+    cmng->check_time = time (NULL);
     cmng->max_size = conf_get_uint (cmng->conf, "filesystem.cache_dir_max_size");
     cmng->cache_dir = g_strdup_printf ("%s/%s", conf_get_string (cmng->conf, "filesystem.cache_dir"), CACHE_MNGR_DIR);
 
@@ -223,14 +225,20 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     char path[PATH_MAX];
     guint64 old_length, new_length;
     guint64 range_size;
+    time_t now;
 
     range_size = (guint64)off + (guint64) size;
 
-    // remove data until we have at least size bytes of max_size left
-    while (cmng->max_size < cmng->size + size && g_queue_peek_tail (cmng->q_lru)) {
-        entry = (struct _CacheEntry *) g_queue_peek_tail (cmng->q_lru);
+    // limit the number of cache checks
+    now = time (NULL);
+    if (cmng->check_time < now && now - cmng->check_time >= 10) {
+        // remove data until we have at least size bytes of max_size left
+        while (cmng->max_size < cmng->size + size && g_queue_peek_tail (cmng->q_lru)) {
+            entry = (struct _CacheEntry *) g_queue_peek_tail (cmng->q_lru);
 
-        cache_mng_remove_file (cmng, entry->ino);
+            cache_mng_remove_file (cmng, entry->ino);
+        }
+        cmng->check_time = now;
     }
 
     context = cache_context_create (size, ctx);

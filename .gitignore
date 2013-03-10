@@ -34,3 +34,5 @@ tests/conf_test
 tests/tst.py
 tests/core
 src/riofs_valgrind.sh
+configure
+include/config.h.in

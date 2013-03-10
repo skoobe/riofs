@@ -50,7 +50,8 @@ struct _DirEntry {
 
     FileIO *fop; // file operation object
     gboolean is_updating; // TRUE if getting attributes
-    time_t updated_time; // time when entry were updated
+    time_t updated_time; // time when entry was updated
+    time_t access_time; // time when entry was accessed
 };
 
 struct _DirTree {
@@ -180,6 +181,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->is_modified = FALSE;
     en->removed = FALSE;
     en->updated_time = 0;
+    en->access_time = time (NULL);
 
     // cache is empty
     en->dir_cache = NULL;
@@ -216,8 +218,18 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
     DirTree *dtree = (DirTree *)ctx;
     DirEntry *en = (DirEntry *) value;
     const gchar *name = (const gchar *) key;
+    time_t now = time (NULL);
 
-    if (en->age < dtree->current_age && !en->is_modified) {
+    // if entry is "old", but someone still tries to access it - leave it untouched
+    // XXX: implement smarter algorithm here, "time to remove" should be based on the number of hits
+    if (en->age < dtree->current_age && 
+        !en->is_modified && 
+        now > en->access_time && now - en->access_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+
+        // first remove item from the inode hash table !
+        g_hash_table_remove (dtree->h_inodes, GUINT_TO_POINTER (en->ino));
+    
+        // now remove from parent's hash table, it will call destroy () fucntion
         if (en->type == DET_dir) {
             // XXX:
             LOG_debug (DIR_TREE_LOG, "Removing dir: %s", en->fullpath);
@@ -461,7 +473,7 @@ typedef struct {
     fuse_ino_t parent_ino;
 } LookupOpData;
 
-static void dir_tree_lookup_on_attr_cb (HttpConnection *con, void *ctx, gboolean success,
+static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
@@ -479,14 +491,14 @@ static void dir_tree_lookup_on_attr_cb (HttpConnection *con, void *ctx, gboolean
     
     // entry not found
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
+        LOG_debug (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         return;
     }
 
     if (!success) {
-        LOG_err (DIR_TREE_LOG, "Failed to get entry (%"INO_FMT") attributes !",  INO op_data->ino);
+        LOG_debug (DIR_TREE_LOG, "Failed to get entry (%"INO_FMT") attributes !",  INO op_data->ino);
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         en->is_updating = FALSE;
@@ -518,7 +530,7 @@ static void dir_tree_lookup_on_attr_cb (HttpConnection *con, void *ctx, gboolean
 }
 
 //send http HEAD request
-static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
+static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
 {
     HttpConnection *con = (HttpConnection *) client;
     LookupOpData *op_data = (LookupOpData *) ctx;
@@ -530,7 +542,7 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
     
     // entry not found
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
+        LOG_debug (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         return;
@@ -542,7 +554,7 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
 
     res = http_connection_make_request (con, 
         req_path, "HEAD", NULL,
-        dir_tree_lookup_on_attr_cb,
+        dir_tree_on_lookup_cb,
         op_data
     );
 
@@ -558,7 +570,7 @@ static void dir_tree_lookup_on_con_cb (gpointer client, gpointer ctx)
     }
 }
 
-static void dir_tree_lookup_on_not_found_data_cb (HttpConnection *con, void *ctx, gboolean success,
+static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
@@ -575,9 +587,9 @@ static void dir_tree_lookup_on_not_found_data_cb (HttpConnection *con, void *ctx
     // release HttpConnection
     http_connection_release (con);
 
-    // file not found
-    if (!success) {
-        LOG_debug (DIR_TREE_LOG, "FileEntry not found %s", op_data->name);
+    parent_en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->parent_ino));
+    if (!parent_en) {
+        LOG_debug (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO op_data->parent_ino);
 
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
@@ -585,9 +597,18 @@ static void dir_tree_lookup_on_not_found_data_cb (HttpConnection *con, void *ctx
         return;
     }
 
-    parent_en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->parent_ino));
-    if (!parent_en) {
-        LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO op_data->parent_ino);
+    // file not found
+    if (!success) {
+        LOG_debug (DIR_TREE_LOG, "FileEntry not found %s", op_data->name);
+
+        // create a temporary entry to hold this object
+        en = dir_tree_add_entry (op_data->dtree, op_data->name, FILE_DEFAULT_MODE, DET_file, op_data->parent_ino, 0, time (NULL));
+        if (!en) {
+            LOG_err (DIR_TREE_LOG, "Failed to create file: %s !", op_data->name);
+        } else {
+            // set as removed
+            en->removed = TRUE;
+        }
 
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
@@ -626,7 +647,7 @@ static void dir_tree_lookup_on_not_found_data_cb (HttpConnection *con, void *ctx
 }
 
 //send http HEAD request when a file "not found"
-static void dir_tree_lookup_on_not_found_con_cb (gpointer client, gpointer ctx)
+static void dir_tree_on_lookup_not_found_con_cb (gpointer client, gpointer ctx)
 {
     HttpConnection *con = (HttpConnection *) client;
     LookupOpData *op_data = (LookupOpData *) ctx;
@@ -658,7 +679,7 @@ static void dir_tree_lookup_on_not_found_con_cb (gpointer client, gpointer ctx)
 
     res = http_connection_make_request (con, 
         req_path, "HEAD", NULL,
-        dir_tree_lookup_on_not_found_data_cb,
+        dir_tree_on_lookup_not_found_cb,
         op_data
     );
 
@@ -708,7 +729,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         LOG_debug (DIR_TREE_LOG, "Entry not found, sending request to storage server, name: %s", name);
 
-        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_not_found_con_cb, op_data)) {
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_on_lookup_not_found_con_cb, op_data)) {
             LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             g_free (op_data->name);
@@ -716,7 +737,10 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         }
         return;
     }
-    
+
+    // update access time
+    en->access_time = time (NULL);
+
     // file is removed
     if (en->removed) {
         LOG_debug (DIR_TREE_LOG, "Entry '%s' is removed !", name);
@@ -771,7 +795,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         LOG_debug (DIR_TREE_LOG, "Entry '%s' is modified !", name);
         
         
-        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_on_lookup_con_cb, op_data)) {
             LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             en->is_updating = FALSE;
@@ -803,7 +827,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         en->is_updating = TRUE;
 
-        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_lookup_on_con_cb, op_data)) {
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_on_lookup_con_cb, op_data)) {
             LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             lookup_cb (req, FALSE, 0, 0, 0, 0);
             en->is_updating = FALSE;
@@ -993,13 +1017,22 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
         return;
     }
     
-    // create a new entry
-    en = dir_tree_add_entry (dtree, name, mode, DET_file, parent_ino, 0, time (NULL));
+    // check if such entry exists
+    en = g_hash_table_lookup (dir_en->h_dir_tree, name);
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Failed to create file: %s !", name);
-        file_create_cb (req, FALSE, 0, 0, 0, fi);
-        return;
+        // create a new entry
+        en = dir_tree_add_entry (dtree, name, mode, DET_file, parent_ino, 0, time (NULL));
+        if (!en) {
+            LOG_err (DIR_TREE_LOG, "Failed to create file: %s !", name);
+            file_create_cb (req, FALSE, 0, 0, 0, fi);
+            return;
+        }
+    } else {
+        // update
+        en->removed = FALSE;
+        en->access_time = time (NULL);
     }
+
     //XXX: set as new 
     en->is_modified = TRUE;
 
@@ -1492,12 +1525,18 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
         return;
     }
     
-    // create a new entry
-    en = dir_tree_add_entry (dtree, name, mode, DET_dir, parent_ino, 10, time (NULL));
+    en = g_hash_table_lookup (dir_en->h_dir_tree, name);
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Failed to create dir: %s !", name);
-        mkdir_cb (req, FALSE, 0, 0, 0, 0);
-        return;
+        // create a new entry
+        en = dir_tree_add_entry (dtree, name, mode, DET_dir, parent_ino, 10, time (NULL));
+        if (!en) {
+            LOG_err (DIR_TREE_LOG, "Failed to create dir: %s !", name);
+            mkdir_cb (req, FALSE, 0, 0, 0, 0);
+            return;
+        }
+    } else {
+        en->removed = FALSE;
+        en->access_time = time (NULL);
     }
 
     //XXX: set as new 

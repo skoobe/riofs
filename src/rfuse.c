@@ -61,6 +61,8 @@ static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 //static void rfuse_on_timer (evutil_socket_t fd, short what, void *arg);
 static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
+static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
+static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
@@ -78,6 +80,8 @@ static struct fuse_lowlevel_ops rfuse_opers = {
     .mkdir      = rfuse_mkdir,
     .rmdir      = rfuse_rmdir,
     .rename     = rfuse_rename,
+    .getxattr   = rfuse_getxattr,
+    .listxattr  = rfuse_listxattr,
 };
 /*}}}*/
 
@@ -655,5 +659,40 @@ static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, f
         INO parent, name, INO newparent, newname);
    
     dir_tree_rename (rfuse->dir_tree, parent, name, newparent, newname, rfuse_rename_cb, req);
+}
+/*}}}*/
+
+/*{{{ listxattr operator*/
+static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+    gchar attr_list[] = "user.version\0";
+    
+    LOG_debug (FUSE_LOG, "listxattr for: %"INO_FMT" size: %zu", INO ino, size);
+
+    if (size == 0) {
+        fuse_reply_xattr (req, sizeof (attr_list));
+    } else {
+        fuse_reply_buf (req, attr_list, sizeof (attr_list));
+    }
+}
+/*}}}*/
+
+/*{{{ getxattr operator */
+static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+    gchar ver[] = "asddsa\0";
+    
+    LOG_debug (FUSE_LOG, "getxattr  for: %"INO_FMT" attr name: %s size: %zu", INO ino, name, size);
+
+    if (size == 0) {
+        fuse_reply_xattr (req, 4);
+    } else {
+        fuse_reply_buf (req, "aaa", 4);
+    }
+
+    // fuse_reply_err (req, ENOATTR);
+    // fuse_reply_err (req, ENOTSUP);
 }
 /*}}}*/

@@ -80,8 +80,8 @@ static struct fuse_lowlevel_ops rfuse_opers = {
     .mkdir      = rfuse_mkdir,
     .rmdir      = rfuse_rmdir,
     .rename     = rfuse_rename,
-    .getxattr   = rfuse_getxattr,
-    .listxattr  = rfuse_listxattr,
+//    .getxattr   = rfuse_getxattr,
+//    .listxattr  = rfuse_listxattr,
 };
 /*}}}*/
 

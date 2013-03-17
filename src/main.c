@@ -43,6 +43,8 @@ struct _Application {
     ClientPool *read_client_pool;
     ClientPool *ops_client_pool;
 
+    gchar *fuse_opts;
+
     struct evhttp_uri *uri;
 
     struct event *sigint_ev;
@@ -302,7 +304,7 @@ static gint application_finish_initialization_and_run (Application *app)
 /*}}}*/
 
 /*{{{ FUSE*/
-    app->rfuse = rfuse_new (app, conf_get_string (app->conf, "app.mountpoint"));
+    app->rfuse = rfuse_new (app, conf_get_string (app->conf, "app.mountpoint"), app->fuse_opts);
     if (!app->rfuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs ! Mount point: %s", conf_get_string (app->conf, "app.mountpoint"));
         event_base_loopexit (app->evbase, NULL);
@@ -414,6 +416,9 @@ static void application_destroy (Application *app)
 
     if (app->conf)
         conf_destroy (app->conf);
+
+    if (app->fuse_opts)
+        g_free (app->fuse_opts);
     
     logger_destroy ();
     g_free (app);
@@ -440,6 +445,7 @@ int main (int argc, char *argv[])
     struct stat st;
     gboolean path_style = FALSE;
     gchar **cache_dir = NULL;
+    gchar **s_fuse_opts = NULL;
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
 
@@ -451,6 +457,7 @@ int main (int argc, char *argv[])
 	    { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
         { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
+        { "fuse-options", 'o', 0, G_OPTION_ARG_STRING_ARRAY, &s_fuse_opts, "Fuse options.", "\"opt[,opt...]\"" },
         { "path-style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
         { "disable-syslog", 0, 0, G_OPTION_ARG_NONE, &disable_syslog, "Flag. Disable logging to syslog.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
@@ -609,6 +616,11 @@ int main (int argc, char *argv[])
         return -1;
     }
 
+    if (s_fuse_opts && g_strv_length (s_fuse_opts) > 0) {
+        app->fuse_opts = g_strdup (s_fuse_opts[0]);
+        g_strfreev (s_fuse_opts);
+    }
+
     conf_set_string (app->conf, "app.mountpoint", s_params[2]);
 
     // check if directory exists
@@ -628,7 +640,6 @@ int main (int argc, char *argv[])
     }
     
     g_strfreev (s_params);
-
 
     g_option_context_free (context);
 

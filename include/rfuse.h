@@ -25,7 +25,7 @@ struct dirbuf {
 	size_t size;
 };
 
-RFuse *rfuse_new (Application *app, const gchar *mountpoint);
+RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_opts);
 void rfuse_destroy (RFuse *rfuse);
 
 void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, off_t file_size);

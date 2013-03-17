@@ -89,33 +89,53 @@ static struct fuse_lowlevel_ops rfuse_opers = {
 
 // create RFuse object
 // create fuse handle and add it to libevent polling
-RFuse *rfuse_new (Application *app, const gchar *mountpoint)
+RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_opts)
 {
     RFuse *rfuse;
     //struct timeval tv;
+    struct fuse_args args = FUSE_ARGS_INIT (0, NULL);
 
     rfuse = g_new0 (RFuse, 1);
     rfuse->app = app;
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
-    
-    if ((rfuse->chan = fuse_mount (rfuse->mountpoint, NULL)) == NULL) {
+
+    if (fuse_opts) {
+        if (fuse_opt_add_arg (&args, "riofs") == -1) {
+            LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
+            return NULL;
+        }
+
+        if (fuse_opt_add_arg (&args, "-o") == -1) {
+            LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
+            return NULL;
+        }
+
+        if (fuse_opt_add_arg (&args, fuse_opts) == -1) {
+            LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
+            return NULL;
+        }
+    }
+
+    if ((rfuse->chan = fuse_mount (rfuse->mountpoint, &args)) == NULL) {
+        LOG_err (FUSE_LOG, "Failed to mount FUSE partition !");
         return NULL;
     }
+    fuse_opt_free_args (&args);
 
     // the receive buffer stuff
     rfuse->recv_size = fuse_chan_bufsize (rfuse->chan);
 
     // allocate the recv buffer
     if ((rfuse->recv_buf = g_malloc (rfuse->recv_size)) == NULL) {
-        LOG_err (FUSE_LOG, "failed to malloc memory !");
+        LOG_err (FUSE_LOG, "Failed to allocate memory !");
         return NULL;
     }
     
     // allocate a low-level session
     rfuse->session = fuse_lowlevel_new (NULL, &rfuse_opers, sizeof (rfuse_opers), rfuse);
     if (!rfuse->session) {
-        LOG_err (FUSE_LOG, "fuse_lowlevel_new");
+        LOG_err (FUSE_LOG, "Failed to init FUSE !");
         return NULL;
     }
     

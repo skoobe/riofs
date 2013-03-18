@@ -24,8 +24,7 @@
 #include "cache_mng.h"
 #include "stat_srv.h"
 
-#define APP_LOG "main"
-
+/*{{{ struct */
 struct _Application {
     ConfData *conf;
     struct event_base *evbase;
@@ -51,10 +50,16 @@ struct _Application {
     struct event *sigpipe_ev;
     struct event *sigusr1_ev;
 
+#ifdef SSL_ENABLED
+    SSL_CTX *ssl_ctx;
+#endif
 };
 
 // global variable, used by signals handlers
 static Application *_app = NULL;
+
+#define APP_LOG "main"
+/*}}}*/
 
 /*{{{ getters */
 struct event_base *application_get_evbase (Application *app)
@@ -102,8 +107,16 @@ StatSrv *application_get_stat_srv (Application *app)
     return app->stat_srv;
 }
 
+#ifdef SSL_ENABLED
+SSL_CTX *application_get_ssl_ctx (Application *app)
+{
+    return app->ssl_ctx;
+}
+#endif
+
 /*}}}*/
 
+/*{{{ application_set_url*/
 gboolean application_set_url (Application *app, const gchar *url)
 {
     if (app->uri)
@@ -141,9 +154,11 @@ gboolean application_set_url (Application *app, const gchar *url)
     }
 
     conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
+    conf_set_boolean (app->conf, "s3.ssl", uri_is_https (app->uri));
     
     return TRUE;
 }
+/*}}}*/
 
 /*{{{ signal handlers */
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
@@ -232,20 +247,13 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
 }
 /*}}}*/
 
+/*{{{ application_finish_initialization_and_run */
 static gint application_finish_initialization_and_run (Application *app)
 {
     struct sigaction sigact;
 
-/*{{{ create POOLs */
+/*{{{ create Pools */
     // create ClientPool for reading operations
-    /*
-    app->read_client_pool = client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
-        http_client_create,
-        http_client_destroy,
-        http_client_set_on_released_cb,
-        http_client_check_rediness
-        );
-    */
     app->read_client_pool = client_pool_create (app, conf_get_int (app->conf, "pool.readers"),
         http_connection_create,
         http_connection_destroy,
@@ -356,7 +364,42 @@ static gint application_finish_initialization_and_run (Application *app)
 
     return 0;
 }
+/*}}}*/
 
+/*{{{ application_on_bucket_versioning_cb */
+//  replies on bucket versioning information
+static void application_on_bucket_versioning_cb (gpointer ctx, gboolean success,
+    const gchar *buf, size_t buf_len)
+{
+    Application *app = (Application *)ctx;
+    gchar *tmp;
+    
+    if (!success) {
+        LOG_err (APP_LOG, "Failed to get bucket versioning!");
+        event_base_loopexit (app->evbase, NULL);
+        return;
+    }
+
+    if (buf_len > 1) {
+        tmp = (gchar *)buf;
+        tmp[buf_len - 1] = '\0';
+
+        if (strstr (buf, "<Status>Enabled</Status>")) {
+            LOG_debug (APP_LOG, "Bucket has versioning enabled !");
+            conf_set_boolean (app->conf, "s3.versioning", TRUE);
+        } else {
+            LOG_debug (APP_LOG, "Bucket has versioning disabled !");
+            conf_set_boolean (app->conf, "s3.versioning", FALSE);
+        }
+    } else {
+        conf_set_boolean (app->conf, "s3.versioning", FALSE);
+    }
+    
+    application_finish_initialization_and_run (app);
+}
+/*}}}*/
+
+/*{{{ application_on_bucket_acl_cb */
 //  replies on bucket ACL
 static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len)
@@ -371,9 +414,11 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     
     // XXX: check ACL permissions
     
-    application_finish_initialization_and_run (app);
+    bucket_client_get (app->service_con, "/?versioning", application_on_bucket_versioning_cb, app);
 }
+/*}}}*/
 
+/*{{{ application_destroy */
 static void application_destroy (Application *app)
 {
     // destroy Fuse
@@ -420,6 +465,10 @@ static void application_destroy (Application *app)
     if (app->fuse_opts)
         g_free (app->fuse_opts);
     
+#ifdef SSL_ENABLED
+    SSL_CTX_free (app->ssl_ctx);
+#endif
+
     logger_destroy ();
     g_free (app);
     
@@ -429,7 +478,9 @@ static void application_destroy (Application *app)
 	ERR_remove_thread_state (NULL);
 	CRYPTO_mem_leaks_fp (stderr);
 }
+/*}}}*/
 
+/*{{{ main */
 int main (int argc, char *argv[])
 {
     Application *app;
@@ -467,7 +518,20 @@ int main (int argc, char *argv[])
     };
 
     // init libraries
+    CRYPTO_set_mem_functions (g_malloc0, g_realloc, g_free);
+    ENGINE_load_builtin_engines ();
     ENGINE_register_all_complete ();
+    ERR_load_crypto_strings ();
+    OpenSSL_add_all_algorithms ();
+#ifdef SSL_ENABLED
+    SSL_load_error_strings ();
+    SSL_library_init ();
+#endif
+    if (!RAND_poll ()) {
+        fprintf(stderr, "RAND_poll() failed.\n");
+        return -1;
+    }
+    g_random_set_seed (time (NULL));
 
     // init main app structure
     app = g_new0 (Application, 1);
@@ -643,13 +707,24 @@ int main (int argc, char *argv[])
 
     g_option_context_free (context);
 
+#ifdef SSL_ENABLED
+    app->ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
+    if (!app->ssl_ctx) {
+        LOG_err (APP_LOG, "Failed to initialize SSL engine !");
+        event_base_loopexit (app->evbase, NULL);
+        return -1;
+    }
+    SSL_CTX_set_options (app->ssl_ctx, SSL_OP_ALL);
+
+#endif
+
     // perform the initial request to get  bucket ACL (handles redirect as well)
     app->service_con = http_connection_create (app);
     if (!app->service_con)  {
         application_destroy (app);
         return -1;
     }
-    bucket_client_get_acl (app->service_con, application_on_bucket_acl_cb, app);
+    bucket_client_get (app->service_con, "/?acl", application_on_bucket_acl_cb, app);
 
     // start the loop
     event_base_dispatch (app->evbase);
@@ -658,3 +733,4 @@ int main (int argc, char *argv[])
 
     return 0;
 }
+/*}}}*/

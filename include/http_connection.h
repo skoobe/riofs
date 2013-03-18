@@ -60,14 +60,12 @@ typedef void (*HttpConnection_directory_listing_callback) (gpointer callback_dat
 void http_connection_get_directory_listing (HttpConnection *con, const gchar *path, fuse_ino_t ino,
     HttpConnection_directory_listing_callback directory_listing_callback, gpointer callback_data);
 
-
-typedef void (*BucketClient_on_acl_cb) (gpointer callback_data, gboolean success, const gchar *buf, size_t buf_len);
-void bucket_client_get_acl (HttpConnection *con, BucketClient_on_acl_cb on_acl_cb, gpointer ctx);
+typedef void (*BucketClient_on_cb) (gpointer ctx, gboolean success, const gchar *buf, size_t buf_len);
+void bucket_client_get (HttpConnection *con, const gchar *req_str, BucketClient_on_cb on_cb, gpointer ctx);
 
 typedef void (*HttpConnection_on_entry_sent_cb) (gpointer ctx, gboolean success);
 void http_connection_file_send (HttpConnection *con, int fd, const gchar *resource_path, 
     HttpConnection_on_entry_sent_cb on_entry_sent_cb, gpointer ctx);
-
 
 typedef void (*HttpConnection_responce_cb) (HttpConnection *con, gpointer ctx, gboolean success,
         const gchar *buf, size_t buf_len, struct evkeyvalq *headers);

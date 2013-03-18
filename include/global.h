@@ -27,6 +27,8 @@
 #define _GNU_SOURCE
 #endif
 
+#include "config.h" 
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -71,6 +73,10 @@
 #include <event2/http.h>
 #include <event2/http_struct.h>
 
+#ifdef SSL_ENABLED
+#include <event2/bufferevent_ssl.h>
+#endif
+
 #define HTTP_DEFAULT_PORT 80
 
 #include <libxml/xpath.h>
@@ -81,7 +87,6 @@
 #define FUSE_USE_VERSION 26
 #include <fuse/fuse_lowlevel.h>
 
-#include "config.h" 
 
 typedef struct _Application Application;
 typedef struct _HttpConnection HttpConnection;
@@ -103,6 +108,10 @@ ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 CacheMng *application_get_cache_mng (Application *app);
 StatSrv *application_get_stat_srv (Application *app);
+
+#ifdef SSL_ENABLED
+SSL_CTX *application_get_ssl_ctx (Application *app);
+#endif
 
 // sets new S3 URL in case of redirect
 gboolean application_set_url (Application *app, const gchar *url);

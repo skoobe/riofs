@@ -18,46 +18,46 @@
 #include "http_connection.h"
 
 typedef struct {
-    BucketClient_on_acl_cb on_acl_cb;
+    BucketClient_on_cb on_cb;
     gpointer ctx;
 } BucketClient;
 
 #define BCLIENT_LOG "bclient"
-static void bucket_client_on_acl_cb (HttpConnection *con, gpointer ctx, gboolean success,
+static void bucket_client_on_cb (HttpConnection *con, gpointer ctx, gboolean success,
     const gchar *buf, size_t buf_len, struct evkeyvalq *headers);
 
-static void bucket_client_get_acl_done (BucketClient *bclient, gboolean success, const gchar *buf, size_t buf_len)
+static void bucket_client_get_done (BucketClient *bclient, gboolean success, const gchar *buf, size_t buf_len)
 {
-    if (bclient->on_acl_cb)
-        bclient->on_acl_cb (bclient->ctx, success, buf, buf_len);
+    if (bclient->on_cb)
+        bclient->on_cb (bclient->ctx, success, buf, buf_len);
 
     g_free (bclient);
 }
 
-void bucket_client_get_acl (HttpConnection *con,
-    BucketClient_on_acl_cb on_acl_cb, gpointer ctx)
+void bucket_client_get (HttpConnection *con, const gchar *req_str,
+    BucketClient_on_cb on_cb, gpointer ctx)
 {
     BucketClient *bclient;
     gboolean res;
 
     bclient = g_new0 (BucketClient, 1);
     bclient->ctx = ctx;
-    bclient->on_acl_cb = on_acl_cb;
+    bclient->on_cb = on_cb;
 
     res = http_connection_make_request (con, 
-        "/?acl", "GET", 
+        req_str, "GET", 
         NULL,
-        bucket_client_on_acl_cb,
+        bucket_client_on_cb,
         bclient
     );
 
     if (!res) {
         LOG_err (BCLIENT_LOG, "Failed to execute HTTP request !");
-        bucket_client_get_acl_done (bclient, FALSE, NULL, 0);
+        bucket_client_get_done (bclient, FALSE, NULL, 0);
     }
 }
 
-static void bucket_client_on_acl_cb (HttpConnection *con, gpointer ctx, gboolean success,
+static void bucket_client_on_cb (HttpConnection *con, gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
@@ -67,9 +67,9 @@ static void bucket_client_on_acl_cb (HttpConnection *con, gpointer ctx, gboolean
 
     if (!success) {
         LOG_err (BCLIENT_LOG, "Failed to execute HTTP request !");
-        bucket_client_get_acl_done (bclient, FALSE, NULL, 0);
+        bucket_client_get_done (bclient, FALSE, NULL, 0);
         return;
     }
     
-    bucket_client_get_acl_done (bclient, TRUE, buf, buf_len);
+    bucket_client_get_done (bclient, TRUE, buf, buf_len);
 }

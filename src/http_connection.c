@@ -70,13 +70,48 @@ static gboolean http_connection_init (HttpConnection *con)
     if (con->evcon)
         evhttp_connection_free (con->evcon);
 
-    // XXX: implement SSL
+#ifdef SSL_ENABLED
+    if (conf_get_boolean (con->conf, "s3.ssl")) {
+        SSL *ssl;
+        struct bufferevent *bev;
+        
+        ssl = SSL_new (application_get_ssl_ctx (con->app));
+        if (!ssl) {
+            LOG_err (CON_LOG, "Failed to create SSL connection: %s", 
+                ERR_reason_error_string (ERR_get_error ()));
+            return FALSE;
+        }
+
+        bev = bufferevent_openssl_socket_new (
+            application_get_evbase (con->app),
+            -1, ssl, 
+            BUFFEREVENT_SSL_CONNECTING,
+            BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS
+        );
+
+        if (!bev) {
+            LOG_err (CON_LOG, "Failed to create SSL connection !");
+            return FALSE;
+        }
+
+        con->evcon = evhttp_connection_base_bufferevent_new (
+            application_get_evbase (con->app),
+            application_get_dnsbase (con->app),
+            bev,
+            conf_get_string (con->conf, "s3.host"),
+            conf_get_int (con->conf, "s3.port")
+        );
+    } else {
+#endif
     con->evcon = evhttp_connection_base_new (
         application_get_evbase (con->app),
         application_get_dnsbase (con->app),
         conf_get_string (con->conf, "s3.host"),
         conf_get_int (con->conf, "s3.port")
     );
+#ifdef SSL_ENABLED
+    }
+#endif
 
     if (!con->evcon) {
         LOG_err (CON_LOG, "Failed to create evhttp_connection !");
@@ -140,6 +175,8 @@ static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx
     HttpConnection *con = (HttpConnection *) ctx;
 
     LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
+
+    con->evcon = NULL;
 }
 
 /*{{{ getters */
@@ -193,7 +230,7 @@ static gchar *http_connection_get_auth_string (Application *app,
     // Element are: acl, lifecycle, location, logging, notification, partNumber, policy, 
     // requestPayment, torrent, uploadId, uploads, versionId, versioning, versions and website.
     if (strlen (resource) > 2 && resource[1] == '?') {
-        if (strstr (resource, "?acl"))
+        if (strstr (resource, "?acl") || strstr (resource, "?versioning"))
             tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
         else
             tmp = g_strdup_printf ("/%s/", conf_get_string (conf, "s3.bucket_name"));
@@ -254,7 +291,6 @@ static gchar *get_endpoint (const char *xml, size_t xml_len) {
     return endpoint;
 }
 
-
 typedef struct {
     HttpConnection *con;
     HttpConnection_responce_cb responce_cb;
@@ -292,6 +328,16 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
     if (!req) {
         LOG_err (CON_LOG, "Request failed !");
+
+#ifdef SSL_ENABLED
+    { unsigned long oslerr;
+      while ((oslerr = bufferevent_get_openssl_error (evhttp_connection_get_bufferevent (data->con->evcon))))
+        { char b[128];
+          ERR_error_string_n (oslerr, b, sizeof (b));
+          LOG_err (CON_LOG, "SSL error: %s\n", b);
+        }
+    }
+#endif
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
@@ -436,6 +482,12 @@ gboolean http_connection_make_request (HttpConnection *con,
     enum evhttp_cmd_type cmd_type;
     gchar *request_str;
     GList *l;
+
+    if (!con->evcon)
+        if (!http_connection_init (con)) {
+            LOG_err (CON_LOG, "Failed to init HTTP connection !");
+            return FALSE;
+        }
 
     data = g_new0 (RequestData, 1);
     data->responce_cb = responce_cb;

@@ -1,6 +1,6 @@
 # RioFS
 
-[![Build Status](https://secure.travis-ci.org/skoobe/s3ffs.png)](https://travis-ci.org/skoobe/s3ffs)
+[![Build Status](https://secure.travis-ci.org/skoobe/riofs.png)](https://travis-ci.org/skoobe/riofs)
 
 RioFS (Remote input/output File System) is a userspace filesystem to mount Amazon S3 buckets
 

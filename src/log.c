@@ -30,15 +30,15 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
     char out_str[1024];
     struct tm cur;
     char ts[50];
-	time_t t;
+    time_t t;
     struct tm *cur_p;
 
     if (log_level < level)
         return;
 
-	t = time (NULL);
-	gmtime_r (&t, &cur);
-	cur_p = &cur;
+    t = time (NULL);
+    gmtime_r (&t, &cur);
+    cur_p = &cur;
     if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p)) {
         ts[0] = '\0';
     }

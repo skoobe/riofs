@@ -25,6 +25,7 @@ How to build RioFS
 ------------------
 
 ```
+./autogen.sh
 ./configure
 make
 sudo make install

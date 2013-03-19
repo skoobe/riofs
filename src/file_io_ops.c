@@ -25,6 +25,7 @@ struct _FileIO {
     Application *app;
     ConfData *conf;
     gchar *fname;
+    fuse_ino_t ino;
 
     // write
     guint64 current_size;
@@ -51,7 +52,7 @@ typedef struct {
 
 /*{{{ create / destroy */
 
-FileIO *fileio_create (Application *app, const gchar *fname)
+FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino)
 {
     FileIO *fop;
 
@@ -66,6 +67,7 @@ FileIO *fileio_create (Application *app, const gchar *fname)
     fop->multipart_initiated = FALSE;
     fop->uploadid = NULL;
     fop->l_parts = NULL;
+    fop->ino = ino;
     MD5_Init (&fop->md5);
 
     return fop;
@@ -159,12 +161,18 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
 
 static void fileio_release_update_headers (FileIO *fop)
 {
-    if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
-        fileio_release_on_update_headers_con_cb, fop)) {
-        LOG_err (FIO_LOG, "Failed to get HTTP client !");
+    // update MD5 headers only if versioning is disabled
+    if (conf_get_boolean (application_get_conf (fop->app), "s3.versioning")) {
+        LOG_debug (FIO_LOG, "File uploaded !");
         fileio_destroy (fop);
-        return;
-     }
+    } else {
+        if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
+            fileio_release_on_update_headers_con_cb, fop)) {
+            LOG_err (FIO_LOG, "Failed to get HTTP client !");
+            fileio_destroy (fop);
+            return;
+        }
+    }
 }
 /*}}}*/
 
@@ -175,6 +183,7 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
+    const gchar *versioning_header;
     
     http_connection_release (con);
 
@@ -182,6 +191,12 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
         LOG_err (FIO_LOG, "Failed to send Multipart data to the server !");
         fileio_destroy (fop);
         return;
+    }
+
+    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    if (versioning_header) {
+        cache_mng_update_version_id (application_get_cache_mng (fop->app), 
+            fop->ino, versioning_header);
     }
 
     // done 
@@ -257,6 +272,7 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileIO *fop = (FileIO *) ctx;
+    const gchar *versioning_header;
     
     http_connection_release (con);
 
@@ -266,6 +282,11 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
         return;
     }
     
+    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    if (versioning_header) {
+        cache_mng_update_version_id (application_get_cache_mng (fop->app), 
+            fop->ino, versioning_header);
+    }
     // if it's a multi part upload - Complete Multipart Upload
     if (fop->multipart_initiated) {
         fileio_release_complete_multipart (fop);
@@ -384,6 +405,7 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileWriteData *wdata = (FileWriteData *) ctx;
+    const char *versioning_header;
     
     http_connection_release (con);
     
@@ -392,6 +414,12 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
+    }
+
+    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    if (versioning_header) {
+        cache_mng_update_version_id (application_get_cache_mng (wdata->fop->app), 
+            wdata->ino, versioning_header);
     }
 
     // done sending part
@@ -429,8 +457,6 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     path = g_strdup_printf ("%s?partNumber=%u&uploadId=%s", 
         wdata->fop->fname, wdata->fop->part_number, wdata->fop->uploadid);
    
-
-
     // increase part number
     wdata->fop->part_number++;
     // XXX: check that part_number does not exceeds 10000
@@ -643,7 +669,7 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {   
     FileReadData *rdata = (FileReadData *) ctx;
-    // gchar *etag;
+    const char *versioning_header = NULL;
     
     // release HttpConnection
     http_connection_release (con);
@@ -655,35 +681,16 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
         return;
     }
 
-    // we can only check etag when downloading the whole file, without ranges
-    /*
-    if (!rdata->request_offset) {
-        etag = evhttp_find_header (headers, "ETag");
-        if (etag && strlen (etag) > 3 && strlen (etag) == 32 + 2) { //Etag: "etag"
-            gchar *md5;
-            get_md5_sum (buf, buf_len, &md5, NULL);
-
-            if (etag[0] == '"')
-                etag = etag + 1;
-            if (etag[strlen(etag) - 1] == '"')
-                etag[strlen(etag) - 1] = '\0';
-
-            if (strncmp (etag, md5, 32)) {
-                LOG_err (FIO_LOG, "Local MD5 doesn't match Etag: %s != %s", etag, md5);
-                rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-                g_free (md5);
-                g_free (rdata);
-                return;
-            }
-            g_free (md5);
-        }
-    }
-    */
-    
     // store it in the local cache
     cache_mng_store_file_buf (application_get_cache_mng (rdata->fop->app), 
         rdata->ino, buf_len, rdata->request_offset, (unsigned char *) buf,
         NULL, NULL);
+
+    // update version ID
+    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    if (versioning_header) {
+        cache_mng_update_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino, versioning_header);
+    }
 
     LOG_debug (FIO_LOG, "Storing [%"G_GUINT64_FORMAT" %zu]", rdata->request_offset, buf_len);
 
@@ -778,7 +785,6 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 {   
     FileReadData *rdata = (FileReadData *) ctx;
     const char *content_len_header;
-    const char *md5_header;
      
     // release HttpConnection
     http_connection_release (con);
@@ -802,26 +808,59 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         rdata->fop->file_size = strtoll ((char *)content_len_header, NULL, 10);
         local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
         if (local_size != rdata->fop->file_size) {
+            LOG_debug (FIO_LOG, "Local and remote file sizes do not match, invalidating local cached file!");
+            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
         }
     }
-
-    // 2. check for Md5
-    md5_header = evhttp_find_header (headers, "x-amz-meta-md5");
-    if (md5_header) {
-        gchar *md5str = NULL;
-
-        // at this point we have both remote and local MD5 sums
-        if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
-            if (!strncmp (md5_header, md5str, 32)) {
-                LOG_debug (FIO_LOG, "MD5 sums match, using local cached file!");
+    
+    // 2. use one of the following ways to check that local and remote files are identical
+    // if versioning is enabled: compare version IDs
+    // if bucket has versioning disabled: compare MD5 sums
+    if (conf_get_boolean (application_get_conf (rdata->fop->app), "s3.versioning")) {
+        const char *versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+        if (versioning_header) {
+            const gchar *local_version_id = cache_mng_get_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino);
+            if (local_version_id && !strcmp (local_version_id, versioning_header)) {
+                LOG_debug (FIO_LOG, "Both version IDs match, using local cached file!");
             } else {
-                LOG_debug (FIO_LOG, "MD5 sums do not match, invalidating local cached file!");
+                LOG_debug (FIO_LOG, "Version IDs do not match, invalidating local cached file!: %s %s", 
+                        local_version_id, versioning_header);
                 cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
             }
-        }
 
-        if (md5str)
-            g_free (md5str);
+        // header was not found
+        } else {
+            LOG_debug (FIO_LOG, "Versioning header was not found, invalidating local cached file!");
+            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+        }
+    
+    //check for MD5
+    } else  {
+        const char *md5_header = evhttp_find_header (headers, "x-amz-meta-md5");
+        if (md5_header) {
+            gchar *md5str = NULL;
+
+            // at this point we have both remote and local MD5 sums
+            if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
+                if (!strncmp (md5_header, md5str, 32)) {
+                    LOG_debug (FIO_LOG, "MD5 sums match, using local cached file!");
+                } else {
+                    LOG_debug (FIO_LOG, "MD5 sums do not match, invalidating local cached file!");
+                    cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+                }
+            } else {
+                LOG_debug (FIO_LOG, "Failed to get local MD5 sum, invalidating local cached file!");
+                cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+            }
+
+            if (md5str)
+                g_free (md5str);
+
+        // header was not found
+        } else {
+            LOG_debug (FIO_LOG, "MD5 sum header was not found, invalidating local cached file!");
+            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+        }
     }
     
     // resume downloading file

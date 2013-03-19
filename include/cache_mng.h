@@ -46,7 +46,11 @@ guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino);
 
 // return MD5 of cached file.
 // if result is TRUE then md5str will containd string with MD5 sum 
-// XXX: not implemented yet
 gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str);
+
+// return version ID of cached file
+// return NULL if version ID is not set
+const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino);
+void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id);
 
 #endif

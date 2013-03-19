@@ -1036,7 +1036,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     //XXX: set as new 
     en->is_modified = TRUE;
 
-    fop = fileio_create (dtree->app, en->fullpath);
+    fop = fileio_create (dtree->app, en->fullpath, en->ino);
     en->fop = fop;
 
     LOG_debug (DIR_TREE_LOG, "[fop: %p] create %s, directory ino: %"INO_FMT, fop, name, INO parent_ino);
@@ -1063,7 +1063,7 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
         return;
     }
 
-    fop = fileio_create (dtree->app, en->fullpath);
+    fop = fileio_create (dtree->app, en->fullpath, en->ino);
     en->fop = fop;
 
     LOG_debug (DIR_TREE_LOG, "[fop: %p] dir_tree_open inode %"INO_FMT, fop, INO ino);

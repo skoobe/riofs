@@ -22,7 +22,7 @@
 
 typedef struct _FileIO FileIO;
 
-FileIO *fileio_create (Application *app, const gchar *fname);
+FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino);
 void fileio_destroy (FileIO *fop);
 
 void fileio_release (FileIO *fop);

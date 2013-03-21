@@ -37,6 +37,13 @@ ConfData *application_get_conf (Application *app)
     return app->conf;
 }
 
+#ifdef SSL_ENABLED
+SSL_CTX *application_get_ssl_ctx (Application *app)
+{
+    return NULL;
+}
+#endif
+
 Application *app_create ()
 {
     Application *app = g_new0 (Application, 1);

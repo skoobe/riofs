@@ -4,4 +4,10 @@ before_install:
 language: c
 compiler:
   - gcc
-script: ./autogen.sh && ./configure && make
+  - clang
+script: 
+  - ./autogen.sh
+  - ./configure --enable-test-apps
+  - make
+notifications:
+  - irc: "irc.freenode.org#riofs"

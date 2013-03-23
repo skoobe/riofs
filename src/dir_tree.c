@@ -248,6 +248,7 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
 void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino)
 {
     DirEntry *parent_en;
+    guint res;
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
@@ -261,7 +262,9 @@ void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino)
         return;
     }
     
-    g_hash_table_foreach_remove (parent_en->h_dir_tree, dir_tree_stop_update_on_remove_child_cb, dtree);
+    res = g_hash_table_foreach_remove (parent_en->h_dir_tree, dir_tree_stop_update_on_remove_child_cb, dtree);
+    if (res)
+        LOG_debug (DIR_TREE_LOG, "Removed: %u entries !", res);
 }
 
 DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path, DirEntryType type, 
@@ -807,8 +810,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     }
     
     t = time (NULL);
-    
-    // compatibility with fs: send HEAD request to  if file size is 0 to check if it's a directory
+
+    // compatibility with s3fs: send HEAD request to server if file size is 0 to check if it's a directory
     if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&
         t - en->updated_time >= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
         conf_get_boolean (dtree->conf, "s3.check_empty_files")) {
@@ -1535,6 +1538,10 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
             return;
         }
     } else {
+        // lookup has created a default "file type" entry
+        en->type = DET_dir;
+        if (!en->h_dir_tree)
+            en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
         en->removed = FALSE;
         en->access_time = time (NULL);
     }

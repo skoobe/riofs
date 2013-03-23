@@ -10,7 +10,7 @@ script:
   - ./configure --enable-test-apps
   - make
 notifications:
-  - irc:
+  irc:
     channels:
       - "irc.freenode.org#riofs"
     on_success: always

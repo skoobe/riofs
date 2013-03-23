@@ -66,7 +66,7 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
         fdata->checked = FALSE;
         bytes_len = g_random_int_range (100000, 1000000);
         bytes = g_malloc (bytes_len + 1);
-        RAND_pseudo_bytes (bytes, bytes_len);
+        RAND_pseudo_bytes ((unsigned char *)bytes, bytes_len);
         *(bytes + bytes_len) = '\0';
         
         name = get_random_string (15, TRUE);
@@ -76,7 +76,7 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
         fclose (f);
 
         fdata->out_name = g_strdup_printf ("%s/%s", out_dir, name);
-        get_md5_sum (bytes, bytes_len + 1, fdata->md5, NULL);
+        get_md5_sum (bytes, bytes_len + 1, &fdata->md5, NULL);
         
         fdata->fout = fopen (fdata->out_name, "w");
         g_assert (fdata->fout);
@@ -124,7 +124,8 @@ static void on_srv_request (struct evhttp_request *req, void *ctx)
 {
     struct evbuffer *in;
     gchar *dir = (gchar *) ctx;
-    gchar *path, *tmp, *decoded_path;
+    gchar *path, *decoded_path;
+    const gchar *tmp;
 	const char *uri = evhttp_request_get_uri(req);
 	struct evhttp_uri *decoded = NULL;
     struct evbuffer *evb = NULL;
@@ -137,7 +138,7 @@ static void on_srv_request (struct evhttp_request *req, void *ctx)
 
 	decoded = evhttp_uri_parse(uri);
     g_assert (decoded);
-	tmp = evhttp_uri_get_path(decoded);
+	tmp = evhttp_uri_get_path (decoded);
     g_assert (tmp);
     decoded_path = evhttp_uridecode(tmp, 0, NULL);
 

@@ -556,8 +556,8 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_str = g_strdup_printf("%s", resource_path);
     }
 
-    LOG_debug (CON_LOG, "[%p] bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
-        conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
+    LOG_debug (CON_LOG, "[%p] %s bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
+        http_cmd, conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
 
     gettimeofday (&data->start_tv, NULL);
     res = evhttp_make_request (http_connection_get_evcon (con), req, cmd_type, request_str);

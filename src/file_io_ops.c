@@ -26,6 +26,7 @@ struct _FileIO {
     ConfData *conf;
     gchar *fname;
     fuse_ino_t ino;
+    gboolean assume_new; // assume file does not exist yet
 
     // write
     guint64 current_size;
@@ -52,7 +53,7 @@ typedef struct {
 
 /*{{{ create / destroy */
 
-FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino)
+FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino, gboolean assume_new)
 {
     FileIO *fop;
 
@@ -68,6 +69,7 @@ FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino)
     fop->uploadid = NULL;
     fop->l_parts = NULL;
     fop->ino = ino;
+    fop->assume_new = assume_new;
     MD5_Init (&fop->md5);
 
     return fop;
@@ -367,7 +369,8 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
 void fileio_release (FileIO *fop)
 {
     // if write buffer has some data left - send it to the server
-    if (evbuffer_get_length (fop->write_buf)) {
+    // or an empty file was created
+    if (evbuffer_get_length (fop->write_buf) || fop->assume_new) {
         if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
             fileio_release_on_part_con_cb, fop)) {
             LOG_err (FIO_LOG, "Failed to get HTTP client !");
@@ -766,8 +769,12 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 static void fileio_read_get_buf (FileReadData *rdata)
 {
     // make sure request does not exceed file size
-    if (rdata->fop->file_size && (guint64) (rdata->off + rdata->size) > rdata->fop->file_size)
+    if (rdata->fop->file_size && (guint64) (rdata->off + rdata->size) > rdata->fop->file_size) {
         rdata->size = rdata->fop->file_size - rdata->off;
+    // special case, when zero-size file is reqeusted
+    } else if (!rdata->fop->file_size) {
+        rdata->size = 0;
+    }
 
     LOG_debug (FIO_LOG, "requesting [%"G_GUINT64_FORMAT" %zu]", rdata->off, rdata->size);
 
@@ -806,6 +813,8 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         guint64 local_size;
 
         rdata->fop->file_size = strtoll ((char *)content_len_header, NULL, 10);
+        LOG_debug (FIO_LOG, "Remote file size: %"G_GUINT64_FORMAT, rdata->fop->file_size);
+        
         local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
         if (local_size != rdata->fop->file_size) {
             LOG_debug (FIO_LOG, "Local and remote file sizes do not match, invalidating local cached file!");

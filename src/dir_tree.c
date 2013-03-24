@@ -52,6 +52,11 @@ struct _DirEntry {
     gboolean is_updating; // TRUE if getting attributes
     time_t updated_time; // time when entry was updated
     time_t access_time; // time when entry was accessed
+
+    gchar *etag;
+    gchar *version_id;
+    gchar *content_type;
+    time_t xattr_time; // time when XAttrs were updated
 };
 
 struct _DirTree {
@@ -121,6 +126,13 @@ static void dir_entry_destroy (gpointer data)
         g_hash_table_destroy (en->h_dir_tree);
     if (en->dir_cache)
         g_free (en->dir_cache);
+    if (en->etag)
+        g_free (en->etag);
+    if (en->version_id)
+        g_free (en->version_id);
+    if (en->content_type)
+        g_free (en->content_type);
+
     g_free (en->basename);
     g_free (en->fullpath);
     g_free (en);
@@ -182,6 +194,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->removed = FALSE;
     en->updated_time = 0;
     en->access_time = time (NULL);
+    en->xattr_time = 0;
 
     // cache is empty
     en->dir_cache = NULL;
@@ -494,7 +507,6 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     http_connection_release (con);
 
     en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
-    
     // entry not found
     if (!en) {
         LOG_debug (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
@@ -517,6 +529,8 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
         en->size = strtoll ((char *)size_header, NULL, 10);
     }
 
+    dir_tree_entry_update_xattrs (en, headers);
+    
     // check if this is a directory
     content_type = evhttp_find_header (headers, "Content-Type");
     if (content_type && !strncmp ((const char *)content_type, "application/x-directory", strlen ("application/x-directory"))) {
@@ -545,7 +559,6 @@ static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
     DirEntry  *en;
 
     en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
-    
     // entry not found
     if (!en) {
         LOG_debug (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
@@ -635,6 +648,8 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
         last_modified = mktime (&tmp);
     }
 
+    dir_tree_entry_update_xattrs (en, headers);
+    
     en = dir_tree_update_entry (op_data->dtree, parent_en->fullpath, DET_file, 
         op_data->parent_ino, op_data->name, size, last_modified);
 
@@ -979,7 +994,7 @@ static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
 void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino, 
     dir_tree_getattr_cb getattr_cb, fuse_req_t req)
 {
-    DirEntry  *en;
+    DirEntry *en;
     
     LOG_debug (DIR_TREE_LOG, "Getting attributes for %"INO_FMT, INO ino);
     
@@ -1894,6 +1909,215 @@ void dir_tree_rename (DirTree *dtree,
            rename_cb (req, FALSE);
         rename_data_destroy (rdata);
         return;
+    }
+}
+/*}}}*/
+
+/*{{{ dir_tree_getxattr */
+typedef enum {
+    XATR_etag = 0,
+    XATR_version = 1,
+    XATR_content = 2,
+} XAttrType;
+
+typedef struct {
+    DirTree *dtree;
+    fuse_ino_t ino;
+    fuse_req_t req;
+    dir_tree_getxattr_cb getxattr_cb;
+    size_t size;
+    XAttrType attr_type;
+} XAttrData;
+
+static const gchar *dir_tree_getxattr_from_entry (DirEntry *en, XAttrType attr_type)
+{
+    gchar *out = NULL;
+    
+    if (attr_type == XATR_etag) {
+        out = en->etag;
+    } else if (attr_type == XATR_version) {
+        out = en->version_id;
+    } else if (attr_type == XATR_content) {
+        out = en->content_type;
+    }
+
+    return out;
+}
+
+void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
+{
+    const gchar *header = NULL;
+    
+    header = evhttp_find_header (headers, "ETag");
+    if (header) {
+        if (!en->etag)
+            en->etag = g_strdup (header);
+        else if (strcmp (en->etag, header)) {
+            g_free (en->etag);
+            en->etag = g_strdup (header);
+        }
+    }
+
+    header = evhttp_find_header (headers, "x-amz-version-id");
+    if (header) {
+        if (!en->version_id)
+            en->version_id = g_strdup (header);
+        else if (strcmp (en->version_id, header)) {
+            g_free (en->version_id);
+            en->version_id = g_strdup (header);
+        }
+    }
+
+    header = evhttp_find_header (headers, "Content-Type");
+    if (header) {
+        if (!en->content_type)
+            en->content_type = g_strdup (header);
+        else if (strcmp (en->content_type, header)) {
+            g_free (en->content_type);
+            en->content_type = g_strdup (header);
+        }
+    }
+
+    en->xattr_time = time (NULL);
+}
+
+static void dir_tree_on_getxattr_cb (HttpConnection *con, void *ctx, gboolean success,
+    const gchar *buf,  size_t buf_len, 
+    //G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    struct evkeyvalq *headers)
+{
+    XAttrData *xattr_data = (XAttrData *) ctx;
+    DirEntry *en;
+    
+    LOG_debug (DIR_TREE_LOG, "Got Xattributes for ino: %"INO_FMT, INO xattr_data->ino);
+
+    // release HttpConnection
+    http_connection_release (con);
+
+    // file not found
+    if (!success) {
+        LOG_err (DIR_TREE_LOG, "Failed to get Xattributes !");
+        xattr_data->getxattr_cb (xattr_data->req, FALSE, xattr_data->ino, NULL, 0);
+        g_free (xattr_data);
+
+        return;
+    }
+
+    en = g_hash_table_lookup (xattr_data->dtree->h_inodes, GUINT_TO_POINTER (xattr_data->ino));
+    if (!en) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO xattr_data->ino);
+        xattr_data->getxattr_cb (xattr_data->req, FALSE, xattr_data->ino, NULL, 0);
+        g_free (xattr_data);
+        return;
+    }
+
+    dir_tree_entry_update_xattrs (en, headers);
+
+    xattr_data->getxattr_cb (xattr_data->req, TRUE, xattr_data->ino, 
+        dir_tree_getxattr_from_entry (en, xattr_data->attr_type), xattr_data->size);
+    
+    g_free (xattr_data);
+}
+
+static void dir_tree_on_getxattr_con_cb (gpointer client, gpointer ctx)
+{
+    HttpConnection *con = (HttpConnection *) client;
+    XAttrData *xattr_data = (XAttrData *) ctx;
+    DirEntry *en;
+    gchar *req_path = NULL;
+    gboolean res;
+    
+    en = g_hash_table_lookup (xattr_data->dtree->h_inodes, GUINT_TO_POINTER (xattr_data->ino));
+    if (!en) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO xattr_data->ino);
+        xattr_data->getxattr_cb (xattr_data->req, FALSE, xattr_data->ino, NULL, 0);
+        g_free (xattr_data);
+        return;
+    }
+   
+    http_connection_acquire (con);
+    
+    req_path = g_strdup_printf ("/%s", en->fullpath);
+
+    res = http_connection_make_request (con, 
+        req_path, "HEAD", NULL,
+        dir_tree_on_getxattr_cb,
+        xattr_data
+    );
+
+    g_free (req_path);
+
+    if (!res) {
+        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
+        http_connection_release (con);
+        xattr_data->getxattr_cb (xattr_data->req, FALSE, xattr_data->ino, NULL, 0);
+        g_free (xattr_data);
+        return;
+    }
+}
+
+void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino, 
+    const char *name, size_t size,
+    dir_tree_getxattr_cb getxattr_cb, fuse_req_t req)
+{
+    DirEntry *en;
+    XAttrData *xattr_data = NULL;
+    XAttrType attr_type;
+    time_t t;
+    
+    LOG_debug (DIR_TREE_LOG, "Getting Xattributes for %"INO_FMT, INO ino);
+    
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
+    
+    // entry not found
+    if (!en) {
+        LOG_msg (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO ino);
+        getxattr_cb (req, FALSE, ino, NULL, 0);
+        return;
+    }
+    // Xattr for directories not supported
+    if (en->type == DET_dir) {
+        LOG_debug (DIR_TREE_LOG, "Xattr for directories not supported!");
+        getxattr_cb (req, FALSE, ino, NULL, 0);
+        return;
+    }
+
+    if (!strcmp (name, "user.version")) {
+        attr_type = XATR_version;
+    } else if (!strcmp (name, "user.etag") || !strcmp (name, "user.md5")) {
+        attr_type = XATR_etag;
+    } else if (!strcmp (name, "user.content_type")) {
+        attr_type = XATR_content;
+    } else {
+        LOG_debug (DIR_TREE_LOG, "Xattr :%s not supported!", name);
+        getxattr_cb (req, FALSE, ino, NULL, 0);
+        return;
+    }
+
+    // check if we can get data from cache
+    t = time (NULL);
+    if (t >= en->xattr_time &&
+        t - en->xattr_time >= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+
+        xattr_data = g_new0 (XAttrData, 1);
+        xattr_data->dtree = dtree;
+        xattr_data->ino = ino;
+        xattr_data->req = req;
+        xattr_data->getxattr_cb = getxattr_cb;
+        xattr_data->size = size;
+        xattr_data->attr_type = attr_type;
+
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app),
+            dir_tree_on_getxattr_con_cb, xattr_data)) {
+            LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
+            getxattr_cb (req, FALSE, ino, NULL, 0);
+            g_free (xattr_data);
+            return;
+        }
+
+    // return from cache
+    } else {
+        getxattr_cb (req, TRUE, ino, dir_tree_getxattr_from_entry (en, attr_type), size);
     }
 }
 /*}}}*/

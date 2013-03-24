@@ -230,7 +230,7 @@ static gchar *http_connection_get_auth_string (Application *app,
     // Element are: acl, lifecycle, location, logging, notification, partNumber, policy, 
     // requestPayment, torrent, uploadId, uploads, versionId, versioning, versions and website.
     if (strlen (resource) > 2 && resource[1] == '?') {
-        if (strstr (resource, "?acl") || strstr (resource, "?versioning"))
+        if (strstr (resource, "?acl") || strstr (resource, "?versioning") || strstr (resource, "?versions"))
             tmp = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), resource);
         else
             tmp = g_strdup_printf ("/%s/", conf_get_string (conf, "s3.bucket_name"));

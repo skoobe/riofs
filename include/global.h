@@ -54,6 +54,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <ftw.h>
+#include <sys/xattr.h>
 
 #include <glib.h>
 #include <glib/gprintf.h>
@@ -86,7 +87,6 @@
 
 #define FUSE_USE_VERSION 26
 #include <fuse/fuse_lowlevel.h>
-
 
 typedef struct _Application Application;
 typedef struct _HttpConnection HttpConnection;

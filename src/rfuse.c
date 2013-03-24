@@ -80,8 +80,8 @@ static struct fuse_lowlevel_ops rfuse_opers = {
     .mkdir      = rfuse_mkdir,
     .rmdir      = rfuse_rmdir,
     .rename     = rfuse_rename,
-//    .getxattr   = rfuse_getxattr,
-//    .listxattr  = rfuse_listxattr,
+    .getxattr   = rfuse_getxattr,
+    .listxattr  = rfuse_listxattr,
 };
 /*}}}*/
 
@@ -690,7 +690,8 @@ static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, f
 static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    gchar attr_list[] = "user.version\0";
+    // XXX: move to DirTree
+    gchar attr_list[] = "user.version\0user.etag\0user.content_type\0";
     
     LOG_debug (FUSE_LOG, "listxattr for: %"INO_FMT" size: %zu", INO ino, size);
 
@@ -703,20 +704,29 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
 /*}}}*/
 
 /*{{{ getxattr operator */
+
+static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, const gchar *str, size_t size)
+{
+    LOG_debug (FUSE_LOG, "getattr_cb  success: %s  str: %s", success?"YES":"NO", str);
+    
+    if (!success || !str) {
+        fuse_reply_err (req, ENOTSUP);
+        return;
+    }
+
+    if (size == 0) {
+        fuse_reply_xattr (req, strlen (str));
+    } else {
+        fuse_reply_buf (req, str, strlen (str));
+    }
+}
+
 static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    gchar ver[] = "asddsa\0";
     
     LOG_debug (FUSE_LOG, "getxattr  for: %"INO_FMT" attr name: %s size: %zu", INO ino, name, size);
 
-    if (size == 0) {
-        fuse_reply_xattr (req, 4);
-    } else {
-        fuse_reply_buf (req, "aaa", 4);
-    }
-
-    // fuse_reply_err (req, ENOATTR);
-    // fuse_reply_err (req, ENOTSUP);
+    dir_tree_getxattr (rfuse->dir_tree, ino, name, size, rfuse_getxattr_cb, req);
 }
 /*}}}*/

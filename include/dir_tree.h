@@ -33,6 +33,8 @@ void dir_tree_destroy (DirTree *dtree);
 DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType type, 
     fuse_ino_t parent_ino, const gchar *entry_name, long long size, time_t last_modified);
 
+void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
+
 // mark that DirTree is being updated
 void dir_tree_start_update (DirTree *dtree, const gchar *dir_path);
 void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino);
@@ -97,5 +99,10 @@ typedef void (*DirTree_rename_cb) (fuse_req_t req, gboolean success);
 void dir_tree_rename (DirTree *dtree, 
     fuse_ino_t parent_ino, const char *name, fuse_ino_t newparent_ino, const char *newname,
     DirTree_rename_cb rename_cb, fuse_req_t req);
+
+typedef void (*dir_tree_getxattr_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, const gchar *str, size_t size);
+void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino, 
+    const char *name, size_t size,
+    dir_tree_getxattr_cb getxattr_cb, fuse_req_t req);
 
 #endif

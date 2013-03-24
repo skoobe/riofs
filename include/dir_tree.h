@@ -37,10 +37,13 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType
 void dir_tree_start_update (DirTree *dtree, const gchar *dir_path);
 void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino);
 
-typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size);
+typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, 
+    const char *buf, size_t buf_size,
+    gpointer ctx);
 void dir_tree_fill_dir_buf (DirTree *dtree, 
-        fuse_ino_t ino, size_t size, off_t off,
-        dir_tree_readdir_cb readdir_cb, fuse_req_t req);
+    fuse_ino_t ino, size_t size, off_t off,
+    dir_tree_readdir_cb readdir_cb, fuse_req_t req,
+    gpointer ctx);
 
 typedef void (*dir_tree_lookup_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime);
 void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,

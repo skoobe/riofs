@@ -344,6 +344,7 @@ typedef struct {
     dir_tree_readdir_cb readdir_cb;
     fuse_req_t req;
     DirEntry *en;
+    gpointer ctx;
 } DirTreeFillDirData;
 
 // callback: directory structure
@@ -354,7 +355,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     LOG_debug (DIR_TREE_LOG, "Dir fill callback: %s", success ? "SUCCESS" : "FAILED");
 
     if (!success) {
-        dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0);
+        dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
     } else {
         struct dirbuf b; // directory buffer
         GHashTableIter iter;
@@ -384,7 +385,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
 
         memcpy (dir_fill_data->en->dir_cache, b.p, b.size);
         // send buffer to fuse
-        dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, dir_fill_data->size, dir_fill_data->off, b.p, b.size);
+        dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, dir_fill_data->size, dir_fill_data->off, b.p, b.size, dir_fill_data->ctx);
 
         //free buffer
         g_free (b.p);
@@ -409,7 +410,8 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
 // or regenerate directory cache
 void dir_tree_fill_dir_buf (DirTree *dtree, 
         fuse_ino_t ino, size_t size, off_t off,
-        dir_tree_readdir_cb readdir_cb, fuse_req_t req)
+        dir_tree_readdir_cb readdir_cb, fuse_req_t req,
+        gpointer ctx)
 {
     DirEntry *en;
     DirTreeFillDirData *dir_fill_data;
@@ -423,7 +425,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     // or it's not a directory type ?
     if (!en || en->type != DET_dir) {
         LOG_msg (DIR_TREE_LOG, "Directory (ino = %"INO_FMT") not found !", INO ino);
-        readdir_cb (req, FALSE, size, off, NULL, 0);
+        readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
         return;
     }
     
@@ -433,7 +435,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     if (en->dir_cache_size && t >= en->dir_cache_created && 
         t - en->dir_cache_created <= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
-        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size);
+        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
     }
 
@@ -453,10 +455,11 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->readdir_cb = readdir_cb;
     dir_fill_data->req = req;
     dir_fill_data->en = en;
+    dir_fill_data->ctx = ctx;
 
     if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
         LOG_err (DIR_TREE_LOG, "Failed to get http client !");
-        readdir_cb (req, FALSE, size, off, NULL, 0);
+        readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
         g_free (dir_fill_data);
     }
 
@@ -698,6 +701,27 @@ static void dir_tree_on_lookup_not_found_con_cb (gpointer client, gpointer ctx)
     }
 }
 
+static void dir_tree_on_lookup_read (fuse_req_t req, gboolean success, size_t max_size, off_t off,
+    const char *buf, size_t buf_size, gpointer ctx)
+{
+    LookupOpData *op_data = (LookupOpData *) ctx;
+
+    if (!success) {
+        LOG_err (DIR_TREE_LOG, "Failed to get directory listing !");
+        op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
+        g_free (op_data->name);
+        g_free (op_data);
+        return;
+    }
+
+    // directory cache is filled, repeat search
+    // XXX: add recursion protection !!
+    dir_tree_lookup (op_data->dtree, op_data->parent_ino, op_data->name,
+        op_data->lookup_cb, op_data->req);
+    g_free (op_data->name);
+    g_free (op_data);
+}
+
 // lookup entry and return attributes
 void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_lookup_cb lookup_cb, fuse_req_t req)
@@ -716,6 +740,27 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         return;
     }
 
+    // directory cache is expired
+    // XXX: add recursion protection !!
+    if (!(dir_en->dir_cache_size && t >= dir_en->dir_cache_created && 
+        t - dir_en->dir_cache_created <= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time"))) {
+        
+        LookupOpData *op_data;
+        
+        op_data = g_new0 (LookupOpData, 1);
+        op_data->dtree = dtree;
+        op_data->lookup_cb = lookup_cb;
+        op_data->req = req;
+        op_data->not_found = TRUE;
+        op_data->parent_ino = parent_ino;
+        op_data->name = g_strdup (name);
+
+        LOG_debug (DIR_TREE_LOG, "Getting directory listing ..");
+        dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data);
+
+        return;
+    }    
+
     en = g_hash_table_lookup (dir_en->h_dir_tree, name);
     if (!en) {
         LookupOpData *op_data;
@@ -731,10 +776,10 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         op_data->name = g_strdup (name);
 
         LOG_debug (DIR_TREE_LOG, "Entry not found, sending request to storage server, name: %s", name);
-
-        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_on_lookup_not_found_con_cb, op_data)) {
+        
+        if (!client_pool_get_client (application_get_ops_client_pool (op_data->dtree->app), dir_tree_on_lookup_not_found_con_cb, op_data)) {
             LOG_err (DIR_TREE_LOG, "Failed to get http client !");
-            lookup_cb (req, FALSE, 0, 0, 0, 0);
+            op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
             g_free (op_data->name);
             g_free (op_data);
         }

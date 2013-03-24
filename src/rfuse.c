@@ -265,6 +265,9 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
 {
     struct stat stbuf;
     size_t oldsize = b->size;
+
+    if (!req)
+        return;
     
     LOG_debug (FUSE_LOG, "add_dirbuf  ino: %"INO_FMT", name: %s", INO ino, name);
 
@@ -282,7 +285,8 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
 
 // readdir callback
 // Valid replies: fuse_reply_buf() fuse_reply_err()
-static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, const char *buf, size_t buf_size)
+static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, 
+    const char *buf, size_t buf_size, G_GNUC_UNUSED gpointer ctx)
 {
     LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %"OFF_FMT, success?"YES":"NO", buf_size, max_size, off);
 
@@ -306,7 +310,7 @@ static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
     LOG_debug (FUSE_LOG, "readdir  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
     
     // fill directory buffer for "ino" directory
-    dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req);
+    dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req, NULL);
 }
 /*}}}*/
 

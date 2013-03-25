@@ -218,6 +218,27 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     return en;
 }
 
+static gboolean dir_tree_is_cache_expired (DirTree *dtree, DirEntry *en)
+{
+    time_t t;
+
+    // cache is not filled
+    if (!en->dir_cache_size || !en->dir_cache_created)
+        return TRUE;
+
+    t = time (NULL);
+
+    // make sure "now" is greater than cache time
+    if (t < en->dir_cache_created)
+        return FALSE;
+    
+    // is it expired
+    if (t - en->dir_cache_created > (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time"))
+        return TRUE;
+
+    return FALSE;
+}
+
 // increase the age of directory
 void dir_tree_start_update (DirTree *dtree, G_GNUC_UNUSED const gchar *dir_path)
 {
@@ -428,7 +449,6 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
 {
     DirEntry *en;
     DirTreeFillDirData *dir_fill_data;
-    time_t t;
     
     LOG_debug (DIR_TREE_LOG, "Requesting directory buffer for dir ino %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
     
@@ -442,18 +462,13 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         return;
     }
     
-    t = time (NULL);
-
     // already have directory buffer in the cache
-    if (en->dir_cache_size && t >= en->dir_cache_created && 
-        t - en->dir_cache_created <= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+    if (!dir_tree_is_cache_expired (dtree, en)) {
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
     }
 
-    LOG_debug (DIR_TREE_LOG, "cache time: %ld  now: %ld", en->dir_cache_created, t);
-    
     // reset dir cache
     if (en->dir_cache)
         g_free (en->dir_cache);
@@ -475,7 +490,6 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
         g_free (dir_fill_data);
     }
-
 }
 /*}}}*/
 
@@ -757,8 +771,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
     // directory cache is expired
     // XXX: add recursion protection !!
-    if (!(dir_en->dir_cache_size && t >= dir_en->dir_cache_created && 
-        t - dir_en->dir_cache_created <= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time"))) {
+    if (dir_tree_is_cache_expired (dtree, dir_en)) {
         
         LookupOpData *op_data;
         

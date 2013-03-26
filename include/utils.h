@@ -32,4 +32,7 @@ int utils_del_tree (const gchar *path, int depth);
 // returns the difference in milliseconds
 guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime);
 
+// removes leading and trailing double quotes from str
+gchar *str_remove_quotes (gchar *str);
+
 #endif

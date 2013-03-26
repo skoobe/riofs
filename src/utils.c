@@ -156,3 +156,23 @@ guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime)
     
     return msec;
 }
+
+// removes leading and trailing double quotes from str
+gchar *str_remove_quotes (gchar *str)
+{
+    gchar *start;
+    size_t len;
+
+    for (start = str; *start && *start == 0x22; start++);
+    g_memmove (str, start, strlen (start) + 1);
+
+    len = strlen (str);
+    while (len--) {
+        if (str[len] == 0x22)
+            str[len] = '\0';
+        else
+            break;
+    }
+
+    return str;
+}

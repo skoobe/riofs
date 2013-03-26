@@ -21,6 +21,7 @@
 #include "client_pool.h"
 #include "file_io_ops.h"
 #include "cache_mng.h"
+#include "utils.h"
 
 /*{{{ struct / defines*/
 
@@ -1961,13 +1962,20 @@ void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
 {
     const gchar *header = NULL;
     
+    // For objects created by the PUT Object operation and the POST Object operation, 
+    // the ETag is a quoted, 32-digit hexadecimal string representing the MD5 digest of the object data. 
+    // For other objects, the ETag may or may not be an MD5 digest of the object data
     header = evhttp_find_header (headers, "ETag");
     if (header) {
+        gchar *tmp;
+        tmp = (gchar *)header;
+        tmp = str_remove_quotes (tmp);
+
         if (!en->etag)
-            en->etag = g_strdup (header);
-        else if (strcmp (en->etag, header)) {
+            en->etag = g_strdup (tmp);
+        else if (strcmp (en->etag, tmp)) {
             g_free (en->etag);
-            en->etag = g_strdup (header);
+            en->etag = g_strdup (tmp);
         }
     }
 

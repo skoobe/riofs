@@ -175,8 +175,9 @@ static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx
     HttpConnection *con = (HttpConnection *) ctx;
 
     LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
-
-    con->evcon = NULL;
+    
+    //XXX: need further investigation !
+    //con->evcon = NULL;
 }
 
 /*{{{ getters */

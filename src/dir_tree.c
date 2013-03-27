@@ -473,6 +473,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     // reset dir cache
     if (en->dir_cache)
         g_free (en->dir_cache);
+    en->dir_cache = NULL;
     en->dir_cache_size = 0;
     en->dir_cache_created = 0;
 

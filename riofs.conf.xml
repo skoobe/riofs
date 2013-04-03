@@ -39,8 +39,8 @@
 </connection>
 
 <filesystem>
-    <!-- time to keep directory cache (seconds), 5 sec -->
-    <dir_cache_max_time type="uint">5</dir_cache_max_time>
+    <!-- time to keep directory cache (seconds) -->
+    <dir_cache_max_time type="uint">300</dir_cache_max_time>
     <!-- set True to enable objects caching -->
     <cache_enabled type="boolean">True</cache_enabled>
     <!-- set True to enable calculating MD5 sum of file content, increases CPU load -->

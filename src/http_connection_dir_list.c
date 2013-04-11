@@ -58,7 +58,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
     for(i = 0; i < content_nodes->nodeNr; i++) {
         gchar *bname = NULL;
         guint64 size = 0;
-        time_t last_modified;
+        time_t last_modified = time (NULL);
         gchar *name = NULL;
         gchar *s_size = NULL;
         gchar *s_last_modified = NULL;
@@ -85,11 +85,11 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         s_last_modified = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
         if (s_last_modified && strlen (s_last_modified) > 1) {
             struct tm tmp = {0};
-            strptime (s_last_modified, "%FT%T", &tmp);
-            last_modified = mktime (&tmp);
+            // 2013-04-11T15:16
+            if (strptime (s_last_modified, "%Y-%m-%dT%H:%M:%S", &tmp))
+                last_modified = mktime (&tmp);
             xmlFree (s_last_modified);
-        } else 
-            last_modified = time (NULL);
+        }
         xmlXPathFreeObject (key);
         
         // 

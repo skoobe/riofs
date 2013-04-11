@@ -146,7 +146,8 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     DirEntry *en;
     DirEntry *parent_en = NULL;
     gchar *fullpath = NULL;
-    
+    char tmbuf[64];
+    struct tm *nowtm;
 
     // get the parent, for inodes > 0
     if (parent_ino) {
@@ -202,8 +203,11 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->dir_cache_size = 0;
     en->dir_cache_created = 0;
 
-    LOG_debug (DIR_TREE_LOG, "Creating new DirEntry: %s, inode: %"INO_FMT", fullpath: %s, mode: %d", 
-        en->basename, INO en->ino, en->fullpath, en->mode);
+    nowtm = localtime (&en->ctime);
+    strftime (tmbuf, sizeof (tmbuf), "%Y-%m-%d %H:%M:%S", nowtm);
+
+    LOG_debug (DIR_TREE_LOG, "Creating new DirEntry: %s, inode: %"INO_FMT", fullpath: %s, mode: %d time: %s", 
+        en->basename, INO en->ino, en->fullpath, en->mode, tmbuf);
     
     if (type == DET_dir) {
         en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
@@ -415,8 +419,6 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         // done, save as cache
         dir_fill_data->en->dir_cache_size = b.size;
         dir_fill_data->en->dir_cache = g_malloc (b.size);
-        dir_fill_data->en->dir_cache_created = time (NULL);
-
 
         memcpy (dir_fill_data->en->dir_cache, b.p, b.size);
         // send buffer to fuse
@@ -424,6 +426,9 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
 
         //free buffer
         g_free (b.p);
+        
+        dir_fill_data->en->dir_cache_created = time (NULL);
+        LOG_msg (DIR_TREE_LOG, "Dir cache updated: %d", dir_fill_data->en->dir_cache_created);
     }
 
     g_free (dir_fill_data);
@@ -465,6 +470,15 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     
     // already have directory buffer in the cache
     if (!dir_tree_is_cache_expired (dtree, en)) {
+        LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
+        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
+        return;
+    }
+
+    // make sure that subsequent requests return the same directory structure
+    if (off > 0) {
+        // update timer, if subsequent requests has the same "req" as the one which updated dir cache
+        //XXX: dir_fill_data->en->dir_cache_created = time (NULL);
         LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
@@ -663,8 +677,6 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
         strptime (last_modified_header, "%FT%T", &tmp);
         last_modified = mktime (&tmp);
     }
-
-    dir_tree_entry_update_xattrs (en, headers);
     
     en = dir_tree_update_entry (op_data->dtree, parent_en->fullpath, DET_file, 
         op_data->parent_ino, op_data->name, size, last_modified);
@@ -677,6 +689,8 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
         g_free (op_data);
         return;
     }
+    
+    dir_tree_entry_update_xattrs (en, headers);
 
     op_data->lookup_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
     g_free (op_data->name);

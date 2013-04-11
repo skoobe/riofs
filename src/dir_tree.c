@@ -746,8 +746,10 @@ static void dir_tree_on_lookup_not_found_con_cb (gpointer client, gpointer ctx)
     }
 }
 
-static void dir_tree_on_lookup_read (fuse_req_t req, gboolean success, size_t max_size, off_t off,
-    const char *buf, size_t buf_size, gpointer ctx)
+static void dir_tree_on_lookup_read (G_GNUC_UNUSED fuse_req_t req, gboolean success, 
+    G_GNUC_UNUSED size_t max_size, G_GNUC_UNUSED off_t off,
+    G_GNUC_UNUSED const char *buf, G_GNUC_UNUSED size_t buf_size, 
+    gpointer ctx)
 {
     LookupOpData *op_data = (LookupOpData *) ctx;
 
@@ -2018,8 +2020,7 @@ void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
 }
 
 static void dir_tree_on_getxattr_cb (HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf,  size_t buf_len, 
-    //G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
     struct evkeyvalq *headers)
 {
     XAttrData *xattr_data = (XAttrData *) ctx;

@@ -610,7 +610,7 @@ void fileio_write_buffer (FileIO *fop,
 
     // XXX: allow only sequentially write
     // current written bytes should be always match offset
-    if (fop->current_size != off) {
+    if (off >= 0 && fop->current_size != (guint64)off) {
         LOG_err (FIO_LOG, "Write call with offset %"OFF_FMT" is not allowed !", off);
         on_buffer_written_cb (fop, ctx, FALSE, 0);
         return;

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "stat_srv.h"
+#include "utils.h"
 
 struct _StatSrv {
     Application *app;

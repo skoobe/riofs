@@ -421,10 +421,6 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
 /*{{{ application_destroy */
 static void application_destroy (Application *app)
 {
-    // destroy Fuse
-    if (app->rfuse)
-        rfuse_destroy (app->rfuse);
-
     if (app->read_client_pool)
         client_pool_destroy (app->read_client_pool);
     if (app->write_client_pool)
@@ -450,6 +446,10 @@ static void application_destroy (Application *app)
 
     if (app->stat_srv)
         stat_srv_destroy (app->stat_srv);
+
+    // destroy Fuse
+    if (app->rfuse)
+        rfuse_destroy (app->rfuse);
 
     if (app->dns_base)
         evdns_base_free (app->dns_base, 0);

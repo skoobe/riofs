@@ -87,8 +87,9 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         struct evkeyvalq q_params;
         TAILQ_INIT (&q_params);
         evhttp_parse_query_str (query, &q_params);
-        refresh = evhttp_find_header (&q_params, "refresh");
-        ref = atoi (refresh);
+        refresh = http_find_header (&q_params, "refresh");
+        if (refresh)
+            ref = atoi (refresh);
         evhttp_clear_headers (&q_params);
     }
 

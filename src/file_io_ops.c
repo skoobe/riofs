@@ -195,7 +195,7 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
         return;
     }
 
-    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    versioning_header = http_find_header (headers, "x-amz-version-id");
     if (versioning_header) {
         cache_mng_update_version_id (application_get_cache_mng (fop->app), 
             fop->ino, versioning_header);
@@ -284,7 +284,7 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
         return;
     }
     
-    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    versioning_header = http_find_header (headers, "x-amz-version-id");
     if (versioning_header) {
         cache_mng_update_version_id (application_get_cache_mng (fop->app), 
             fop->ino, versioning_header);
@@ -419,7 +419,7 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
         return;
     }
 
-    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    versioning_header = http_find_header (headers, "x-amz-version-id");
     if (versioning_header) {
         cache_mng_update_version_id (application_get_cache_mng (wdata->fop->app), 
             wdata->ino, versioning_header);
@@ -690,7 +690,7 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
         NULL, NULL);
 
     // update version ID
-    versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+    versioning_header = http_find_header (headers, "x-amz-version-id");
     if (versioning_header) {
         cache_mng_update_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino, versioning_header);
     }
@@ -808,7 +808,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     // consistency checking:
 
     // 1. check local and remote file sizes
-    content_len_header = evhttp_find_header (headers, "Content-Length");
+    content_len_header = http_find_header (headers, "Content-Length");
     if (content_len_header) {
         guint64 local_size;
 
@@ -826,7 +826,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     // if versioning is enabled: compare version IDs
     // if bucket has versioning disabled: compare MD5 sums
     if (conf_get_boolean (application_get_conf (rdata->fop->app), "s3.versioning")) {
-        const char *versioning_header = evhttp_find_header (headers, "x-amz-version-id");
+        const char *versioning_header = http_find_header (headers, "x-amz-version-id");
         if (versioning_header) {
             const gchar *local_version_id = cache_mng_get_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino);
             if (local_version_id && !strcmp (local_version_id, versioning_header)) {
@@ -845,7 +845,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     
     //check for MD5
     } else  {
-        const char *md5_header = evhttp_find_header (headers, "x-amz-meta-md5");
+        const char *md5_header = http_find_header (headers, "x-amz-meta-md5");
         if (md5_header) {
             gchar *md5str = NULL;
 

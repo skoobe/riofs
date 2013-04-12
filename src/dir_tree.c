@@ -345,12 +345,11 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
 static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
 {
     if (en->type == DET_dir) {
-        if (en->dir_cache_size) {
+        if (en->dir_cache)
             g_free (en->dir_cache);
-            en->dir_cache = NULL;
-            en->dir_cache_size = 0;
-            en->dir_cache_created = 0;
-        }
+        en->dir_cache = NULL;
+        en->dir_cache_size = 0;
+        en->dir_cache_created = 0;
     } else {
         DirEntry *parent_en;
         
@@ -360,9 +359,8 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
             return;
         }
 
-        if (parent_en->dir_cache_size) {
-            if (parent_en->dir_cache)
-                g_free (parent_en->dir_cache);
+        if (parent_en->dir_cache) {
+            g_free (parent_en->dir_cache);
             parent_en->dir_cache = NULL;
             parent_en->dir_cache_size = 0;
             parent_en->dir_cache_created = 0;
@@ -418,7 +416,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         }
         // done, save as cache
         dir_fill_data->en->dir_cache_size = b.size;
-        dir_fill_data->en->dir_cache = g_malloc (b.size);
+        dir_fill_data->en->dir_cache = g_malloc0 (b.size);
 
         memcpy (dir_fill_data->en->dir_cache, b.p, b.size);
         // send buffer to fuse
@@ -428,7 +426,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         g_free (b.p);
         
         dir_fill_data->en->dir_cache_created = time (NULL);
-        LOG_msg (DIR_TREE_LOG, "Dir cache updated: %d", dir_fill_data->en->dir_cache_created);
+        LOG_debug (DIR_TREE_LOG, "Dir cache updated: %d", dir_fill_data->en->dir_cache_created);
     }
 
     g_free (dir_fill_data);
@@ -554,7 +552,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     }
 
     // get Content-Length header
-    size_header = evhttp_find_header (headers, "Content-Length");
+    size_header = http_find_header (headers, "Content-Length");
     if (size_header) {
         en->size = strtoll ((char *)size_header, NULL, 10);
     }
@@ -562,13 +560,19 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     dir_tree_entry_update_xattrs (en, headers);
     
     // check if this is a directory
-    content_type = evhttp_find_header (headers, "Content-Type");
+    content_type = http_find_header (headers, "Content-Type");
     if (content_type && !strncmp ((const char *)content_type, "application/x-directory", strlen ("application/x-directory"))) {
         en->type = DET_dir;
         en->mode = DIR_DEFAULT_MODE;
         
         if (!en->h_dir_tree)
             en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
+
+        if (en->dir_cache)
+            g_free (en->dir_cache);
+        en->dir_cache = NULL;
+        en->dir_cache_size = 0;
+        en->dir_cache_created = 0;
         
         LOG_debug (DIR_TREE_LOG, "Converting to directory: %s", en->fullpath);
     }
@@ -666,12 +670,12 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
     }
 
     // get Content-Length header
-    size_header = evhttp_find_header (headers, "Content-Length");
+    size_header = http_find_header (headers, "Content-Length");
     if (size_header) {
         size = strtoll ((char *)size_header, NULL, 10);
     }
 
-    last_modified_header = evhttp_find_header (headers, "Last-Modified");
+    last_modified_header = http_find_header (headers, "Last-Modified");
     if (last_modified_header) {
         struct tm tmp = {0};
         // Sun, 1 Jan 2006 12:00:00
@@ -1636,6 +1640,11 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
             en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
         en->removed = FALSE;
         en->access_time = time (NULL);
+        if (en->dir_cache)
+            g_free (en->dir_cache);
+        en->dir_cache = NULL;
+        en->dir_cache_size = 0;
+        en->dir_cache_created = 0;
     }
 
     //XXX: set as new 
@@ -1983,7 +1992,7 @@ void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
     // For objects created by the PUT Object operation and the POST Object operation, 
     // the ETag is a quoted, 32-digit hexadecimal string representing the MD5 digest of the object data. 
     // For other objects, the ETag may or may not be an MD5 digest of the object data
-    header = evhttp_find_header (headers, "ETag");
+    header = http_find_header (headers, "ETag");
     if (header) {
         gchar *tmp;
         tmp = (gchar *)header;
@@ -1997,7 +2006,7 @@ void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
         }
     }
 
-    header = evhttp_find_header (headers, "x-amz-version-id");
+    header = http_find_header (headers, "x-amz-version-id");
     if (header) {
         if (!en->version_id)
             en->version_id = g_strdup (header);
@@ -2007,7 +2016,7 @@ void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
         }
     }
 
-    header = evhttp_find_header (headers, "Content-Type");
+    header = http_find_header (headers, "Content-Type");
     if (header) {
         if (!en->content_type)
             en->content_type = g_strdup (header);

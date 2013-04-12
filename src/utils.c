@@ -104,7 +104,6 @@ gboolean uri_is_https (const struct evhttp_uri *uri)
     return FALSE;
 }
 
-
 gint uri_get_port (const struct evhttp_uri *uri)
 {
     gint port;
@@ -120,6 +119,14 @@ gint uri_get_port (const struct evhttp_uri *uri)
     }
 
     return port;
+}
+
+const gchar *http_find_header (const struct evkeyvalq *headers, const gchar *key)
+{
+    if (!headers || !key)
+        return NULL;
+
+    return evhttp_find_header (headers, key);
 }
 
 static int on_unlink_cb (const char *fpath, G_GNUC_UNUSED const struct stat *sb, 

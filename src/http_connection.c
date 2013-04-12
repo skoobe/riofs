@@ -360,7 +360,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         data->redirects++;
         headers = evhttp_request_get_input_headers (req);
 
-        loc = evhttp_find_header (headers, "Location");
+        loc = http_find_header (headers, "Location");
         if (!loc) {
             inbuf = evhttp_request_get_input_buffer (req);
             buf_len = evbuffer_get_length (inbuf);

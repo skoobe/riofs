@@ -25,6 +25,7 @@ gboolean get_md5_sum (const gchar *buf, size_t len, gchar **md5str, gchar **md5b
 gchar *get_base64 (const gchar *buf, size_t len);
 gboolean uri_is_https (const struct evhttp_uri *uri);
 gint uri_get_port (const struct evhttp_uri *uri);
+const gchar *http_find_header (const struct evkeyvalq *headers, const gchar *key);
 
 // remove directory tree
 int utils_del_tree (const gchar *path, int depth);

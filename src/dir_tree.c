@@ -49,7 +49,6 @@ struct _DirEntry {
 
     GHashTable *h_dir_tree; // name -> data
 
-    FileIO *fop; // file operation object
     gboolean is_updating; // TRUE if getting attributes
     time_t updated_time; // time when entry was updated
     time_t access_time; // time when entry was accessed
@@ -181,7 +180,6 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     }
 
     en = g_new0 (DirEntry, 1);
-    en->fop = NULL;
     en->is_updating = FALSE;
     en->fullpath = fullpath;
     en->ino = dtree->max_ino++;
@@ -1136,7 +1134,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     en->is_modified = TRUE;
 
     fop = fileio_create (dtree->app, en->fullpath, en->ino, TRUE);
-    en->fop = fop;
+    fi->fh = (uint64_t) fop;
 
     LOG_debug (DIR_TREE_LOG, "[fop: %p] create %s, directory ino: %"INO_FMT, fop, name, INO parent_ino);
 
@@ -1163,7 +1161,7 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
     }
 
     fop = fileio_create (dtree->app, en->fullpath, en->ino, FALSE);
-    en->fop = fop;
+    fi->fh = (uint64_t) fop;
 
     LOG_debug (DIR_TREE_LOG, "[fop: %p] dir_tree_open inode %"INO_FMT, fop, INO ino);
 
@@ -1188,7 +1186,7 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, G_GNUC_UNUSED struct
         return;
     }
 
-    fop = en->fop;
+    fop = (FileIO *)fi->fh;
 
     LOG_debug (DIR_TREE_LOG, "[fop: %p] dir_tree_file_release inode: %"INO_FMT, fop, INO ino);
 
@@ -1241,7 +1239,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
         return;
     }
     
-    fop = en->fop;
+    fop = (FileIO *)fi->fh;
 
     LOG_debug (DIR_TREE_LOG, "[fop: %p] read inode %"INO_FMT", size: %zd, off: %"OFF_FMT, fop, INO ino, size, off);
     
@@ -1293,7 +1291,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
         return;
     }
     
-    fop = en->fop;
+    fop = (FileIO *)fi->fh;
 
     // set updated time for write op
     en->updated_time = time (NULL);

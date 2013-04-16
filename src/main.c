@@ -560,6 +560,7 @@ int main (int argc, char *argv[])
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
         g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
         application_destroy (app);
+        g_option_context_free (context);
         return -1;
     }
 
@@ -586,6 +587,7 @@ int main (int argc, char *argv[])
         if (!conf_parse_file (app->conf, conf_path)) {
             LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
             application_destroy (app);
+            g_option_context_free (context);
             return -1;
         }
 
@@ -640,6 +642,7 @@ int main (int argc, char *argv[])
             );
             g_fprintf (stdout, "\nFeatures:\n");
             g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
+        g_option_context_free (context);
         return 0;
     }
     
@@ -655,6 +658,7 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);
         //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         application_destroy (app);
+        g_option_context_free (context);
         return -1;
     }
 
@@ -662,6 +666,7 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
         //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         application_destroy (app);
+        g_option_context_free (context);
         return -1;
     }
 
@@ -678,6 +683,7 @@ int main (int argc, char *argv[])
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     if (!application_set_url (app, s_params[0])) {
         application_destroy (app);
+        g_option_context_free (context);
         return -1;
     }
 
@@ -693,6 +699,7 @@ int main (int argc, char *argv[])
         LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", 
             conf_get_string (app->conf, "app.mountpoint"));
         // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        g_option_context_free (context);
         application_destroy (app);
         return -1;
     }
@@ -700,6 +707,7 @@ int main (int argc, char *argv[])
     if (!S_ISDIR (st.st_mode)) {
         LOG_err (APP_LOG, "Mountpoint %s is not a directory!", conf_get_string (app->conf, "app.mountpoint"));
         // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
+        g_option_context_free (context);
         application_destroy (app);
         return -1;
     }

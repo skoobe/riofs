@@ -259,9 +259,11 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
 
     // if entry is "old", but someone still tries to access it - leave it untouched
     // XXX: implement smarter algorithm here, "time to remove" should be based on the number of hits
+    // process files only 
     if (en->age < dtree->current_age && 
         !en->is_modified && 
-        now > en->access_time && now - en->access_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+        now > en->access_time && now - en->access_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
+        en->type != DET_dir) {
 
         // first remove item from the inode hash table !
         g_hash_table_remove (dtree->h_inodes, GUINT_TO_POINTER (en->ino));

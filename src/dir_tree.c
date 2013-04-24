@@ -683,7 +683,7 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
     if (last_modified_header) {
         struct tm tmp = {0};
         // Sun, 1 Jan 2006 12:00:00
-		if (strptime (last_modified_header, "%a, %d %b %Y %H:%M:%S", &tmp))
+        if (strptime (last_modified_header, "%a, %d %b %Y %H:%M:%S", &tmp))
             last_modified = mktime (&tmp);
     }
     

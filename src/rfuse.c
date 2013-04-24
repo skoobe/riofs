@@ -66,15 +66,15 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
-	.readdir	= rfuse_readdir,
-	.lookup		= rfuse_lookup,
-    .getattr	= rfuse_getattr,
-    .setattr	= rfuse_setattr,
-	.open		= rfuse_open,
-	.release	= rfuse_release,
-	.read		= rfuse_read,
-	.write		= rfuse_write,
-	.create		= rfuse_create,
+    .readdir    = rfuse_readdir,
+    .lookup     = rfuse_lookup,
+    .getattr    = rfuse_getattr,
+    .setattr    = rfuse_setattr,
+    .open       = rfuse_open,
+    .release    = rfuse_release,
+    .read       = rfuse_read,
+    .write      = rfuse_write,
+    .create     = rfuse_create,
     .forget     = rfuse_forget,
     .unlink     = rfuse_unlink,
     .mkdir      = rfuse_mkdir,
@@ -272,15 +272,15 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
     LOG_debug (FUSE_LOG, "add_dirbuf  ino: %"INO_FMT", name: %s", INO ino, name);
 
     // get required buff size
-	b->size += fuse_add_direntry (req, NULL, 0, name, NULL, 0);
+    b->size += fuse_add_direntry (req, NULL, 0, name, NULL, 0);
 
     // extend buffer
-	b->p = (char *) g_realloc (b->p, b->size);
-	memset (&stbuf, 0, sizeof (stbuf));
-	stbuf.st_ino = ino;
+    b->p = (char *) g_realloc (b->p, b->size);
+    memset (&stbuf, 0, sizeof (stbuf));
+    stbuf.st_ino = ino;
     stbuf.st_size = file_size;
     // add entry
-	fuse_add_direntry (req, b->p + oldsize, b->size - oldsize, name, &stbuf, b->size);
+    fuse_add_direntry (req, b->p + oldsize, b->size - oldsize, name, &stbuf, b->size);
 }
 
 // readdir callback
@@ -291,14 +291,14 @@ static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size,
     LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %"OFF_FMT, success?"YES":"NO", buf_size, max_size, off);
 
     if (!success) {
-		fuse_reply_err (req, ENOTDIR);
+        fuse_reply_err (req, ENOTDIR);
         return;
     }
 
-	if (off < buf_size)
-		fuse_reply_buf (req, buf + off, min (buf_size - off, max_size));
-	else
-	    fuse_reply_buf (req, NULL, 0);
+    if (off < buf_size)
+        fuse_reply_buf (req, buf + off, min (buf_size - off, max_size));
+    else
+        fuse_reply_buf (req, NULL, 0);
 }
 
 // FUSE lowlevel operation: readdir
@@ -323,14 +323,14 @@ static void rfuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
 
     LOG_debug (FUSE_LOG, "getattr_cb  success: %s", success?"YES":"NO");
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
     memset (&stbuf, 0, sizeof(stbuf));
     stbuf.st_ino = ino;
     stbuf.st_mode = mode;
-	stbuf.st_nlink = 1;
-	stbuf.st_size = file_size;
+    stbuf.st_nlink = 1;
+    stbuf.st_size = file_size;
     stbuf.st_ctime = ctime;
     stbuf.st_atime = ctime;
     stbuf.st_mtime = ctime;
@@ -358,14 +358,14 @@ static void rfuse_setattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
 
     LOG_debug (FUSE_LOG, "setattr_cb  success: %s", success?"YES":"NO");
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
     memset (&stbuf, 0, sizeof(stbuf));
     stbuf.st_ino = ino;
     stbuf.st_mode = mode;
-	stbuf.st_nlink = 1;
-	stbuf.st_size = file_size;
+    stbuf.st_nlink = 1;
+    stbuf.st_size = file_size;
     
     fuse_reply_attr (req, &stbuf, 1.0);
 }
@@ -385,11 +385,11 @@ static void rfuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, in
 // lookup callback
 static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
-	struct fuse_entry_param e;
+    struct fuse_entry_param e;
 
     LOG_debug (FUSE_LOG, "lookup_cb  success: %s", success?"YES":"NO");
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
 
@@ -400,8 +400,8 @@ static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 
     e.attr.st_ino = ino;
     e.attr.st_mode = mode;
-	e.attr.st_nlink = 1;
-	e.attr.st_size = file_size;
+    e.attr.st_nlink = 1;
+    e.attr.st_size = file_size;
     e.attr.st_ctime = ctime;
     e.attr.st_atime = ctime;
     e.attr.st_mtime = ctime;
@@ -447,11 +447,11 @@ static void rfuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *f
 // create callback
 void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, struct fuse_file_info *fi)
 {
-	struct fuse_entry_param e;
+    struct fuse_entry_param e;
 
     LOG_debug (FUSE_LOG, "add_file_cb  success: %s", success?"YES":"NO");
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
 
@@ -462,8 +462,8 @@ void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode
 
     e.attr.st_ino = ino;
     e.attr.st_mode = mode;
-	e.attr.st_nlink = 1;
-	e.attr.st_size = file_size;
+    e.attr.st_nlink = 1;
+    e.attr.st_size = file_size;
 
     fuse_reply_create (req, &e, fi);
 }
@@ -505,11 +505,11 @@ static void rfuse_read_cb (fuse_req_t req, gboolean success, const char *buf, si
     LOG_debug (FUSE_LOG, "[%p] <<<<< read_cb  success: %s IN buf: %zu", req, success?"YES":"NO", buf_size);
 
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
 
-	fuse_reply_buf (req, buf, buf_size);
+    fuse_reply_buf (req, buf, buf_size);
 }
 
 // FUSE lowlevel operation: read
@@ -531,7 +531,7 @@ static void rfuse_write_cb (fuse_req_t req, gboolean success, size_t count)
     LOG_debug (FUSE_LOG, "write_cb  success: %s", success?"YES":"NO");
 
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
     
@@ -607,27 +607,27 @@ static void rfuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name)
 // mkdir callback
 static void rfuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
-	struct fuse_entry_param e;
+    struct fuse_entry_param e;
 
     LOG_debug (FUSE_LOG, "mkdir_cb  success: %s, ino: %"INO_FMT, success?"YES":"NO", INO ino);
     if (!success) {
-		fuse_reply_err (req, ENOENT);
+        fuse_reply_err (req, ENOENT);
         return;
     }
 
     memset(&e, 0, sizeof(e));
-	e.ino = ino;
-	e.attr_timeout = 1.0;
-	e.entry_timeout = 1.0;
+    e.ino = ino;
+    e.attr_timeout = 1.0;
+    e.entry_timeout = 1.0;
     //e.attr.st_mode = S_IFDIR | 0755;
     e.attr.st_mode = mode;
-	e.attr.st_nlink = 1;
+    e.attr.st_nlink = 1;
     e.attr.st_ctime = ctime;
     e.attr.st_atime = ctime;
     e.attr.st_mtime = ctime;
     
     e.attr.st_ino = ino;
-	e.attr.st_size = file_size;
+    e.attr.st_size = file_size;
     
     fuse_reply_entry (req, &e);
 }
@@ -666,7 +666,7 @@ static void rfuse_rename_cb (fuse_req_t req, gboolean success)
     LOG_debug (FUSE_LOG, "rename_cb  success: %s", success?"YES":"NO");
 
     if (!success) {
-		fuse_reply_err (req, EPERM);
+        fuse_reply_err (req, EPERM);
         return;
     }
     

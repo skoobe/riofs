@@ -108,12 +108,12 @@ int main (int argc, char *argv[])
 {
     g_test_init (&argc, &argv, NULL);
 
-	g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_add, range_test_destroy);
-	g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_extend_1, range_test_destroy);
-	g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_extend_2, range_test_destroy);
-	g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_remove_1, range_test_destroy);
-	g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_remove_2, range_test_destroy);
-	g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_remove_3, range_test_destroy);
+    g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_add, range_test_destroy);
+    g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_extend_1, range_test_destroy);
+    g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_extend_2, range_test_destroy);
+    g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_remove_1, range_test_destroy);
+    g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_remove_2, range_test_destroy);
+    g_test_add ("/range/range_test_add", Range *, 0, range_test_setup, range_test_remove_3, range_test_destroy);
 
     return g_test_run ();
 }

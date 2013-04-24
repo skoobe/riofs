@@ -33,7 +33,7 @@ void test_conf_parse_file (ConfData **conf, gconstpointer test_data)
     gboolean res;
     
     res = conf_parse_file (*conf, "test.conf.xml");
-	g_assert (res == TRUE);
+    g_assert (res == TRUE);
 }
 
 void test_conf_get_string (ConfData **conf, gconstpointer test_data)
@@ -42,7 +42,7 @@ void test_conf_get_string (ConfData **conf, gconstpointer test_data)
     const gchar *str;
     
     res = conf_parse_file (*conf, "test.conf.xml");
-	g_assert (res == TRUE);
+    g_assert (res == TRUE);
 
     str = conf_get_string (*conf, "tmp.a.tmp");
     g_assert_cmpstr (str, ==, "TEST_OK");
@@ -54,7 +54,7 @@ void test_conf_get_int (ConfData **conf, gconstpointer test_data)
     gint32 i;
     
     res = conf_parse_file (*conf, "test.conf.xml");
-	g_assert (res == TRUE);
+    g_assert (res == TRUE);
 
     i = conf_get_int (*conf, "tmp.int");
     g_assert_cmpint (i, ==, 445);
@@ -66,7 +66,7 @@ void test_conf_get_boolean (ConfData **conf, gconstpointer test_data)
     gboolean b;
     
     res = conf_parse_file (*conf, "test.conf.xml");
-	g_assert (res == TRUE);
+    g_assert (res == TRUE);
 
     b = conf_get_boolean (*conf, "tmp.a.b.b");
     g_assert (b == TRUE);
@@ -80,7 +80,7 @@ void test_conf_get_list (ConfData **conf, gconstpointer test_data)
     gchar *str;
     
     res = conf_parse_file (*conf, "test.conf.xml");
-	g_assert (res == TRUE);
+    g_assert (res == TRUE);
 
     l = conf_get_list (*conf, "tmp.list");
     g_assert (l != NULL);
@@ -108,11 +108,11 @@ int main (int argc, char *argv[])
 {
     g_test_init (&argc, &argv, NULL);
 
-	g_test_add ("/utils/conf_parse_file", ConfData*, 0, test_conf_setup, test_conf_parse_file, test_conf_destroy);
-	g_test_add ("/utils/conf_get_string", ConfData*, 0, test_conf_setup, test_conf_get_string, test_conf_destroy);
-	g_test_add ("/utils/conf_get_int", ConfData*, 0, test_conf_setup, test_conf_get_int, test_conf_destroy);
-	g_test_add ("/utils/conf_get_boolean", ConfData*, 0, test_conf_setup, test_conf_get_boolean, test_conf_destroy);
-	g_test_add ("/utils/conf_get_list", ConfData*, 0, test_conf_setup, test_conf_get_list, test_conf_destroy);
+    g_test_add ("/utils/conf_parse_file", ConfData*, 0, test_conf_setup, test_conf_parse_file, test_conf_destroy);
+    g_test_add ("/utils/conf_get_string", ConfData*, 0, test_conf_setup, test_conf_get_string, test_conf_destroy);
+    g_test_add ("/utils/conf_get_int", ConfData*, 0, test_conf_setup, test_conf_get_int, test_conf_destroy);
+    g_test_add ("/utils/conf_get_boolean", ConfData*, 0, test_conf_setup, test_conf_get_boolean, test_conf_destroy);
+    g_test_add ("/utils/conf_get_list", ConfData*, 0, test_conf_setup, test_conf_get_list, test_conf_destroy);
 
     return g_test_run ();
 }

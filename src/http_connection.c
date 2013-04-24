@@ -476,7 +476,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     gchar *auth_str;
     struct evhttp_request *req;
     gchar auth_key[300];
-	time_t t;
+    time_t t;
     char time_str[50];
     RequestData *data;
     int res;
@@ -530,7 +530,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
     evhttp_add_header (req->output_headers, "Host", conf_get_string (con->conf, "s3.host"));
-	evhttp_add_header (req->output_headers, "Date", time_str);
+    evhttp_add_header (req->output_headers, "Date", time_str);
     // ask to keep connection opened
     evhttp_add_header (req->output_headers, "Connection", "keep-alive");
     evhttp_add_header (req->output_headers, "Accept-Encoding", "identify");

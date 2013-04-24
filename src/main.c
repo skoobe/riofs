@@ -181,7 +181,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     
     g_fprintf (stderr, "Got segmentation fault !\n");
 
-	uc = (sig_ucontext_t *)ucontext;
+    uc = (sig_ucontext_t *)ucontext;
 
     /* Get the address at the time the signal was raised from the EIP (x86) */
 #ifdef __i386__
@@ -190,27 +190,27 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     caller_address = (void *) uc->uc_mcontext.rip;   
 #endif
 
-	f = stderr;
+    f = stderr;
 
-	fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
+    fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 
-	size = backtrace (array, 50);
+    size = backtrace (array, 50);
 
-	/* overwrite sigaction with caller's address */
-	array[1] = caller_address;
+    /* overwrite sigaction with caller's address */
+    array[1] = caller_address;
 
-	messages = backtrace_symbols (array, size);
+    messages = backtrace_symbols (array, size);
 
-	/* skip first stack frame (points here) */
-	for (i = 1; i < size && messages != NULL; ++i) {
-		fprintf (f, "[bt]: (%d) %s\n", i, messages[i]);
-	}
+    /* skip first stack frame (points here) */
+    for (i = 1; i < size && messages != NULL; ++i) {
+        fprintf (f, "[bt]: (%d) %s\n", i, messages[i]);
+    }
 
     fflush (f);
 
-	free (messages);
+    free (messages);
 
-	LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
+    LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 
     // try to unmount FUSE mountpoint
     if (_app && _app->rfuse)
@@ -220,13 +220,13 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 // ignore SIGPIPE
 static void sigpipe_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
-	LOG_msg (APP_LOG, "Got SIGPIPE");
+    LOG_msg (APP_LOG, "Got SIGPIPE");
 }
 
 // XXX: re-read config or do some useful work here
 G_GNUC_NORETURN static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
-	LOG_err (APP_LOG, "Got SIGUSR1");
+    LOG_err (APP_LOG, "Got SIGUSR1");
 
     // try to unmount FUSE mountpoint
     if (_app && _app->rfuse)
@@ -238,9 +238,9 @@ G_GNUC_NORETURN static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNU
 // terminate application, freeing all used memory
 static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, void *user_data)
 {
-	Application *app = (Application *) user_data;
+    Application *app = (Application *) user_data;
 
-	LOG_err (APP_LOG, "Got SIGINT");
+    LOG_err (APP_LOG, "Got SIGINT");
 
     // terminate after running all active events 
     event_base_loopexit (app->evbase, NULL);
@@ -330,33 +330,33 @@ static gint application_finish_initialization_and_run (Application *app)
     _app = app;
 
 /*{{{ signal handlers*/
-	// SIGINT
-	app->sigint_ev = evsignal_new (app->evbase, SIGINT, sigint_cb, app);
-	event_add (app->sigint_ev, NULL);
-	// SIGSEGV
+    // SIGINT
+    app->sigint_ev = evsignal_new (app->evbase, SIGINT, sigint_cb, app);
+    event_add (app->sigint_ev, NULL);
+    // SIGSEGV
     sigact.sa_sigaction = sigsegv_cb;
     sigact.sa_flags = (int)SA_RESETHAND | SA_SIGINFO;
-	sigemptyset (&sigact.sa_mask);
+    sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGSEGV, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
         event_base_loopexit (app->evbase, NULL);
-		return 1;
+        return 1;
     }
-	// SIGABRT
+    // SIGABRT
     sigact.sa_sigaction = sigsegv_cb;
     sigact.sa_flags = (int)SA_RESETHAND | SA_SIGINFO;
-	sigemptyset (&sigact.sa_mask);
+    sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGABRT, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGABRT, strsignal(SIGABRT));
         event_base_loopexit (app->evbase, NULL);
-		return 1;
+        return 1;
     }
-	// SIGPIPE
-	app->sigpipe_ev = evsignal_new (app->evbase, SIGPIPE, sigpipe_cb, app);
-	event_add (app->sigpipe_ev, NULL);
+    // SIGPIPE
+    app->sigpipe_ev = evsignal_new (app->evbase, SIGPIPE, sigpipe_cb, app);
+    event_add (app->sigpipe_ev, NULL);
     // SIGUSR1
-	app->sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
-	event_add (app->sigusr1_ev, NULL);
+    app->sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
+    event_add (app->sigusr1_ev, NULL);
 /*}}}*/
     
     if (!conf_get_boolean (app->conf, "app.foreground"))
@@ -474,10 +474,10 @@ static void application_destroy (Application *app)
     
     ENGINE_cleanup ();
     CRYPTO_cleanup_all_ex_data ();
-	ERR_free_strings ();
-	ERR_remove_thread_state (NULL);
+    ERR_free_strings ();
+    ERR_remove_thread_state (NULL);
     EVP_cleanup ();
-	CRYPTO_mem_leaks_fp (stderr);
+    CRYPTO_mem_leaks_fp (stderr);
 }
 /*}}}*/
 
@@ -505,8 +505,8 @@ int main (int argc, char *argv[])
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
 
     GOptionEntry entries[] = {
-	    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &s_params, NULL, NULL },
-	    { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
+        { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &s_params, NULL, NULL },
+        { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
         { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
         { "fuse-options", 'o', 0, G_OPTION_ARG_STRING_ARRAY, &s_fuse_opts, "Fuse options.", "\"opt[,opt...]\"" },

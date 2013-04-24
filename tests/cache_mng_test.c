@@ -159,10 +159,10 @@ int main (int argc, char *argv[])
     app = app_create ();
     g_test_init (&argc, &argv, NULL);
 
-	g_test_add ("/cache_mng/cache_mng_test_store", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_store, cache_mng_test_destroy);
-	g_test_add ("/cache_mng/cache_mng_test_remove", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_remove, cache_mng_test_destroy);
-	g_test_add ("/cache_mng/cache_mng_test_lru", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_lru, cache_mng_test_destroy);
-	g_test_add ("/cache_mng/cache_mng_test_zero_size", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_zero_size, cache_mng_test_destroy);
+    g_test_add ("/cache_mng/cache_mng_test_store", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_store, cache_mng_test_destroy);
+    g_test_add ("/cache_mng/cache_mng_test_remove", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_remove, cache_mng_test_destroy);
+    g_test_add ("/cache_mng/cache_mng_test_lru", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_lru, cache_mng_test_destroy);
+    g_test_add ("/cache_mng/cache_mng_test_zero_size", CacheMng *, 0, cache_mng_test_setup, cache_mng_test_zero_size, cache_mng_test_destroy);
 
     return g_test_run ();
 }

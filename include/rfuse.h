@@ -21,8 +21,8 @@
 #include "global.h"
 
 struct dirbuf {
-	char *p;
-	size_t size;
+    char *p;
+    size_t size;
 };
 
 RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_opts);

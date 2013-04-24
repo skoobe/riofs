@@ -126,8 +126,8 @@ static void on_srv_request (struct evhttp_request *req, void *ctx)
     gchar *dir = (gchar *) ctx;
     gchar *path, *decoded_path;
     const gchar *tmp;
-	const char *uri = evhttp_request_get_uri(req);
-	struct evhttp_uri *decoded = NULL;
+    const char *uri = evhttp_request_get_uri(req);
+    struct evhttp_uri *decoded = NULL;
     struct evbuffer *evb = NULL;
     char buf[BUFFER_SIZE];
     FILE *f;
@@ -136,9 +136,9 @@ static void on_srv_request (struct evhttp_request *req, void *ctx)
 
     in = evhttp_request_get_input_buffer (req);
 
-	decoded = evhttp_uri_parse(uri);
+    decoded = evhttp_uri_parse(uri);
     g_assert (decoded);
-	tmp = evhttp_uri_get_path (decoded);
+    tmp = evhttp_uri_get_path (decoded);
     g_assert (tmp);
     decoded_path = evhttp_uridecode(tmp, 0, NULL);
 

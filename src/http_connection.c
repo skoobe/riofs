@@ -481,7 +481,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     RequestData *data;
     int res;
     enum evhttp_cmd_type cmd_type;
-    gchar *request_str;
+    gchar *request_str = NULL;
     GList *l;
 
     if (!con->evcon)
@@ -495,7 +495,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     data->ctx = ctx;
     data->con = con;
     data->redirects = 0;
-    data->resource_path = g_strdup (resource_path);
+    data->resource_path = url_escape (resource_path);
     data->http_cmd = g_strdup (http_cmd);
     data->out_buffer = out_buffer;
     
@@ -517,7 +517,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     
     t = time (NULL);
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-    auth_str = http_connection_get_auth_string (con->app, http_cmd, "", resource_path, time_str, con->l_output_headers);
+    auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, con->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (con->conf, "s3.access_key_id"), auth_str);
     g_free (auth_str);
 
@@ -552,10 +552,11 @@ gboolean http_connection_make_request (HttpConnection *con,
     }
 
     if (conf_get_boolean (con->conf, "s3.path_style")) {
-        request_str = g_strdup_printf("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), resource_path);
+        request_str = g_strdup_printf ("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), data->resource_path);
     } else {
-        request_str = g_strdup_printf("%s", resource_path);
+        request_str = g_strdup_printf ("%s", data->resource_path);
     }
+
 
     LOG_msg (CON_LOG, "[%p] %s bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
         http_cmd, conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));

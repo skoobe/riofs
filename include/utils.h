@@ -36,4 +36,8 @@ guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime);
 // removes leading and trailing double quotes from str
 gchar *str_remove_quotes (gchar *str);
 
+/* URL-escape the unsafe characters in a given
+   string, returning a freshly allocated string.  */
+char *url_escape (const char *s);
+
 #endif

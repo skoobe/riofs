@@ -40,6 +40,8 @@ void conf_set_boolean (ConfData *conf, const gchar *full_path, gboolean val);
 GList *conf_get_list (ConfData *conf, const gchar *path);
 void conf_list_set_string (ConfData *conf, const gchar *full_path, const gchar *val);
 
+void conf_copy_entry (ConfData *dest, ConfData *src, const gchar *path, gboolean overwrite);
+
 void conf_print (ConfData *conf);
 
 typedef void (*ConfNodeChangeCB) (const gchar *path, gpointer user_data);

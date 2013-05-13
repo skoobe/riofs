@@ -47,7 +47,6 @@ gpointer http_connection_create (Application *app)
     }
     
     con->app = app;
-    con->conf = application_get_conf (app);
     con->l_output_headers = NULL;
 
     con->is_acquired = FALSE;
@@ -62,16 +61,17 @@ gpointer http_connection_create (Application *app)
 
 static gboolean http_connection_init (HttpConnection *con)
 {
+    ConfData *conf = application_get_conf (con->app);
     LOG_debug (CON_LOG, "Connecting to %s:%d", 
-        conf_get_string (con->conf, "s3.host"),
-        conf_get_int (con->conf, "s3.port")
+        conf_get_string (conf, "s3.host"),
+        conf_get_int (conf, "s3.port")
     );
 
     if (con->evcon)
         evhttp_connection_free (con->evcon);
 
 #ifdef SSL_ENABLED
-    if (conf_get_boolean (con->conf, "s3.ssl")) {
+    if (conf_get_boolean (conf, "s3.ssl")) {
         SSL *ssl;
         struct bufferevent *bev;
         
@@ -98,16 +98,16 @@ static gboolean http_connection_init (HttpConnection *con)
             application_get_evbase (con->app),
             application_get_dnsbase (con->app),
             bev,
-            conf_get_string (con->conf, "s3.host"),
-            conf_get_int (con->conf, "s3.port")
+            conf_get_string (conf, "s3.host"),
+            conf_get_int (conf, "s3.port")
         );
     } else {
 #endif
     con->evcon = evhttp_connection_base_new (
         application_get_evbase (con->app),
         application_get_dnsbase (con->app),
-        conf_get_string (con->conf, "s3.host"),
-        conf_get_int (con->conf, "s3.port")
+        conf_get_string (conf, "s3.host"),
+        conf_get_int (conf, "s3.port")
     );
 #ifdef SSL_ENABLED
     }
@@ -118,8 +118,8 @@ static gboolean http_connection_init (HttpConnection *con)
         return FALSE;
     }
     
-    evhttp_connection_set_timeout (con->evcon, conf_get_int (con->conf, "connection.timeout"));
-    evhttp_connection_set_retries (con->evcon, conf_get_int (con->conf, "connection.retries"));
+    evhttp_connection_set_timeout (con->evcon, conf_get_int (conf, "connection.timeout"));
+    evhttp_connection_set_retries (con->evcon, conf_get_int (conf, "connection.retries"));
 
     evhttp_connection_set_closecb (con->evcon, http_connection_on_close, con);
     
@@ -345,7 +345,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     }
     
     // check if we reached maximum redirect count
-    if (data->redirects > conf_get_int (data->con->conf, "connection.max_redirects")) {
+    if (data->redirects > conf_get_int (application_get_conf (data->con->app), "connection.max_redirects")) {
         LOG_err (CON_LOG, "Too many redirects !");
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
@@ -483,6 +483,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     enum evhttp_cmd_type cmd_type;
     gchar *request_str = NULL;
     GList *l;
+    ConfData *conf = application_get_conf (con->app);
 
     if (!con->evcon)
         if (!http_connection_init (con)) {
@@ -518,7 +519,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     t = time (NULL);
     strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
     auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, con->l_output_headers);
-    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (con->conf, "s3.access_key_id"), auth_str);
+    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (conf, "s3.access_key_id"), auth_str);
     g_free (auth_str);
 
     req = evhttp_request_new (http_connection_on_responce_cb, data);
@@ -529,7 +530,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     }
 
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, "Host", conf_get_string (con->conf, "s3.host"));
+    evhttp_add_header (req->output_headers, "Host", conf_get_string (conf, "s3.host"));
     evhttp_add_header (req->output_headers, "Date", time_str);
     // ask to keep connection opened
     evhttp_add_header (req->output_headers, "Connection", "keep-alive");
@@ -551,15 +552,15 @@ gboolean http_connection_make_request (HttpConnection *con,
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
 
-    if (conf_get_boolean (con->conf, "s3.path_style")) {
-        request_str = g_strdup_printf ("/%s%s", conf_get_string (con->conf, "s3.bucket_name"), data->resource_path);
+    if (conf_get_boolean (conf, "s3.path_style")) {
+        request_str = g_strdup_printf ("/%s%s", conf_get_string (conf, "s3.bucket_name"), data->resource_path);
     } else {
         request_str = g_strdup_printf ("%s", data->resource_path);
     }
 
 
     LOG_msg (CON_LOG, "[%p] %s bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
-        http_cmd, conf_get_string (con->conf, "s3.bucket_name"), request_str, conf_get_string (con->conf, "s3.host"));
+        http_cmd, conf_get_string (conf, "s3.bucket_name"), request_str, conf_get_string (conf, "s3.host"));
 
     gettimeofday (&data->start_tv, NULL);
     res = evhttp_make_request (http_connection_get_evcon (con), req, cmd_type, request_str);

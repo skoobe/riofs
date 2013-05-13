@@ -27,7 +27,6 @@ typedef enum {
 
 struct _HttpConnection {
     Application *app;
-    ConfData *conf;
 
     ClientPool_on_released_cb client_on_released_cb;
     gpointer pool_ctx;

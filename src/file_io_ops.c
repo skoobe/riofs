@@ -23,7 +23,6 @@
 /*{{{ struct */
 struct _FileIO {
     Application *app;
-    ConfData *conf;
     gchar *fname;
     fuse_ino_t ino;
     gboolean assume_new; // assume file does not exist yet
@@ -59,7 +58,6 @@ FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino, gbo
 
     fop = g_new0 (FileIO, 1);
     fop->app = app;
-    fop->conf = application_get_conf (app);
     fop->current_size = 0;
     fop->write_buf = evbuffer_new ();
     fop->fname = g_strdup_printf ("/%s", fname);
@@ -141,7 +139,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     http_connection_add_output_header (con, "x-amz-meta-md5", md5str);
     g_free (md5str);
 
-    cpy_path = g_strdup_printf ("%s%s", conf_get_string (fop->conf, "s3.bucket_name"), fop->fname);
+    cpy_path = g_strdup_printf ("%s%s", conf_get_string (application_get_conf (fop->app), "s3.bucket_name"), fop->fname);
     http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
     g_free (cpy_path);
 
@@ -626,7 +624,7 @@ void fileio_write_buffer (FileIO *fop,
         NULL, NULL);
       
     // if current write buffer exceeds "part_size" - this is a multipart upload
-    if (evbuffer_get_length (fop->write_buf) >= conf_get_uint (fop->conf, "s3.part_size")) {
+    if (evbuffer_get_length (fop->write_buf) >= conf_get_uint (application_get_conf (fop->app), "s3.part_size")) {
         // init helper struct
         wdata = g_new0 (FileWriteData, 1);
         wdata->fop = fop;
@@ -711,7 +709,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
 
     http_connection_acquire (con);
     
-    part_size = conf_get_uint (rdata->fop->conf, "s3.part_size");
+    part_size = conf_get_uint (application_get_conf (rdata->fop->app), "s3.part_size");
 
     // small file - get the whole file at once
     if (rdata->fop->file_size < part_size)

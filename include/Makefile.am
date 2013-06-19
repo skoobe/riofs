@@ -1,4 +1,4 @@
-includedir=$(includedir)/hydrafs
+includedir=$(includedir)/riofs
 
 include_HEADERS = global.h
 include_HEADERS += log.h

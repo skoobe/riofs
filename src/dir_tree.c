@@ -63,7 +63,6 @@ struct _DirTree {
     DirEntry *root;
     GHashTable *h_inodes; // inode -> DirEntry
     Application *app;
-    ConfData *conf;
 
     fuse_ino_t max_ino;
     guint64 current_age;
@@ -91,7 +90,6 @@ DirTree *dir_tree_create (Application *app)
 
     dtree = g_new0 (DirTree, 1);
     dtree->app = app;
-    dtree->conf = application_get_conf (app);
     // children entries are destroyed by parent directory entries
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
@@ -236,7 +234,7 @@ static gboolean dir_tree_is_cache_expired (DirTree *dtree, DirEntry *en)
         return FALSE;
     
     // is it expired
-    if (t - en->dir_cache_created > (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time"))
+    if (t - en->dir_cache_created > (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time"))
         return TRUE;
 
     return FALSE;
@@ -262,7 +260,7 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
     // process files only 
     if (en->age < dtree->current_age && 
         !en->is_modified && 
-        now > en->access_time && now - en->access_time >= conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
+        now > en->access_time && now - en->access_time >= conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time") &&
         en->type != DET_dir) {
 
         // first remove item from the inode hash table !
@@ -913,8 +911,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
     // compatibility with s3fs: send HEAD request to server if file size is 0 to check if it's a directory
     if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&
-        t - en->updated_time >= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time") &&
-        conf_get_boolean (dtree->conf, "s3.check_empty_files")) {
+        t - en->updated_time >= (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time") &&
+        conf_get_boolean (application_get_conf (dtree->app), "s3.check_empty_files")) {
 
         LookupOpData *op_data;
 
@@ -1860,7 +1858,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
     http_connection_acquire (con);
     
     // source
-    src_path = g_strdup_printf ("%s/%s", conf_get_string (rdata->dtree->conf, "s3.bucket_name"), en->fullpath);
+    src_path = g_strdup_printf ("%s/%s", conf_get_string (application_get_conf (rdata->dtree->app), "s3.bucket_name"), en->fullpath);
     http_connection_add_output_header (con, "x-amz-copy-source", src_path);
     g_free (src_path);
 
@@ -2148,7 +2146,7 @@ void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
     // check if we can get data from cache
     t = time (NULL);
     if (t >= en->xattr_time &&
-        t - en->xattr_time >= (time_t)conf_get_uint (dtree->conf, "filesystem.dir_cache_max_time")) {
+        t - en->xattr_time >= (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time")) {
 
         xattr_data = g_new0 (XAttrData, 1);
         xattr_data->dtree = dtree;

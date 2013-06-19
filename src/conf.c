@@ -407,6 +407,38 @@ void conf_list_set_string (ConfData *conf, const gchar *full_path, const gchar *
     }
 }
 
+void conf_copy_entry (ConfData *dest, ConfData *src, const gchar *path, gboolean overwrite)
+{
+    ConfNode *orig_node, *new_node;
+    GList *l, *e;
+
+    orig_node = g_hash_table_lookup (src->h_conf, path);
+
+    if (orig_node && (!g_hash_table_lookup (dest->h_conf, path) || overwrite)) {
+        new_node = g_new0 (ConfNode, 1);
+        new_node->full_name = g_strdup (orig_node->full_name);
+        new_node->name = g_strdup (orig_node->name);
+        new_node->type = orig_node->type;
+        switch (new_node->type) {
+            case CT_STRING:
+                new_node->value = g_strdup (orig_node->value);
+                break;
+            case CT_LIST:
+                l = NULL;
+                for (e = (GList*) orig_node->value; e; e = e->next) {
+                    l = g_list_append (l, g_strdup ((gchar*) e->data));
+                }
+                new_node->value = l;
+                break;
+            default:
+                new_node->value = orig_node->value;
+                break;
+        }
+
+        g_hash_table_replace (dest->h_conf, new_node->full_name, new_node);
+    }
+}
+
 static void conf_node_print (G_GNUC_UNUSED gpointer key, gpointer value, G_GNUC_UNUSED gpointer user_data)
 {
     ConfNode *conf_node = (ConfNode *) value;

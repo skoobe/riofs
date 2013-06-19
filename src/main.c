@@ -26,6 +26,7 @@
 
 /*{{{ struct */
 struct _Application {
+    gchar *conf_path;
     ConfData *conf;
     struct event_base *evbase;
     struct evdns_base *dns_base;
@@ -224,15 +225,29 @@ static void sigpipe_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
 }
 
 // XXX: re-read config or do some useful work here
-G_GNUC_NORETURN static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
+static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
+    ConfData *conf_new = conf_create();
+    ConfData *conf_old = _app->conf;
     LOG_err (APP_LOG, "Got SIGUSR1");
 
-    // try to unmount FUSE mountpoint
-    if (_app && _app->rfuse)
-        rfuse_destroy (_app->rfuse);
-    
-    exit (1);
+    if (!conf_parse_file (conf_new, _app->conf_path)) {
+        LOG_err (APP_LOG, "Failed to parse configuration file: %s", _app->conf_path);
+        conf_destroy(conf_new);
+    } else {
+        const gchar *copy_entries[] = {"s3.host", "s3.port", "s3.versioning", "s3.access_key_id", "s3.secret_access_key", "s3.bucket_name", NULL};
+        int i;
+
+        _app->conf = conf_new;
+
+        for (i = 0; copy_entries[i]; i++) {
+            conf_copy_entry (_app->conf, conf_old, copy_entries[i], FALSE);
+        }
+
+        conf_destroy (conf_old);
+
+        log_level = conf_get_int(_app->conf, "log.level");
+    }
 }
 
 // terminate application, freeing all used memory
@@ -421,6 +436,7 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
 /*{{{ application_destroy */
 static void application_destroy (Application *app)
 {
+    g_free (app->conf_path);
     if (app->read_client_pool)
         client_pool_destroy (app->read_client_pool);
     if (app->write_client_pool)
@@ -493,7 +509,6 @@ int main (int argc, char *argv[])
     gchar **s_config = NULL;
     gboolean foreground = FALSE;
     gchar conf_str[1023];
-    gchar *conf_path;
     struct stat st;
     gboolean path_style = FALSE;
     gchar **cache_dir = NULL;
@@ -501,8 +516,9 @@ int main (int argc, char *argv[])
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
 
-    conf_path = g_build_filename (SYSCONFDIR, "riofs.conf", NULL); 
-    g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", conf_path);
+    app = g_new0 (Application, 1);
+    app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf", NULL);
+    g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", app->conf_path);
 
     GOptionEntry entries[] = {
         { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &s_params, NULL, NULL },
@@ -535,7 +551,6 @@ int main (int argc, char *argv[])
     g_random_set_seed (time (NULL));
 
     // init main app structure
-    app = g_new0 (Application, 1);
     app->evbase = event_base_new ();
 
     if (!app->evbase) {
@@ -575,17 +590,17 @@ int main (int argc, char *argv[])
 
     // user provided alternative config path
     if (s_config && g_strv_length (s_config) > 0) {
-        g_free (conf_path);
-        conf_path = g_strdup (s_config[0]);
+        g_free (app->conf_path);
+        app->conf_path = g_strdup (s_config[0]);
         g_strfreev (s_config);
     }
     
     app->conf = conf_create ();
-    if (access (conf_path, R_OK) == 0) {
-        LOG_debug (APP_LOG, "Using config file: %s", conf_path);
+    if (access (app->conf_path, R_OK) == 0) {
+        LOG_debug (APP_LOG, "Using config file: %s", app->conf_path);
         
-        if (!conf_parse_file (app->conf, conf_path)) {
-            LOG_err (APP_LOG, "Failed to parse configuration file: %s", conf_path);
+        if (!conf_parse_file (app->conf, app->conf_path)) {
+            LOG_err (APP_LOG, "Failed to parse configuration file: %s", app->conf_path);
             application_destroy (app);
             g_option_context_free (context);
             return -1;
@@ -613,8 +628,6 @@ int main (int argc, char *argv[])
         conf_set_string (app->conf, "filesystem.cache_dir", "/tmp/");
     }
 
-    g_free (conf_path);
-
     if (disable_syslog) {
         conf_set_boolean (app->conf, "log.use_syslog", FALSE);
     }
@@ -625,6 +638,9 @@ int main (int argc, char *argv[])
         conf_set_string (app->conf, "filesystem.cache_dir", cache_dir[0]);
         g_strfreev (cache_dir);
     }
+
+    if (!verbose)
+        log_level = conf_get_int(app->conf, "log.level");
 
 /*}}}*/
     

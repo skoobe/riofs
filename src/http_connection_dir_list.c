@@ -273,7 +273,7 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
     dir_req->app = http_connection_get_app (con);
     dir_req->dir_tree = application_get_dir_tree (dir_req->app);
     dir_req->ino = ino;
-    dir_req->max_keys = conf_get_uint (con->conf, "s3.keys_per_request");
+    dir_req->max_keys = conf_get_uint (application_get_conf (con->app), "s3.keys_per_request");
     dir_req->directory_listing_callback = directory_listing_callback;
     dir_req->callback_data = callback_data;
 

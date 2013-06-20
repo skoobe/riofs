@@ -265,7 +265,11 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     old_length = range_length (entry->avail_range);
     range_add (entry->avail_range, off, range_size);
     new_length = range_length (entry->avail_range);
-    cmng->size += new_length - old_length;
+    if (new_length > old_length)
+        cmng->size += new_length - old_length;
+    else {
+        LOG_err (CMNG_LOG, "New length is less than the old length !");
+    }
     
     // update modification time
     entry->modification_time = time (NULL);

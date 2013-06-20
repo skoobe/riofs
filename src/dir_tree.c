@@ -556,7 +556,13 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     // get Content-Length header
     size_header = http_find_header (headers, "Content-Length");
     if (size_header) {
-        en->size = strtoll ((char *)size_header, NULL, 10);
+        gint64 size;
+        size = strtoll ((char *)size_header, NULL, 10);
+        if (size < 0) {
+            LOG_err (DIR_TREE_LOG, "Header contains incorrect file size!");
+            size = 0;
+        }
+        en->size = size;
     }
 
     dir_tree_entry_update_xattrs (en, headers);
@@ -635,7 +641,7 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
     DirEntry *en;
     time_t last_modified = time (NULL);
     DirEntry *parent_en;
-    long long size = 0;
+    gint64 size = 0;
     
     LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT, INO op_data->ino);
 
@@ -675,6 +681,10 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
     size_header = http_find_header (headers, "Content-Length");
     if (size_header) {
         size = strtoll ((char *)size_header, NULL, 10);
+        if (size < 0) {
+            LOG_err (DIR_TREE_LOG, "Header contains incorrect file size!");
+            size = 0;
+        }
     }
 
     last_modified_header = http_find_header (headers, "Last-Modified");

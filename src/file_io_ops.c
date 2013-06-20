@@ -512,8 +512,23 @@ static gchar *get_uploadid (const char *xml, size_t xml_len) {
     doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
     ctx = xmlXPathNewContext (doc);
     xmlXPathRegisterNs (ctx, (xmlChar *) "s3", (xmlChar *) "http://s3.amazonaws.com/doc/2006-03-01/");
+
     uploadid_xp = xmlXPathEvalExpression ((xmlChar *) "//s3:UploadId", ctx);
+    if (!uploadid_xp) {
+        LOG_err (FIO_LOG, "S3 returned incorrect XML !");
+        xmlXPathFreeContext (ctx);
+        xmlFreeDoc (doc);
+        return NULL;
+    }
+
     nodes = uploadid_xp->nodesetval;
+    if (!nodes) {
+        LOG_err (FIO_LOG, "S3 returned incorrect XML !");
+        xmlXPathFreeObject (uploadid_xp);
+        xmlXPathFreeContext (ctx);
+        xmlFreeDoc (doc);
+        return NULL;
+    }
 
     if (!nodes || nodes->nodeNr < 1) {
         uploadid = NULL;
@@ -767,10 +782,10 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 static void fileio_read_get_buf (FileReadData *rdata)
 {
     // make sure request does not exceed file size
-    if (rdata->fop->file_size && (guint64) (rdata->off + rdata->size) > rdata->fop->file_size) {
+    if (rdata->fop->file_size > 0 && (guint64) (rdata->off + rdata->size) > rdata->fop->file_size) {
         rdata->size = rdata->fop->file_size - rdata->off;
     // special case, when zero-size file is reqeusted
-    } else if (!rdata->fop->file_size) {
+    } else if (rdata->fop->file_size == 0) {
         rdata->size = 0;
     }
 
@@ -808,9 +823,16 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     // 1. check local and remote file sizes
     content_len_header = http_find_header (headers, "Content-Length");
     if (content_len_header) {
-        guint64 local_size;
+        guint64 local_size = 0;
+        gint64 size = 0;
 
-        rdata->fop->file_size = strtoll ((char *)content_len_header, NULL, 10);
+        size = strtoll ((char *)content_len_header, NULL, 10);
+        if (size < 0) {
+            LOG_err (FIO_LOG, "Header contains incorrect file size!");
+            size = 0;
+        }
+
+        rdata->fop->file_size = size;
         LOG_debug (FIO_LOG, "Remote file size: %"G_GUINT64_FORMAT, rdata->fop->file_size);
         
         local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);

@@ -410,7 +410,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     if (evhttp_request_get_response_code (req) != 200 && 
         evhttp_request_get_response_code (req) != 204 && 
         evhttp_request_get_response_code (req) != 206) {
-        LOG_err (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
+        LOG_debug (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
         LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
         
         // if it contains any readable information

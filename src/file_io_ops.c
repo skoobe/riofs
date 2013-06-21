@@ -781,8 +781,15 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 
 static void fileio_read_get_buf (FileReadData *rdata)
 {
-    // make sure request does not exceed file size
-    if (rdata->fop->file_size > 0 && (guint64) (rdata->off + rdata->size) > rdata->fop->file_size) {
+    // set new request size:
+    // 1. file must have some size
+    // 2. offset must be less than the file size
+    // 3. offset + size is greater than the file size
+    if (rdata->fop->file_size > 0 && 
+        rdata->off >= 0 &&
+        rdata->fop->file_size > (guint64)rdata->off && 
+        (guint64) (rdata->off + rdata->size) > rdata->fop->file_size) 
+    {
         rdata->size = rdata->fop->file_size - rdata->off;
     // special case, when zero-size file is reqeusted
     } else if (rdata->fop->file_size == 0) {

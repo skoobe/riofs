@@ -125,5 +125,11 @@ LogLevel log_level;
 #define INO_FMT "llu"
 #define INO (unsigned long long)
 #define FIVEG 5368709120  // five gigabytes
+// log header to print INO
+#define INO_H "[ino: %"INO_FMT"] "
+#define INO_FOP_H "[ino: %"INO_FMT", fop: %p] "
+#define INO_FI_H "[ino: %"INO_FMT", fi: %p] "
+#define INO_FROP_H "[ino: %"INO_FMT", frop: %p] "
+#define INO_T(x) (INO x)
 
 #endif

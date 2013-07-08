@@ -609,6 +609,8 @@ int main (int argc, char *argv[])
     } else {
         LOG_debug (APP_LOG, "Configuration file does not exist, using predefined values.");
         conf_set_boolean (app->conf, "log.use_syslog", FALSE);
+        conf_set_boolean (app->conf, "log.use_color", FALSE);
+        conf_set_int (app->conf, "log.level", LOG_msg);
         
         conf_set_int (app->conf, "pool.writers", 2);
         conf_set_int (app->conf, "pool.readers", 2);
@@ -633,6 +635,7 @@ int main (int argc, char *argv[])
     }
     // update logging settings
     logger_set_syslog (conf_get_boolean (app->conf, "log.use_syslog"));
+    logger_set_color (conf_get_boolean (app->conf, "log.use_color"));
 
     if (cache_dir && g_strv_length (cache_dir) > 0) {
         conf_set_string (app->conf, "filesystem.cache_dir", cache_dir[0]);
@@ -640,13 +643,12 @@ int main (int argc, char *argv[])
     }
 
     if (!verbose)
-        log_level = conf_get_int(app->conf, "log.level");
-
+        log_level = conf_get_int (app->conf, "log.level");
 /*}}}*/
     
     // check if --version is specified
     if (version) {
-            g_fprintf (stdout, " Fast File System v%s\n", VERSION);
+            g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
             g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
             g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
             g_fprintf (stdout, "Libraries:\n");
@@ -656,7 +658,7 @@ int main (int argc, char *argv[])
                     FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION,
                     gnu_get_libc_version ()
             );
-            g_fprintf (stdout, "\nFeatures:\n");
+            g_fprintf (stdout, "Features:\n");
             g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
         g_option_context_free (context);
         return 0;

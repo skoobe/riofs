@@ -5,6 +5,7 @@
 <log>
     <!-- use syslog for error messages -->
     <use_syslog type="boolean">True</use_syslog>
+    <use_color type="boolean">True</use_color>
     <!-- log level - LOG_err = 0, LOG_msg = 1, LOG_debug = 2 -->
     <level type="int">0</level>
 </log>

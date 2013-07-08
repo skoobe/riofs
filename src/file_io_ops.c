@@ -103,13 +103,13 @@ static void fileio_release_on_update_header_cb (HttpConnection *con, void *ctx, 
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, "Failed to update headers on the server !");
+        LOG_err (FIO_LOG, INO_H"Failed to update headers on the server !", INO_T (fop->ino));
         fileio_destroy (fop);
         return;
     }
 
     // done 
-    LOG_debug (FIO_LOG, "Headers are updated !");
+    LOG_debug (FIO_LOG, INO_H"Headers are updated !", INO_T (fop->ino));
 
     fileio_destroy (fop);
 }
@@ -126,7 +126,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     gchar *md5str;
     size_t i;
 
-    LOG_debug (FIO_LOG, "Updating object's headers..");
+    LOG_debug (FIO_LOG, INO_H"Updating object's headers..", INO_T (fop->ino));
 
     http_connection_acquire (con);
     
@@ -152,7 +152,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (fop->ino));
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -163,12 +163,12 @@ static void fileio_release_update_headers (FileIO *fop)
 {
     // update MD5 headers only if versioning is disabled
     if (conf_get_boolean (application_get_conf (fop->app), "s3.versioning")) {
-        LOG_debug (FIO_LOG, "File uploaded !");
+        LOG_debug (FIO_LOG, INO_H"File uploaded !", INO_T (fop->ino));
         fileio_destroy (fop);
     } else {
         if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
             fileio_release_on_update_headers_con_cb, fop)) {
-            LOG_err (FIO_LOG, "Failed to get HTTP client !");
+            LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (fop->ino));
             fileio_destroy (fop);
             return;
         }
@@ -188,7 +188,7 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, "Failed to send Multipart data to the server !");
+        LOG_err (FIO_LOG, INO_H"Failed to send Multipart data to the server !", INO_T (fop->ino));
         fileio_destroy (fop);
         return;
     }
@@ -200,7 +200,7 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     }
 
     // done 
-    LOG_debug (FIO_LOG, "Multipart Upload is done !");
+    LOG_debug (FIO_LOG, INO_H"Multipart Upload is done !", INO_T (fop->ino));
 
     // fileio_destroy (fop);
     fileio_release_update_headers (fop);
@@ -226,7 +226,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     }
     evbuffer_add_printf (xml_buf, "%s", "</CompleteMultipartUpload>");
 
-    LOG_debug (FIO_LOG, "Sending Multipart Final part..");
+    LOG_debug (FIO_LOG, INO_H"Sending Multipart Final part..", INO_T (fop->ino));
 
     http_connection_acquire (con);
     
@@ -241,7 +241,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     evbuffer_free (xml_buf);
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (fop->ino));
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -251,14 +251,14 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
 static void fileio_release_complete_multipart (FileIO *fop)
 {
     if (!fop->uploadid) {
-        LOG_err (FIO_LOG, "UploadID is not set, aborting operation !");
+        LOG_err (FIO_LOG, INO_H"UploadID is not set, aborting operation !", INO_T (fop->ino));
         fileio_destroy (fop);
         return;
     }
 
     if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
         fileio_release_on_complete_con_cb, fop)) {
-        LOG_err (FIO_LOG, "Failed to get HTTP client !");
+        LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (fop->ino));
         fileio_destroy (fop);
         return;
      }
@@ -277,7 +277,7 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, "Failed to send bufer to server !");
+        LOG_err (FIO_LOG, INO_H"Failed to send bufer to server !", INO_T (fop->ino));
         fileio_destroy (fop);
         return;
     }
@@ -309,7 +309,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     size_t buf_len;
     const gchar *buf;
 
-    LOG_debug (FIO_LOG, "[http_con: %p] Releasing fop. Size: %zu", con, evbuffer_get_length (fop->write_buf));
+    LOG_debug (FIO_LOG, INO_H"[http_con: %p] Releasing fop. Size: %zu", INO_T (fop->ino), con, evbuffer_get_length (fop->write_buf));
     
     // add part information to the list
     part = g_new0 (FileIOPart, 1);
@@ -329,7 +329,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     if (fop->multipart_initiated) {
    
         if (!fop->uploadid) {
-            LOG_err (FIO_LOG, "UploadID is not set, aborting operation !");
+            LOG_err (FIO_LOG, INO_H"UploadID is not set, aborting operation !", INO_T (fop->ino));
             fileio_destroy (fop);
             return;
         }
@@ -355,7 +355,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (fop->ino));
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -371,7 +371,7 @@ void fileio_release (FileIO *fop)
     if (evbuffer_get_length (fop->write_buf) || fop->assume_new) {
         if (!client_pool_get_client (application_get_write_client_pool (fop->app), 
             fileio_release_on_part_con_cb, fop)) {
-            LOG_err (FIO_LOG, "Failed to get HTTP client !");
+            LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (fop->ino));
             fileio_destroy (fop);
             return;
         }
@@ -411,7 +411,7 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
     http_connection_release (con);
     
     if (!success) {
-        LOG_err (FIO_LOG, "Failed to send bufer to server !");
+        LOG_err (FIO_LOG, INO_H"Failed to send bufer to server !", INO_T (wdata->ino));
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -473,7 +473,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (wdata->ino));
         http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
@@ -484,7 +484,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
 static void fileio_write_send_part (FileWriteData *wdata)
 {
     if (!wdata->fop->uploadid) {
-        LOG_err (FIO_LOG, "UploadID is not set, aborting operation !");
+        LOG_err (FIO_LOG, INO_H"UploadID is not set, aborting operation !", INO_T (wdata->ino));
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -492,7 +492,7 @@ static void fileio_write_send_part (FileWriteData *wdata)
 
     if (!client_pool_get_client (application_get_write_client_pool (wdata->fop->app), 
         fileio_write_on_send_con_cb, wdata)) {
-        LOG_err (FIO_LOG, "Failed to get HTTP client !");
+        LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (wdata->ino));
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -555,7 +555,7 @@ static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, g
     wdata->fop->multipart_initiated = TRUE;
     
     if (!success || !buf_len) {
-        LOG_err (FIO_LOG, "Failed to get multipart init data from the server !");
+        LOG_err (FIO_LOG, INO_H"Failed to get multipart init data from the server !", INO_T (wdata->ino));
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -563,7 +563,7 @@ static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, g
 
     uploadid = get_uploadid (buf, buf_len);
     if (!uploadid) {
-        LOG_err (FIO_LOG, "Failed to parse multipart init data!");
+        LOG_err (FIO_LOG, INO_H"Failed to parse multipart init data!", INO_T (wdata->ino));
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -595,7 +595,7 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (wdata->ino));
         http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
@@ -607,7 +607,7 @@ static void fileio_write_init_multipart (FileWriteData *wdata)
 {
     if (!client_pool_get_client (application_get_write_client_pool (wdata->fop->app), 
         fileio_write_on_multipart_init_con_cb, wdata)) {
-        LOG_err (FIO_LOG, "Failed to get HTTP client !");
+        LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (wdata->ino));
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -624,7 +624,7 @@ void fileio_write_buffer (FileIO *fop,
     // XXX: allow only sequentially write
     // current written bytes should be always match offset
     if (off >= 0 && fop->current_size != (guint64)off) {
-        LOG_err (FIO_LOG, "Write call with offset %"OFF_FMT" is not allowed !", off);
+        LOG_err (FIO_LOG, INO_H"Write call with offset %"OFF_FMT" is not allowed !", INO_T (ino), off);
         on_buffer_written_cb (fop, ctx, FALSE, 0);
         return;
     }
@@ -691,7 +691,7 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     http_connection_release (con);
    
     if (!success) {
-        LOG_err (FIO_LOG, "Failed to get file from server !");
+        LOG_err (FIO_LOG, INO_H"Failed to get file from server !", INO_T (rdata->ino));
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;
@@ -708,7 +708,7 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
         cache_mng_update_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino, versioning_header);
     }
 
-    LOG_debug (FIO_LOG, "Storing [%"G_GUINT64_FORMAT" %zu]", rdata->request_offset, buf_len);
+    LOG_debug (FIO_LOG, INO_H"Storing [%"G_GUINT64_FORMAT" %zu]", INO_T(rdata->ino), rdata->request_offset, buf_len);
 
     // and read it
     fileio_read_get_buf (rdata);
@@ -751,7 +751,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (rdata->ino));
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
@@ -765,13 +765,13 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
     
     // we got data from the cache
     if (success) {
-        LOG_debug (FIO_LOG, "Reading from cache");
+        LOG_debug (FIO_LOG, INO_H"Reading from cache", INO_T (rdata->ino));
         rdata->on_buffer_read_cb (rdata->ctx, TRUE, (char *)buf, size);
         g_free (rdata);
     } else {
-        LOG_debug (FIO_LOG, "Reading from server !!");
+        LOG_debug (FIO_LOG, INO_H"Reading from server !", INO_T (rdata->ino));
         if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
-            LOG_err (FIO_LOG, "Failed to get HTTP client !");
+            LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (rdata->ino));
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
             g_free (rdata);
             return;
@@ -796,7 +796,7 @@ static void fileio_read_get_buf (FileReadData *rdata)
         rdata->size = 0;
     }
 
-    LOG_debug (FIO_LOG, "requesting [%"G_GUINT64_FORMAT" %zu]", rdata->off, rdata->size);
+    LOG_debug (FIO_LOG, INO_H"requesting [%"G_GUINT64_FORMAT" %zu]", INO_T (rdata->ino), rdata->off, rdata->size);
 
     cache_mng_retrieve_file_buf (application_get_cache_mng (rdata->fop->app), 
         rdata->ino, rdata->size, rdata->off,
@@ -817,7 +817,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, "Failed to get head from server !");
+        LOG_err (FIO_LOG, INO_H"Failed to get head from server !", INO_T (rdata->ino));
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;
@@ -835,16 +835,17 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 
         size = strtoll ((char *)content_len_header, NULL, 10);
         if (size < 0) {
-            LOG_err (FIO_LOG, "Header contains incorrect file size!");
+            LOG_err (FIO_LOG, INO_H"Header contains incorrect file size!", INO_T (rdata->ino));
             size = 0;
         }
 
         rdata->fop->file_size = size;
-        LOG_debug (FIO_LOG, "Remote file size: %"G_GUINT64_FORMAT, rdata->fop->file_size);
+        LOG_debug (FIO_LOG, INO_H"Remote file size: %"G_GUINT64_FORMAT, INO_T (rdata->ino), rdata->fop->file_size);
         
         local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
         if (local_size != rdata->fop->file_size) {
-            LOG_debug (FIO_LOG, "Local and remote file sizes do not match, invalidating local cached file!");
+            LOG_debug (FIO_LOG, INO_H"Local and remote file sizes do not match, invalidating local cached file!", 
+                INO_T (rdata->ino));
             cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
         }
     }
@@ -857,16 +858,16 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         if (versioning_header) {
             const gchar *local_version_id = cache_mng_get_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino);
             if (local_version_id && !strcmp (local_version_id, versioning_header)) {
-                LOG_debug (FIO_LOG, "Both version IDs match, using local cached file!");
+                LOG_debug (FIO_LOG, INO_H"Both version IDs match, using local cached file!", INO_T (rdata->ino));
             } else {
-                LOG_debug (FIO_LOG, "Version IDs do not match, invalidating local cached file!: %s %s", 
-                        local_version_id, versioning_header);
+                LOG_debug (FIO_LOG, INO_H"Version IDs do not match, invalidating local cached file!: %s %s",
+                    INO_T (rdata->ino), local_version_id, versioning_header);
                 cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
             }
 
         // header was not found
         } else {
-            LOG_debug (FIO_LOG, "Versioning header was not found, invalidating local cached file!");
+            LOG_debug (FIO_LOG, INO_H"Versioning header was not found, invalidating local cached file!", INO_T (rdata->ino));
             cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
         }
     
@@ -879,13 +880,13 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
             // at this point we have both remote and local MD5 sums
             if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
                 if (!strncmp (md5_header, md5str, 32)) {
-                    LOG_debug (FIO_LOG, "MD5 sums match, using local cached file!");
+                    LOG_debug (FIO_LOG, INO_H"MD5 sums match, using local cached file!", INO_T (rdata->ino));
                 } else {
-                    LOG_debug (FIO_LOG, "MD5 sums do not match, invalidating local cached file!");
+                    LOG_debug (FIO_LOG, INO_H"MD5 sums do not match, invalidating local cached file!", INO_T (rdata->ino));
                     cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
                 }
             } else {
-                LOG_debug (FIO_LOG, "Failed to get local MD5 sum, invalidating local cached file!");
+                LOG_debug (FIO_LOG, INO_H"Failed to get local MD5 sum, invalidating local cached file!", INO_T (rdata->ino));
                 cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
             }
 
@@ -894,7 +895,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 
         // header was not found
         } else {
-            LOG_debug (FIO_LOG, "MD5 sum header was not found, invalidating local cached file!");
+            LOG_debug (FIO_LOG, INO_H"MD5 sum header was not found, invalidating local cached file!", INO_T (rdata->ino));
             cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
         }
     }
@@ -919,7 +920,7 @@ static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, "Failed to create HTTP request !");
+        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (rdata->ino));
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
@@ -949,7 +950,7 @@ void fileio_read_buffer (FileIO *fop,
     if (!rdata->fop->head_req_sent) {
          // get HTTP connection to download manifest or a full file
         if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_head_con_cb, rdata)) {
-            LOG_err (FIO_LOG, "Failed to get HTTP client !");
+            LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (rdata->ino));
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
             g_free (rdata);
         }

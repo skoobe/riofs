@@ -174,7 +174,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         char path[PATH_MAX];
 
         if (ino != entry->ino) {
-            LOG_err (CMNG_LOG, "Requested inode doesn't match hashed key!");
+            LOG_err (CMNG_LOG, INO_H"Requested inode doesn't match hashed key!", INO_T (ino));
             if (context->cb.retrieve_cb)
                 context->cb.retrieve_cb (NULL, 0, FALSE, context->user_ctx);
             cache_context_destroy (context);
@@ -197,7 +197,8 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         g_queue_unlink (cmng->q_lru, entry->ll_lru);
         g_queue_push_head_link (cmng->q_lru, entry->ll_lru);
     } else {
-        LOG_debug (CMNG_LOG, "Entry isn't found or doesn't contain requested range: %"INO_FMT, INO ino);
+        LOG_debug (CMNG_LOG, INO_H"Entry isn't found or doesn't contain requested range: [%"OFF_FMT": %"OFF_FMT"]", 
+            INO_T (ino), off, off + size);
     }
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
@@ -268,7 +269,8 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     if (new_length >= old_length)
         cmng->size += new_length - old_length;
     else {
-        LOG_err (CMNG_LOG, "New length is less than the old length !: %"G_GUINT64_FORMAT" <= %"G_GUINT64_FORMAT, new_length, old_length);
+        LOG_err (CMNG_LOG, INO_H"New length is less than the old length !: %"G_GUINT64_FORMAT" <= %"G_GUINT64_FORMAT, 
+            INO_T (ino), new_length, old_length);
     }
     
     // update modification time
@@ -296,9 +298,9 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
         g_hash_table_remove (cmng->h_entries, GUINT_TO_POINTER (ino));
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         unlink (path);
-        LOG_debug (CMNG_LOG, "Entry is removed: %"INO_FMT, INO ino);
+        LOG_debug (CMNG_LOG, INO_H"Entry is removed", INO_T (ino));
     } else {
-        LOG_debug (CMNG_LOG, "Entry not found: %"INO_FMT, INO ino);
+        LOG_debug (CMNG_LOG, INO_H"Entry not found", INO_T (ino));
     }
 }
 
@@ -337,14 +339,14 @@ gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
         return FALSE;
     
     if (range_count (entry->avail_range) != 1) {
-        LOG_debug (CMNG_LOG, "Entry contains more than 1 range, can't take MD5 sum of such obeject !");
+        LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such obeject !", INO_T (ino));
         return FALSE;
     }
 
     cache_mng_file_name (cmng, path, sizeof (path), ino);
     in = fopen (path, "rb");
     if (in == NULL) {
-        LOG_debug (CMNG_LOG, "Cant open file for reading: %s", path);
+        LOG_debug (CMNG_LOG, INO_H"Can't open file for reading: %s", INO_T (ino), path);
         return FALSE;
     }
 

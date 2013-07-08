@@ -202,9 +202,9 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     nowtm = localtime (&en->ctime);
     strftime (tmbuf, sizeof (tmbuf), "%Y-%m-%d %H:%M:%S", nowtm);
 
-    LOG_debug (DIR_TREE_LOG, "Creating new DirEntry: %s, inode: %"INO_FMT", fullpath: %s, mode: %d time: %s", 
-        en->basename, INO en->ino, en->fullpath, en->mode, tmbuf);
-    
+    LOG_debug (DIR_TREE_LOG, INO_H"Creating new DirEntry: %s, fullpath: %s, mode: %d time: %s", 
+        INO_T (en->ino), en->basename, en->fullpath, en->mode, tmbuf);
+   
     if (type == DET_dir) {
         en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
     }
@@ -531,7 +531,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     const gchar *content_type;
     DirEntry  *en;
     
-    LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT, INO op_data->ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"Got attributes", INO_T (op_data->ino));
 
     // release HttpConnection
     http_connection_release (con);
@@ -539,14 +539,14 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
     // entry not found
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
+        LOG_debug (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (op_data->ino));
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         return;
     }
 
     if (!success) {
-        LOG_debug (DIR_TREE_LOG, "Failed to get entry (%"INO_FMT") attributes !",  INO op_data->ino);
+        LOG_debug (DIR_TREE_LOG, INO_H"Failed to get entry attributes !", INO_T (op_data->ino));
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         en->is_updating = FALSE;
@@ -559,7 +559,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
         gint64 size;
         size = strtoll ((char *)size_header, NULL, 10);
         if (size < 0) {
-            LOG_err (DIR_TREE_LOG, "Header contains incorrect file size!");
+            LOG_err (DIR_TREE_LOG, INO_H"Header contains incorrect file size!", INO_T (op_data->ino));
             size = 0;
         }
         en->size = size;
@@ -582,7 +582,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
         en->dir_cache_size = 0;
         en->dir_cache_created = 0;
         
-        LOG_debug (DIR_TREE_LOG, "Converting to directory: %s", en->fullpath);
+        LOG_debug (DIR_TREE_LOG, INO_H"Converting to directory: %s", INO_T (en->ino), en->fullpath);
     }
 
     op_data->lookup_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
@@ -603,7 +603,7 @@ static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
     en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
     // entry not found
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
+        LOG_debug (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (op_data->ino));
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         return;
@@ -622,7 +622,7 @@ static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
     g_free (req_path);
 
     if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
+        LOG_err (DIR_TREE_LOG, INO_H"Failed to create http request !", INO_T (op_data->ino));
         http_connection_release (con);
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         en->is_updating = FALSE;
@@ -643,14 +643,14 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
     DirEntry *parent_en;
     gint64 size = 0;
     
-    LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT, INO op_data->ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"Got attributes !", INO_T (op_data->ino));
 
     // release HttpConnection
     http_connection_release (con);
 
     parent_en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->parent_ino));
     if (!parent_en) {
-        LOG_debug (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO op_data->parent_ino);
+        LOG_debug (DIR_TREE_LOG, INO_H"Parent not found for ino: %"INO_FMT" !", INO_T (op_data->ino), INO op_data->parent_ino);
 
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
@@ -927,7 +927,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         LookupOpData *op_data;
 
         //XXX: CacheMng !
-        LOG_debug (DIR_TREE_LOG, "FILE has 0 lenght: %s", en->fullpath);
+        LOG_debug (DIR_TREE_LOG, INO_H"FILE has 0 lenght: %s", INO_T (en->ino), en->fullpath);
 
         op_data = g_new0 (LookupOpData, 1);
         op_data->dtree = dtree;
@@ -1044,7 +1044,7 @@ void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
 {
     DirEntry *en;
     
-    LOG_debug (DIR_TREE_LOG, "Getting attributes for %"INO_FMT, INO ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"Getting attributes..", INO_T (ino));
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
     
@@ -1150,7 +1150,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     fop = fileio_create (dtree->app, en->fullpath, en->ino, TRUE);
     fi->fh = (uint64_t) fop;
 
-    LOG_debug (DIR_TREE_LOG, "[fop: %p] create %s, directory ino: %"INO_FMT, fop, name, INO parent_ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"[fop: %p] create %s, directory ino: %"INO_FMT, INO_T (en->ino), fop, name, INO parent_ino);
 
     file_create_cb (req, TRUE, en->ino, en->mode, en->size, fi);
 }
@@ -1177,7 +1177,7 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
     fop = fileio_create (dtree->app, en->fullpath, en->ino, FALSE);
     fi->fh = (uint64_t) fop;
 
-    LOG_debug (DIR_TREE_LOG, "[fop: %p] dir_tree_open inode %"INO_FMT, fop, INO ino);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_open", INO_T (en->ino), fop);
 
     file_open_cb (req, TRUE, fi);
 }
@@ -1195,14 +1195,14 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, G_GNUC_UNUSED struct
     // if entry does not exist
     // or it's not a directory type ?
     if (!en) {
-        LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO ino);
+        LOG_msg (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (ino));
         //XXX
         return;
     }
 
     fop = (FileIO *)fi->fh;
 
-    LOG_debug (DIR_TREE_LOG, "[fop: %p] dir_tree_file_release inode: %"INO_FMT, fop, INO ino);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_file_release", INO_T (ino), fop);
 
     fileio_release (fop);
 }
@@ -1214,16 +1214,17 @@ typedef struct {
     DirTree_file_read_cb file_read_cb;
     fuse_req_t req;
     size_t size;
+    fuse_ino_t ino;
 } FileReadOpData;
 
 static void dir_tree_on_buffer_read_cb (gpointer ctx, gboolean success, char *buf, size_t size)
 {
     FileReadOpData *op_data = (FileReadOpData *)ctx;
 
-    LOG_debug (DIR_TREE_LOG, "file READ_cb !");
+    LOG_debug (DIR_TREE_LOG, INO_FROP_H"file READ_cb !", INO_T (op_data->ino), op_data);
 
     if (!success) {
-        LOG_err (DIR_TREE_LOG, "Failed to read file !");
+        LOG_err (DIR_TREE_LOG, INO_FROP_H"Failed to read file !", INO_T (op_data->ino), op_data);
         op_data->file_read_cb (op_data->req, FALSE, NULL, 0);
         g_free (op_data);
         return;
@@ -1248,19 +1249,20 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     // if entry does not exist
     // or it's not a directory type ?
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO ino);
+        LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (ino));
         file_read_cb (req, FALSE, NULL, 0);
         return;
     }
     
     fop = (FileIO *)fi->fh;
 
-    LOG_debug (DIR_TREE_LOG, "[fop: %p] read inode %"INO_FMT", size: %zd, off: %"OFF_FMT, fop, INO ino, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
     
     op_data = g_new0 (FileReadOpData, 1);
     op_data->file_read_cb = file_read_cb;
     op_data->req = req;
     op_data->size = size;
+    op_data->ino = ino;
 
     fileio_read_buffer (fop, size, off, ino, dir_tree_on_buffer_read_cb, op_data);
 }
@@ -1271,6 +1273,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
 typedef struct {
     DirTree_file_write_cb file_write_cb;
     fuse_req_t req;
+    fuse_ino_t ino
 } FileWriteOpData;
 
 // buffer is written into local file, or error
@@ -1280,7 +1283,7 @@ static void dir_tree_on_buffer_written_cb (FileIO *fop, gpointer ctx, gboolean s
 
     op_data->file_write_cb (op_data->req, success, count);
 
-    LOG_debug (DIR_TREE_LOG, "[fop: %p] buffer written, count: %zu", fop, count);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Buffer written, count: %zu", INO_T (op_data->ino), fop, count);
     
     g_free (op_data);
 }
@@ -1300,7 +1303,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     // if entry does not exist
     // or it's not a directory type ?
     if (!en) {
-        LOG_msg (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO ino);
+        LOG_msg (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (ino));
         file_write_cb (req, FALSE,  0);
         return;
     }
@@ -1310,11 +1313,12 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     // set updated time for write op
     en->updated_time = time (NULL);
     
-    LOG_debug (DIR_TREE_LOG, "[fop: %p] write inode %"INO_FMT", size: %zd, off: %"OFF_FMT, fop, INO ino, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
 
     op_data = g_new0 (FileWriteOpData, 1);
     op_data->file_write_cb = file_write_cb;
     op_data->req = req;
+    op_data->ino = ino;
 
     fileio_write_buffer (fop, buf, size, off, ino, dir_tree_on_buffer_written_cb, op_data);
 }
@@ -1383,7 +1387,7 @@ void dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remove_c
     DirEntry *en;
     FileRemoveData *data;
     
-    LOG_debug (DIR_TREE_LOG, "Removing  inode %"INO_FMT, INO ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"Removing  inode", INO_T (ino));
 
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -2048,14 +2052,14 @@ static void dir_tree_on_getxattr_cb (HttpConnection *con, void *ctx, gboolean su
     XAttrData *xattr_data = (XAttrData *) ctx;
     DirEntry *en;
     
-    LOG_debug (DIR_TREE_LOG, "Got Xattributes for ino: %"INO_FMT, INO xattr_data->ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"Got Xattributes !", INO_T (xattr_data->ino));
 
     // release HttpConnection
     http_connection_release (con);
 
     // file not found
     if (!success) {
-        LOG_err (DIR_TREE_LOG, "Failed to get Xattributes !");
+        LOG_err (DIR_TREE_LOG, INO_H"Failed to get Xattributes !", INO_T (xattr_data->ino));
         xattr_data->getxattr_cb (xattr_data->req, FALSE, xattr_data->ino, NULL, 0);
         g_free (xattr_data);
 
@@ -2124,7 +2128,7 @@ void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
     XAttrType attr_type;
     time_t t;
     
-    LOG_debug (DIR_TREE_LOG, "Getting Xattributes for %"INO_FMT, INO ino);
+    LOG_debug (DIR_TREE_LOG, INO_H"Getting Xattributes ..", INO_T (ino));
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
     

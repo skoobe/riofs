@@ -33,10 +33,14 @@ struct _RFuse {
     // the event that we use to receive requests
     struct event *ev;
     struct event *ev_timer;
+#if FUSE_USE_VERSION >= 30
+    struct fuse_buf fbuf;
+#else
     // what our receive-message length is
     size_t recv_size;
     // the buffer that we use to receive events
     char *recv_buf;
+#endif
 };
 
 #define FUSE_LOG "fuse"
@@ -123,6 +127,9 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     }
     fuse_opt_free_args (&args);
 
+#if FUSE_USE_VERSION >= 30
+    rfuse->fbuf.mem = NULL;
+#else
     // the receive buffer stuff
     rfuse->recv_size = fuse_chan_bufsize (rfuse->chan);
 
@@ -131,6 +138,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
         LOG_err (FUSE_LOG, "Failed to allocate memory !");
         return NULL;
     }
+#endif
     
     // allocate a low-level session
     rfuse->session = fuse_lowlevel_new (NULL, &rfuse_opers, sizeof (rfuse_opers), rfuse);
@@ -138,7 +146,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
         LOG_err (FUSE_LOG, "Failed to init FUSE !");
         return NULL;
     }
-    
+
     fuse_session_add_chan (rfuse->session, rfuse->chan);
 
     rfuse->ev = event_new (application_get_evbase (app), 
@@ -169,7 +177,6 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     }
     */
 
-
     return rfuse;
 }
 
@@ -177,7 +184,12 @@ void rfuse_destroy (RFuse *rfuse)
 {
     fuse_unmount (rfuse->mountpoint, rfuse->chan);
     g_free (rfuse->mountpoint);
+
+#if FUSE_USE_VERSION >= 30
+    free (rfuse->fbuf.mem);
+#else
     g_free (rfuse->recv_buf);
+#endif
     event_free (rfuse->ev);
     fuse_session_destroy (rfuse->session);
     g_free (rfuse);
@@ -232,7 +244,11 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
     // loop until we complete a recv
     do {
         // a new fuse_req is available
+#if FUSE_USE_VERSION >= 30
+        res = fuse_session_receive_buf (rfuse->session, &rfuse->fbuf, ch);
+#else
         res = fuse_chan_recv (&ch, rfuse->recv_buf, rfuse->recv_size);
+#endif
     } while (res == -EINTR);
 
     if (res == 0)
@@ -242,9 +258,13 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
         LOG_err (FUSE_LOG, "fuse_chan_recv failed: %s", strerror(-res));
     
     if (res > 0) {
-        LOG_debug (FUSE_LOG, "got %d bytes from /dev/fuse", res);
+     //   LOG_debug (FUSE_LOG, "got %d bytes from /dev/fuse", res);
 
+#if FUSE_USE_VERSION >= 30
+        fuse_session_process_buf (rfuse->session, &rfuse->fbuf, ch);
+#else
         fuse_session_process (rfuse->session, rfuse->recv_buf, res, ch);
+#endif
     }
     
     // reschedule
@@ -269,7 +289,7 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
     if (!req)
         return;
     
-    LOG_debug (FUSE_LOG, "add_dirbuf  ino: %"INO_FMT", name: %s", INO ino, name);
+    LOG_debug (FUSE_LOG, INO_H"add_dirbuf, name: %s", INO_T (ino), name);
 
     // get required buff size
     b->size += fuse_add_direntry (req, NULL, 0, name, NULL, 0);
@@ -288,7 +308,8 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
 static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, 
     const char *buf, size_t buf_size, G_GNUC_UNUSED gpointer ctx)
 {
-    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %"OFF_FMT, success?"YES":"NO", buf_size, max_size, off);
+    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zd, size: %zd, off: %"OFF_FMT, 
+        success?"YES":"NO", buf_size, max_size, off);
 
     if (!success) {
         fuse_reply_err (req, ENOTDIR);
@@ -307,7 +328,7 @@ static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "readdir  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
+    LOG_debug (FUSE_LOG, INO_H"readdir inode, size: %zd, off: %"OFF_FMT, INO_T (ino), size, off);
     
     // fill directory buffer for "ino" directory
     dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req, NULL);
@@ -321,7 +342,7 @@ static void rfuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
 {
     struct stat stbuf;
 
-    LOG_debug (FUSE_LOG, "getattr_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, INO_H"getattr_cb, success: %s", INO_T (ino), success?"YES":"NO");
     if (!success) {
         fuse_reply_err (req, ENOENT);
         return;
@@ -344,7 +365,7 @@ static void rfuse_getattr (fuse_req_t req, fuse_ino_t ino, G_GNUC_UNUSED struct 
 {
     RFuse *rfuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "getattr  for %"INO_FMT, INO ino);
+    LOG_debug (FUSE_LOG, INO_H"getattr", INO_T (ino));
 
     dir_tree_getattr (rfuse->dir_tree, ino, rfuse_getattr_cb, req);
 }
@@ -387,7 +408,7 @@ static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 {
     struct fuse_entry_param e;
 
-    LOG_debug (FUSE_LOG, "lookup_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, INO_H"lookup_cb  success: %s", INO_T (ino), success?"YES":"NO");
     if (!success) {
         fuse_reply_err (req, ENOENT);
         return;
@@ -437,7 +458,7 @@ static void rfuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *f
 {
     RFuse *rfuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "[%p] open  inode: %"INO_FMT", flags: %d", fi, INO ino, fi->flags);
+    LOG_debug (FUSE_LOG, INO_FI_H"open inode, flags: %d", INO_T (ino), fi, fi->flags);
 
     dir_tree_file_open (rfuse->dir_tree, ino, fi, rfuse_open_cb, req);
 }
@@ -449,7 +470,7 @@ void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode
 {
     struct fuse_entry_param e;
 
-    LOG_debug (FUSE_LOG, "add_file_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, INO_FI_H"add_file_cb  success: %s", INO_T (ino), fi, success?"YES":"NO");
     if (!success) {
         fuse_reply_err (req, ENOENT);
         return;
@@ -488,7 +509,7 @@ static void rfuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "release  inode: %"INO_FMT", flags: %d", INO ino, fi->flags);
+    LOG_debug (FUSE_LOG, INO_FI_H"release  inode, flags: %d", INO_T (ino), fi, fi->flags);
 
     dir_tree_file_release (rfuse->dir_tree, ino, fi);
 
@@ -502,7 +523,7 @@ static void rfuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info
 static void rfuse_read_cb (fuse_req_t req, gboolean success, const char *buf, size_t buf_size)
 {
 
-    LOG_debug (FUSE_LOG, "[%p] <<<<< read_cb  success: %s IN buf: %zu", req, success?"YES":"NO", buf_size);
+    LOG_debug (FUSE_LOG, "[req: %p] <<<<< read_cb  success: %s IN buf: %zu", req, success?"YES":"NO", buf_size);
 
     if (!success) {
         fuse_reply_err (req, ENOENT);
@@ -518,7 +539,7 @@ static void rfuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, 
 {
     RFuse *rfuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "[%p] >>>> read  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, req, INO ino, size, off);
+    LOG_debug (FUSE_LOG, INO_FI_H">>>> read  inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fi, size, off);
 
     dir_tree_file_read (rfuse->dir_tree, ino, size, off, rfuse_read_cb, req, fi);
 }
@@ -528,7 +549,7 @@ static void rfuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, 
 // write callback
 static void rfuse_write_cb (fuse_req_t req, gboolean success, size_t count)
 {
-    LOG_debug (FUSE_LOG, "write_cb  success: %s", success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "[req: %p] write_cb  success: %s", req, success?"YES":"NO");
 
     if (!success) {
         fuse_reply_err (req, ENOENT);
@@ -543,7 +564,7 @@ static void rfuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t
 {
     RFuse *rfuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "write  inode: %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
+    LOG_debug (FUSE_LOG, INO_FI_H"write inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fi, size, off);
 
     dir_tree_file_write (rfuse->dir_tree, ino, buf, size, off, rfuse_write_cb, req, fi);
 }

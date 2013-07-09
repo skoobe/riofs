@@ -36,3 +36,12 @@ tests/core
 src/riofs_valgrind.sh
 configure
 include/config.h.in
+Makefile.in
+aclocal.m4
+compile
+config.guess
+config.sub
+depcomp
+install-sh
+missing
+riofs.conf.xml.local

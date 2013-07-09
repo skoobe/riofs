@@ -41,6 +41,10 @@ struct _RFuse {
     // the buffer that we use to receive events
     char *recv_buf;
 #endif
+    
+    // statistics
+    guint64 read_ops;
+    guint64 write_ops;
 };
 
 #define FUSE_LOG "fuse"
@@ -103,6 +107,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->app = app;
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
+    rfuse->read_ops = rfuse->write_ops = 0;
 
     if (fuse_opts) {
         if (fuse_opt_add_arg (&args, "riofs") == -1) {
@@ -541,6 +546,7 @@ static void rfuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, 
     
     LOG_debug (FUSE_LOG, INO_FI_H">>>> read  inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fi, size, off);
 
+    rfuse->read_ops++;
     dir_tree_file_read (rfuse->dir_tree, ino, size, off, rfuse_read_cb, req, fi);
 }
 /*}}}*/
@@ -566,6 +572,7 @@ static void rfuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t
     
     LOG_debug (FUSE_LOG, INO_FI_H"write inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fi, size, off);
 
+    rfuse->write_ops++;
     dir_tree_file_write (rfuse->dir_tree, ino, buf, size, off, rfuse_write_cb, req, fi);
 }
 /*}}}*/
@@ -751,3 +758,12 @@ static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, si
     dir_tree_getxattr (rfuse->dir_tree, ino, name, size, rfuse_getxattr_cb, req);
 }
 /*}}}*/
+
+void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops)
+{
+    if (!rfuse)
+        return;
+
+    *read_ops = rfuse->read_ops;
+    *write_ops = rfuse->write_ops;
+}

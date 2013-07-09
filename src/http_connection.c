@@ -337,6 +337,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     gchar *s_history;
     char ts[50];
     guint diff_sec = 0;
+    const gchar *range_str = NULL;
 
     con = data->con;
     
@@ -359,12 +360,20 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         diff_sec = con->cur_time_stop - con->cur_time_start;
     
     if (req) {
+        struct evkeyvalq *output_headers;
+
         inbuf = evhttp_request_get_input_buffer (req);
         buf_len = evbuffer_get_length (inbuf);
+        
+        output_headers = evhttp_request_get_output_headers (req);
+        if (output_headers)
+            range_str = evhttp_find_header (output_headers, "Range");
     }
     
-    s_history = g_strdup_printf ("%s (%u secs) %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
+    s_history = g_strdup_printf ("[%p] %s (%u secs) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
+        con,
         ts, diff_sec, data->http_cmd, data->con->cur_url, 
+        range_str ? range_str : "",
         evhttp_request_get_response_code (req),
         data->out_size,
         buf_len
@@ -636,7 +645,7 @@ void http_connection_get_stats_info_caption (gpointer client, GString *str, stru
     HttpConnection *con = (HttpConnection *) client;
 
     g_string_append_printf (str, 
-        "%s ID %s Current state %s Last CMD %s Last URL %s Time start (Total secs) %s"
+        "%s ID %s Current state %s Last CMD %s Last URL %s Time started (Total secs) %s"
         , 
         print_format->caption_start, 
         print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,

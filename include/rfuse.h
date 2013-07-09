@@ -30,4 +30,5 @@ void rfuse_destroy (RFuse *rfuse);
 
 void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, off_t file_size);
 
+void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops);
 #endif

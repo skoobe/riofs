@@ -18,6 +18,8 @@
 #include "stat_srv.h"
 #include "utils.h"
 #include "client_pool.h"
+#include "dir_tree.h"
+#include "rfuse.h"
 
 struct _StatSrv {
     Application *app;
@@ -25,6 +27,7 @@ struct _StatSrv {
 
     struct evhttp *http;
     GQueue *q_op_history;
+    time_t boot_time;
 };
 
 static struct PrintFormat print_format_http = {
@@ -51,6 +54,7 @@ StatSrv *stat_srv_create (Application *app)
     stat_srv->app = app;
     stat_srv->conf = application_get_conf (app);
     stat_srv->q_op_history = g_queue_new ();
+    stat_srv->boot_time = time (NULL);
 
     // stats server is disabled
     if (!conf_get_boolean (stat_srv->conf, "statistics.enabled")) {
@@ -119,6 +123,8 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     gint ref = 0;
     GString *str;
     struct evhttp_uri *uri;
+    guint32 total_inodes, file_num, dir_num;
+    guint64 read_ops, write_ops;
 
     uri = evhttp_uri_parse (evhttp_request_get_uri (req));
     LOG_debug (STAT_LOG, "Incoming request: %s", evhttp_request_get_uri (req));
@@ -139,10 +145,21 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         evhttp_uri_free (uri);
     }
 
-
     str = g_string_new (NULL);
+
+    g_string_append_printf (str, "Uptime: %zd secs<BR>", time (NULL) - stat_srv->boot_time);
+
+    // DirTree
+    dir_tree_get_stats (application_get_dir_tree (stat_srv->app), &total_inodes, &file_num, &dir_num);
+    g_string_append_printf (str, "<BR>DirTree: <BR>-Total inodes: %zu Total files: %zu Total directories: %zu<BR>",
+        total_inodes, file_num, dir_num);
+
+    // Fuse
+    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops);
+    g_string_append_printf (str, "<BR>Fuse: <BR>-Read ops: %"G_GUINT64_FORMAT", Write ops: %"G_GUINT64_FORMAT"<BR>",
+        read_ops, write_ops);
     
-    g_string_append_printf (str, "Read workers (%d): <BR>", 
+    g_string_append_printf (str, "<BR>Read workers (%d): <BR>", 
         client_pool_get_client_count (application_get_read_client_pool (stat_srv->app)));
     client_pool_get_client_stats_info (application_get_read_client_pool (stat_srv->app), str, &print_format_http);
     

@@ -105,4 +105,7 @@ void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
     const char *name, size_t size,
     dir_tree_getxattr_cb getxattr_cb, fuse_req_t req);
 
+
+void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_num, guint32 *dir_num);
+
 #endif

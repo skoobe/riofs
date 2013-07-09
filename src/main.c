@@ -78,6 +78,11 @@ DirTree *application_get_dir_tree (Application *app)
     return app->dir_tree;
 }
 
+RFuse *application_get_rfuse (Application *app)
+{
+    return app->rfuse;
+}
+
 ClientPool *application_get_write_client_pool (Application *app)
 {
     return app->write_client_pool;

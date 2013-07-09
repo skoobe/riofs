@@ -2184,3 +2184,28 @@ void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
     }
 }
 /*}}}*/
+
+void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_num, guint32 *dir_num)
+{
+    GHashTableIter iter;
+    DirEntry *entry;
+    gpointer value;
+
+    if (!dtree)
+        return;
+    
+    *total_inodes = g_hash_table_size (dtree->h_inodes);
+    *file_num = 0;
+    *dir_num = 0;
+    
+    g_hash_table_iter_init (&iter, dtree->h_inodes);
+    while (g_hash_table_iter_next (&iter, NULL, &value)) {
+        entry = (DirEntry *) value;
+
+        if (entry->type == DET_file) {
+            *file_num = *file_num + 1;
+        } else {
+            *dir_num = *dir_num + 1;
+        }
+    }
+}

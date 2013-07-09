@@ -108,6 +108,7 @@ ClientPool *application_get_ops_client_pool (Application *app);
 DirTree *application_get_dir_tree (Application *app);
 CacheMng *application_get_cache_mng (Application *app);
 StatSrv *application_get_stat_srv (Application *app);
+RFuse *application_get_rfuse (Application *app);
 
 #ifdef SSL_ENABLED
 SSL_CTX *application_get_ssl_ctx (Application *app);

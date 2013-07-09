@@ -37,6 +37,15 @@ ConfData *application_get_conf (Application *app)
     return app->conf;
 }
 
+StatSrv *application_get_stat_srv (Application *app)
+{
+    return NULL;
+}
+
+void stats_srv_add_op_history (StatSrv *stat_srv, const gchar *str)
+{
+}
+
 #ifdef SSL_ENABLED
 SSL_CTX *application_get_ssl_ctx (Application *app)
 {

@@ -1273,7 +1273,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
 typedef struct {
     DirTree_file_write_cb file_write_cb;
     fuse_req_t req;
-    fuse_ino_t ino
+    fuse_ino_t ino;
 } FileWriteOpData;
 
 // buffer is written into local file, or error
@@ -1292,7 +1292,7 @@ static void dir_tree_on_buffer_written_cb (FileIO *fop, gpointer ctx, gboolean s
 void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino, 
     const char *buf, size_t size, off_t off, 
     DirTree_file_write_cb file_write_cb, fuse_req_t req,
-    G_GNUC_UNUSED struct fuse_file_info *fi)
+    struct fuse_file_info *fi)
 {
     DirEntry *en;
     FileIO *fop;

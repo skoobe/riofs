@@ -7,12 +7,14 @@ import shutil
 import struct
 import hashlib
 import string
+import signal
 
 class App ():
-    def __init__(self):
+    def __init__(self, bucket, base_dir = "/tmp/riofs_test"):
+        self.bucket = bucket
+        self.base_dir = base_dir
         self.read_pid = None
         self.write_pid = None
-        self.base_dir = "/tmp/s3ffs_test"
         self.src_dir = self.base_dir + "/orig/"
         self.dst_dir = self.base_dir + "/dest/"
         self.write_dir = self.base_dir + "/write/"
@@ -21,16 +23,17 @@ class App ():
         self.read_cache_dir = self.base_dir + "/read_cache/"
         self.nr_tests = 1
         self.l_files = []
+        self.interrupted = False
         random.seed (time.time())
 
-    def start_s3ffs (self, mnt_dir, log_file, cache_dir):
+    def start_riofs (self, mnt_dir, log_file, cache_dir):
         pid = os.fork ()
         if pid == 0:
             base_path = os.path.join(os.path.dirname(__file__), '..')
             bin_path = os.path.join(base_path, "src")
             cache = "--cache-dir=" + cache_dir
-            conf = "--config=../s3ffs.conf.xml"
-            args = [os.path.join(bin_path, "s3ffs"), "-f", conf, cache, "http://s3.amazonaws.com", "skoobe-test-s3ffs", mnt_dir]
+            conf = "--config=../riofs.conf.xml"
+            args = [os.path.join(bin_path, "riofs"), "-f", conf, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
             sys.stdout = open (log_file, 'w')
             os.execv(args[0], args)
         else:
@@ -41,8 +44,15 @@ class App ():
         if pid == 0:
             args = ["fusermount", "-u", mnt_dir]
             os.execv(args[0], args)
+    
+    def signal_handler (self, signum, frame):
+        self.interrupted = True
+        print "Interrupting, please wait .."
 
     def run (self):
+        # install sig handler
+        signal.signal (signal.SIGINT, self.signal_handler)
+
         if os.path.isdir (self.base_dir):
             print "Directory", self.base_dir, "exists !"
             print "Please remove it and try again !"
@@ -59,8 +69,8 @@ class App ():
             print "Failed to create temp dirs !", e
             return
         
-        self.write_pid = self.start_s3ffs (self.write_dir, "./write.log", self.write_cache_dir)
-        self.read_pid = self.start_s3ffs (self.read_dir, "./read.log", self.read_cache_dir)
+        self.write_pid = self.start_riofs (self.write_dir, "./write.log", self.write_cache_dir)
+        self.read_pid = self.start_riofs (self.read_dir, "./read.log", self.read_cache_dir)
         
         print "Creating list of files .."
         self.create_files ()
@@ -73,6 +83,8 @@ class App ():
         print "STARTING .."
         failed = False
         for entry in self.l_files:
+            if self.interrupted:
+                break
             time.sleep (1)
             print >> sys.stderr, ">> FILE:", entry
             res = self.check_file (entry)
@@ -81,7 +93,7 @@ class App ():
                 failed = True
                 break
 
-        if failed == False:
+        if failed == False and not self.interrupted:
             print "All tests passed !"
 
         try:
@@ -114,6 +126,8 @@ class App ():
         fout = open (fname, 'r')
         md5 = hashlib.md5()
         while True:
+            if self.interrupted:
+                return
             data = fout.read(block_size)
             if not data:
                 break
@@ -128,6 +142,8 @@ class App ():
 
         # tiny files < 4kb
         for i in range (0, self.nr_tests):
+            if self.interrupted:
+                return
             fname = self.str_gen ()
             flen = random.randint (1, 1024 * 4)
             self.create_file (self.src_dir + fname, flen)
@@ -135,6 +151,9 @@ class App ():
 
         # small files < 1mb
         for i in range (0, self.nr_tests):
+            if self.interrupted:
+                return
+
             fname = self.str_gen ()
             flen = random.randint (1, 1024 * 1024 * 1)
             self.create_file (self.src_dir + fname, flen)
@@ -142,6 +161,9 @@ class App ():
 
         # medium files 6mb - 20mb
         for i in range (0, self.nr_tests):
+            if self.interrupted:
+                return
+           
             fname = self.str_gen ()
             flen = random.randint (1024 * 1024 * 6, 1024 * 1024 * 20)
             self.create_file (self.src_dir + fname, flen)
@@ -150,6 +172,9 @@ class App ():
         # large files 30mb - 40mb
         #for i in range (0, self.nr_tests):
         for i in range (0, 0):
+            if self.interrupted:
+                return
+ 
             fname = self.str_gen ()
             flen = random.randint (1024 * 1024 * 30, 1024 * 1024 * 40)
             self.create_file (self.src_dir + fname, flen)
@@ -161,6 +186,8 @@ class App ():
         print >> sys.stderr, ">> Copying to SRV", entry["name"], " to: ", out_src_name
 
         for i in range (0, 10):
+            if self.interrupted:
+                return
             try:
                 time.sleep (2)
                 shutil.copy (entry["name"], out_src_name)
@@ -178,6 +205,9 @@ class App ():
         print >> sys.stderr, ">> Copying to LOC", in_dst_name, " to: ", out_dst_name
         # write can take some extra time (due file release does not wait)
         for i in range (0, 10):
+            if self.interrupted:
+                return
+
             try:
                 time.sleep (2)
                 with open(in_dst_name) as f: pass
@@ -203,5 +233,12 @@ class App ():
 
 
 if __name__ == "__main__":
-    app = App ()
+    if len (sys.argv) < 2:
+        print "Please run as: " + sys.argv[0] + " [bucket] [work dir]"
+        sys.exit (1)
+
+    if (len (sys.argv) == 2):
+        app = App (sys.argv[1])
+    else:
+        app = App (sys.argv[1], sys.argv[2])
     app.run ()

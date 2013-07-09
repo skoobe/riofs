@@ -515,6 +515,7 @@ int main (int argc, char *argv[])
     gchar **s_fuse_opts = NULL;
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
+    gboolean disable_stats = FALSE;
 
     app = g_new0 (Application, 1);
     app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf", NULL);
@@ -528,6 +529,7 @@ int main (int argc, char *argv[])
         { "fuse-options", 'o', 0, G_OPTION_ARG_STRING_ARRAY, &s_fuse_opts, "Fuse options.", "\"opt[,opt...]\"" },
         { "path-style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
         { "disable-syslog", 0, 0, G_OPTION_ARG_NONE, &disable_syslog, "Flag. Disable logging to syslog.", NULL },
+        { "disable-stats", 0, 0, G_OPTION_ARG_NONE, &disable_stats, "Flag. Disable Statistics HTTP interface.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
         { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
@@ -697,6 +699,9 @@ int main (int argc, char *argv[])
 
     if (part_size)
         conf_set_uint (app->conf, "s3.part_size", part_size);
+
+    if (disable_stats)
+        conf_set_boolean (app->conf, "statistics.enabled", FALSE);
 
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     if (!application_set_url (app, s_params[0])) {

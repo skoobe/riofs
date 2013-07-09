@@ -64,4 +64,5 @@
     <port type="int">8011</port>
     <stats_path type="string">/stats</stats_path>
     <history_size type="uint">1000</history_size>
+    <access_key type="string">iddqd</access_key>
 </statistics>

@@ -124,7 +124,9 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     GString *str;
     struct evhttp_uri *uri;
     guint32 total_inodes, file_num, dir_num;
-    guint64 read_ops, write_ops;
+    guint64 read_ops, write_ops, dir_read_ops;
+    const gchar *access_key = NULL;
+    gboolean permitted = FALSE;
 
     uri = evhttp_uri_parse (evhttp_request_get_uri (req));
     LOG_debug (STAT_LOG, "Incoming request: %s", evhttp_request_get_uri (req));
@@ -140,9 +142,18 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
             refresh = http_find_header (&q_params, "refresh");
             if (refresh)
                 ref = atoi (refresh);
+            access_key = http_find_header (&q_params, "access_key");
+            if (access_key && !strcmp (access_key, conf_get_string (stat_srv->conf, "statistics.access_key")))
+                permitted = TRUE;
+
             evhttp_clear_headers (&q_params);
         }
         evhttp_uri_free (uri);
+    }
+
+    if (!permitted) {
+        evhttp_send_reply (req, HTTP_NOTFOUND, "Not found", NULL);
+        return;
     }
 
     str = g_string_new (NULL);
@@ -155,9 +166,10 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         total_inodes, file_num, dir_num);
 
     // Fuse
-    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops);
-    g_string_append_printf (str, "<BR>Fuse: <BR>-Read ops: %"G_GUINT64_FORMAT", Write ops: %"G_GUINT64_FORMAT"<BR>",
-        read_ops, write_ops);
+    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops, &dir_read_ops);
+    g_string_append_printf (str, "<BR>Fuse: <BR>-Read ops: %"G_GUINT64_FORMAT", Write ops: %"G_GUINT64_FORMAT
+        " Dir read ops: %"G_GUINT64_FORMAT"<BR>",
+        read_ops, write_ops, dir_read_ops);
     
     g_string_append_printf (str, "<BR>Read workers (%d): <BR>", 
         client_pool_get_client_count (application_get_read_client_pool (stat_srv->app)));

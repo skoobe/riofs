@@ -184,7 +184,7 @@ static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx
 
     LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
 
-    con->cur_cmd_type = CMD_IDLE;
+    //con->cur_cmd_type = CMD_IDLE;
     
     //XXX: need further investigation !
     //con->evcon = NULL;

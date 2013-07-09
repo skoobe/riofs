@@ -45,6 +45,7 @@ struct _RFuse {
     // statistics
     guint64 read_ops;
     guint64 write_ops;
+    guint64 dir_read_ops;
 };
 
 #define FUSE_LOG "fuse"
@@ -107,7 +108,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->app = app;
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
-    rfuse->read_ops = rfuse->write_ops = 0;
+    rfuse->read_ops = rfuse->write_ops = rfuse->dir_read_ops = 0;
 
     if (fuse_opts) {
         if (fuse_opt_add_arg (&args, "riofs") == -1) {
@@ -335,6 +336,7 @@ static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 
     LOG_debug (FUSE_LOG, INO_H"readdir inode, size: %zd, off: %"OFF_FMT, INO_T (ino), size, off);
     
+    rfuse->dir_read_ops++;
     // fill directory buffer for "ino" directory
     dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req, NULL);
 }
@@ -759,11 +761,12 @@ static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, si
 }
 /*}}}*/
 
-void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops)
+void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops, guint64 *dir_read_ops)
 {
     if (!rfuse)
         return;
 
     *read_ops = rfuse->read_ops;
     *write_ops = rfuse->write_ops;
+    *dir_read_ops = rfuse->dir_read_ops;
 }

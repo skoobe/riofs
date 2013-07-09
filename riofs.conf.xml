@@ -58,7 +58,7 @@
 
 <statistics>
     <!-- set True to enable statistics server -->
-    <enabled type="boolean">True</enabled>
+    <enabled type="boolean">False</enabled>
     <!-- set host to bind server to, or 0.0.0.0 -->
     <host type="string">0.0.0.0</host>
     <port type="int">8011</port>

@@ -65,7 +65,7 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
         return;
 
     t = time (NULL);
-    gmtime_r (&t, &cur);
+    localtime_r (&t, &cur);
     cur_p = &cur;
     if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p)) {
         ts[0] = '\0';

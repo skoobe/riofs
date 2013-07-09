@@ -85,7 +85,7 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
-#define FUSE_USE_VERSION 26
+//#define FUSE_USE_VERSION 26
 #include <fuse/fuse_lowlevel.h>
 
 typedef struct _Application Application;

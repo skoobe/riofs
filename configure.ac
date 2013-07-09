@@ -33,6 +33,8 @@ AC_ARG_ENABLE([test-apps],
 	[], [enable_test_apps=no])
 AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_test_apps" = "yes"])
 
+AC_DEFINE(FUSE_USE_VERSION, 26, [Fuse API Version])
+
 # check if we should enable verbose debugging 
 AC_ARG_ENABLE(debug-mode,
      AS_HELP_STRING(--enable-debug-mode, enable support for running in debug mode),

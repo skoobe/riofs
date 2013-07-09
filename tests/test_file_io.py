@@ -189,7 +189,8 @@ class App ():
         return ''.join (random.choice(chars) for x in range(size))
 
     def create_files (self):
-
+        total_files = 5 * self.nr_tests
+        files_created = 0
         # tiny files < 4kb
         for i in range (0, self.nr_tests):
             self.check_running ()
@@ -199,6 +200,8 @@ class App ():
             flen = random.randint (1, 1024 * 4)
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
+            files_created = files_created + 1
+            print "Created file " + str (files_created) + " out of " + str (total_files)
 
         # small files < 1mb
         for i in range (0, self.nr_tests):
@@ -210,6 +213,8 @@ class App ():
             flen = random.randint (1, 1024 * 1024 * 1)
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
+            files_created = files_created + 1
+            print "Created file " + str (files_created) + " out of " + str (total_files)
 
         # medium files 6mb - 20mb
         for i in range (0, self.nr_tests):
@@ -221,7 +226,9 @@ class App ():
             flen = random.randint (1024 * 1024 * 6, 1024 * 1024 * 20)
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
-        
+            files_created = files_created + 1
+            print "Created file " + str (files_created) + " out of " + str (total_files)
+       
         # large files 30mb - 40mb
         for i in range (0, self.nr_tests):
             self.check_running ()
@@ -232,7 +239,9 @@ class App ():
             flen = random.randint (1024 * 1024 * 30, 1024 * 1024 * 40)
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
-         
+            files_created = files_created + 1
+            print "Created file " + str (files_created) + " out of " + str (total_files)
+        
         # Fuse blocks
         for i in range (0, self.nr_tests):
             self.check_running ()
@@ -243,7 +252,8 @@ class App ():
             flen = self.fuse_block * (i + 1)
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
-
+            files_created = files_created + 1
+            print "Created file " + str (files_created) + " out of " + str (total_files)
 
     def check_file (self, entry):
         out_src_name = self.write_dir + os.path.basename (entry["name"])

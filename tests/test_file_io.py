@@ -22,7 +22,7 @@ class App ():
         self.write_cache_dir = self.base_dir + "/write_cache/"
         self.read_dir = self.base_dir + "/read/"
         self.read_cache_dir = self.base_dir + "/read_cache/"
-        self.nr_retries = 10
+        self.nr_retries = 60
         self.l_files = []
         self.interrupted = False
         self.fuse_block = 4096
@@ -191,6 +191,7 @@ class App ():
     def create_files (self):
         total_files = 5 * self.nr_tests
         files_created = 0
+
         # tiny files < 4kb
         for i in range (0, self.nr_tests):
             self.check_running ()

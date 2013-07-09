@@ -10,9 +10,10 @@ import string
 import signal
 
 class App ():
-    def __init__(self, bucket, base_dir = "/tmp/riofs_test"):
+    def __init__(self, bucket, base_dir = "/tmp/riofs_test", nr_tests = 10):
         self.bucket = bucket
         self.base_dir = base_dir
+        self.nr_tests = nr_tests
         self.read_pid = None
         self.write_pid = None
         self.src_dir = self.base_dir + "/orig/"
@@ -21,29 +22,56 @@ class App ():
         self.write_cache_dir = self.base_dir + "/write_cache/"
         self.read_dir = self.base_dir + "/read/"
         self.read_cache_dir = self.base_dir + "/read_cache/"
-        self.nr_tests = 1
+        self.nr_retries = 10
         self.l_files = []
         self.interrupted = False
+        self.fuse_block = 4096
         random.seed (time.time())
 
     def start_riofs (self, mnt_dir, log_file, cache_dir):
-        pid = os.fork ()
+        try:
+            pid = os.fork ()
+        except OSError, e:
+            print "Failed to start RioFS: ", e
+            return 0
+        
         if pid == 0:
             base_path = os.path.join(os.path.dirname(__file__), '..')
             bin_path = os.path.join(base_path, "src")
             cache = "--cache-dir=" + cache_dir
             conf = "--config=../riofs.conf.xml"
-            args = [os.path.join(bin_path, "riofs"), "-f", conf, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
             sys.stdout = open (log_file, 'w')
-            os.execv(args[0], args)
+            args = [os.path.join(bin_path, "riofs"), "--disable-stats", "-f", conf, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
+            print "Starting RioFS: " + " ".join (args)
+            try:
+                os.execv(args[0], args)
+            except OSError, e:
+                print "Failed to start RioFS: ", e
+                return 0
         else:
             return pid
 
     def unmount (self, mnt_dir):
         pid = os.fork()
         if pid == 0:
-            args = ["fusermount", "-u", mnt_dir]
+            args = ["fusermount", "-u", mnt_dir, " 2> /dev/null"]
             os.execv(args[0], args)
+        else:
+            sleep (1)
+
+    # check if both RioFS are still running
+    def check_running (self):
+        try:
+            pid, sts = os.waitpid (self.write_pid, os.WNOHANG)
+        except OSError, e:
+            print "RioFS instance is not running: ", e
+            self.interrupted = True
+
+        try:
+            pid, sts = os.waitpid (self.read_pid, os.WNOHANG)
+        except OSError, e:
+            print "RioFS instance is not running: ", e
+            self.interrupted = True
     
     def signal_handler (self, signum, frame):
         self.interrupted = True
@@ -69,8 +97,16 @@ class App ():
             print "Failed to create temp dirs !", e
             return
         
+        print "Launching RioFS instances .."
+
         self.write_pid = self.start_riofs (self.write_dir, "./write.log", self.write_cache_dir)
         self.read_pid = self.start_riofs (self.read_dir, "./read.log", self.read_cache_dir)
+
+        if self.write_pid == 0 or self.read_pid == 0:
+            print "Failed to start RioFS instance !"
+            return
+
+        time.sleep (2)
         
         print "Creating list of files .."
         self.create_files ()
@@ -78,13 +114,17 @@ class App ():
 
         random.shuffle (self.l_files)
 
+        self.check_running ()
+
         #print self.l_files
 
         print "STARTING .."
         failed = False
         for entry in self.l_files:
+            self.check_running ()
             if self.interrupted:
                 break
+            
             time.sleep (1)
             print >> sys.stderr, ">> FILE:", entry
             res = self.check_file (entry)
@@ -96,9 +136,14 @@ class App ():
         if failed == False and not self.interrupted:
             print "All tests passed !"
 
+        print "Killing processes .."
+        
         try:
-            print "Killing processes .."
             os.kill (self.write_pid, signal.SIGINT)
+        except Exception, e:
+            print "Failed to kill processes !", e
+        
+        try:
             os.kill (self.read_pid, signal.SIGINT)
         except Exception, e:
             print "Failed to kill processes !", e
@@ -107,15 +152,20 @@ class App ():
 
         try:
             self.unmount (self.write_dir)
+        except Exception, e:
+            None
+        
+        print "Removing work directories .."
+
+        try:
             self.unmount (self.read_dir)
         except Exception, e:
-            print "Failed to unmount !", e
+            None
         
-        if failed == False:
-            try:
-                shutil.rmtree (self.base_dir)
-            except:
-                None
+        try:
+            shutil.rmtree (self.base_dir)
+        except:
+            None
 
     def create_file (self, fname, flen):
         fout = open (fname, 'w')
@@ -142,6 +192,7 @@ class App ():
 
         # tiny files < 4kb
         for i in range (0, self.nr_tests):
+            self.check_running ()
             if self.interrupted:
                 return
             fname = self.str_gen ()
@@ -151,6 +202,7 @@ class App ():
 
         # small files < 1mb
         for i in range (0, self.nr_tests):
+            self.check_running ()
             if self.interrupted:
                 return
 
@@ -161,6 +213,7 @@ class App ():
 
         # medium files 6mb - 20mb
         for i in range (0, self.nr_tests):
+            self.check_running ()
             if self.interrupted:
                 return
            
@@ -170,8 +223,8 @@ class App ():
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
         
         # large files 30mb - 40mb
-        #for i in range (0, self.nr_tests):
-        for i in range (0, 0):
+        for i in range (0, self.nr_tests):
+            self.check_running ()
             if self.interrupted:
                 return
  
@@ -179,13 +232,25 @@ class App ():
             flen = random.randint (1024 * 1024 * 30, 1024 * 1024 * 40)
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
-    
+         
+        # Fuse blocks
+        for i in range (0, self.nr_tests):
+            self.check_running ()
+            if self.interrupted:
+                return
+ 
+            fname = self.str_gen ()
+            flen = self.fuse_block * (i + 1)
+            self.create_file (self.src_dir + fname, flen)
+            self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
+
 
     def check_file (self, entry):
         out_src_name = self.write_dir + os.path.basename (entry["name"])
         print >> sys.stderr, ">> Copying to SRV", entry["name"], " to: ", out_src_name
 
-        for i in range (0, 10):
+        for i in range (0, self.nr_retries):
+            self.check_running ()
             if self.interrupted:
                 return
             try:
@@ -205,6 +270,7 @@ class App ():
         print >> sys.stderr, ">> Copying to LOC", in_dst_name, " to: ", out_dst_name
         # write can take some extra time (due file release does not wait)
         for i in range (0, 10):
+            self.check_running ()
             if self.interrupted:
                 return
 
@@ -220,6 +286,10 @@ class App ():
         except:
             return False
         
+        self.check_running ()
+        if self.interrupted:
+            return
+       
         md5 = self.md5_for_file (out_dst_name)
 
         if md5 == entry["md5"]:
@@ -231,14 +301,19 @@ class App ():
             print "======"
             return False
 
-
 if __name__ == "__main__":
     if len (sys.argv) < 2:
-        print "Please run as: " + sys.argv[0] + " [bucket] [work dir]"
+        print "Please run as: " + sys.argv[0] + " [bucket] [work dir] [number of files per type]"
         sys.exit (1)
 
-    if (len (sys.argv) == 2):
-        app = App (sys.argv[1])
+    if len (sys.argv) == 2:
+        app = App (bucket = sys.argv[1])
+    elif len (sys.argv) == 3:
+        app = App (bucket = sys.argv[1], base_dir = sys.argv[2])
+    elif len (sys.argv) == 4:
+        app = App (bucket = sys.argv[1], base_dir = sys.argv[2], nr_tests = int (sys.argv[3]))
     else:
-        app = App (sys.argv[1], sys.argv[2])
+        print "Please run as: " + sys.argv[0] + " [bucket] [work dir] [number of files per type]"
+        sys.exit (1)
+
     app.run ()

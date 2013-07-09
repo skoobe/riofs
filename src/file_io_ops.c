@@ -781,6 +781,13 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 
 static void fileio_read_get_buf (FileReadData *rdata)
 {
+    if (rdata->off >= rdata->fop->file_size) {
+        // requested range is outsize the file size
+        LOG_debug (FIO_LOG, INO_H"requested size is beyond the file size!", INO_T (rdata->ino));
+        fileio_read_on_cache_cb (NULL, 0, TRUE, rdata);
+        return;
+    }
+
     // set new request size:
     // 1. file must have some size
     // 2. offset must be less than the file size
@@ -791,12 +798,15 @@ static void fileio_read_get_buf (FileReadData *rdata)
         (guint64) (rdata->off + rdata->size) > rdata->fop->file_size) 
     {
         rdata->size = rdata->fop->file_size - rdata->off;
-    // special case, when zero-size file is reqeusted
+    // special case, when zero-size file is requested
     } else if (rdata->fop->file_size == 0) {
         rdata->size = 0;
+    } else {
+        // request size and offset are ok
     }
 
-    LOG_debug (FIO_LOG, INO_H"requesting [%"G_GUINT64_FORMAT" %zu]", INO_T (rdata->ino), rdata->off, rdata->size);
+    LOG_debug (FIO_LOG, INO_H"requesting [%"OFF_FMT": %"G_GUINT64_FORMAT"], file size: %"G_GUINT64_FORMAT, 
+        INO_T (rdata->ino), rdata->off, rdata->size, rdata->fop->file_size);
 
     cache_mng_retrieve_file_buf (application_get_cache_mng (rdata->fop->app), 
         rdata->ino, rdata->size, rdata->off,

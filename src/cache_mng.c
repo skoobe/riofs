@@ -339,7 +339,7 @@ gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
         return FALSE;
     
     if (range_count (entry->avail_range) != 1) {
-        LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such obeject !", INO_T (ino));
+        LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such object !", INO_T (ino));
         return FALSE;
     }
 

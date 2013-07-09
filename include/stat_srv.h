@@ -23,4 +23,5 @@
 StatSrv *stat_srv_create (Application *app);
 void stat_srv_destroy (StatSrv *s);
 
+void stats_srv_add_op_history (StatSrv *stat_srv, const gchar *str);
 #endif

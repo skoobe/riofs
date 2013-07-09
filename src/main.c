@@ -273,7 +273,9 @@ static gint application_finish_initialization_and_run (Application *app)
         http_connection_create,
         http_connection_destroy,
         http_connection_set_on_released_cb,
-        http_connection_check_rediness
+        http_connection_check_rediness,
+        http_connection_get_stats_info_caption,
+        http_connection_get_stats_info_data
         );
     if (!app->read_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
@@ -286,7 +288,9 @@ static gint application_finish_initialization_and_run (Application *app)
         http_connection_create,
         http_connection_destroy,
         http_connection_set_on_released_cb,
-        http_connection_check_rediness
+        http_connection_check_rediness,
+        http_connection_get_stats_info_caption,
+        http_connection_get_stats_info_data
         );
     if (!app->write_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
@@ -299,7 +303,9 @@ static gint application_finish_initialization_and_run (Application *app)
         http_connection_create,
         http_connection_destroy,
         http_connection_set_on_released_cb,
-        http_connection_check_rediness
+        http_connection_check_rediness,
+        http_connection_get_stats_info_caption,
+        http_connection_get_stats_info_data
         );
     if (!app->ops_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
@@ -335,13 +341,7 @@ static gint application_finish_initialization_and_run (Application *app)
     }
 /*}}}*/
 
-    app->stat_srv = stat_srv_create (app);
-    if (!app->stat_srv) {
-        event_base_loopexit (app->evbase, NULL);
-        return -1;
-    }
-    
-    // set global App variable
+  // set global App variable
     _app = app;
 
 /*{{{ signal handlers*/
@@ -749,7 +749,12 @@ int main (int argc, char *argv[])
     SSL_CTX_set_options (app->ssl_ctx, SSL_OP_ALL);
 
 #endif
-
+    app->stat_srv = stat_srv_create (app);
+    if (!app->stat_srv) {
+        event_base_loopexit (app->evbase, NULL);
+        return -1;
+    }
+  
     // perform the initial request to get  bucket ACL (handles redirect as well)
     app->service_con = http_connection_create (app);
     if (!app->service_con)  {

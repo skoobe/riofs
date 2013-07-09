@@ -30,6 +30,8 @@ typedef struct {
     ClientPool *pool;
     ClientPool_client_check_rediness client_check_rediness; // is client ready for a new request
     ClientPool_client_destroy client_destroy;
+    ClientPool_client_get_stats_info_caption client_get_stats_info_caption;
+    ClientPool_client_get_stats_info_data client_get_stats_info_data;
     gpointer client;
 } PoolClient;
 
@@ -50,7 +52,10 @@ ClientPool *client_pool_create (Application *app,
     ClientPool_client_create client_create, 
     ClientPool_client_destroy client_destroy, 
     ClientPool_client_set_on_released_cb client_set_on_released_cb,
-    ClientPool_client_check_rediness client_check_rediness)
+    ClientPool_client_check_rediness client_check_rediness,
+    ClientPool_client_get_stats_info_caption client_get_stats_info_caption,
+    ClientPool_client_get_stats_info_data client_get_stats_info_data
+    )
 {
     ClientPool *pool;
     gint i;
@@ -70,6 +75,8 @@ ClientPool *client_pool_create (Application *app,
         pc->client = client_create (app);
         pc->client_check_rediness = client_check_rediness;
         pc->client_destroy = client_destroy;
+        pc->client_get_stats_info_caption = client_get_stats_info_caption;
+        pc->client_get_stats_info_data = client_get_stats_info_data;
         // add to the list
         pool->l_clients = g_list_append (pool->l_clients, pc);
         // add callback
@@ -147,11 +154,28 @@ gboolean client_pool_get_client (ClientPool *pool, ClientPool_on_client_ready on
     return TRUE;
 }
 
-// Add request to request queue
-/*
-void client_pool_add_request (ClientPool *pool, 
-    ClientPool_on_request_done on_request_done, gpointer callback_data)
+gint client_pool_get_client_count (ClientPool *pool)
 {
-
+    return g_list_length (pool->l_clients);
 }
-*/
+
+// collects statistics information from clients
+void client_pool_get_client_stats_info (ClientPool *pool, GString *str, struct PrintFormat *print_format)
+{
+    GList *l;
+    PoolClient *pc;
+    gboolean printed_caption = FALSE;
+    
+    g_string_append_printf (str, "%s", print_format->header);
+    
+    for (l = g_list_first (pool->l_clients); l; l = g_list_next (l)) {
+        pc = (PoolClient *) l->data;
+        if (!printed_caption) {
+            pc->client_get_stats_info_caption (pc->client, str, print_format);
+            printed_caption = TRUE;
+        }
+        pc->client_get_stats_info_data (pc->client, str, print_format);
+    }
+
+    g_string_append_printf (str, "%s", print_format->footer);
+}

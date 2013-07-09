@@ -119,6 +119,17 @@ gboolean application_set_url (Application *app, const gchar *url);
 #include "log.h" 
 #include "conf.h" 
 
+struct PrintFormat {
+    const gchar *header;
+    const gchar *footer;
+    const gchar *caption_start;
+    const gchar *caption_end;
+    const gchar *row_start;
+    const gchar *row_end;
+    const gchar *col_div;
+    const gchar *caption_col_div;
+};
+
 LogLevel log_level;
 
 #define OFF_FMT "ju"

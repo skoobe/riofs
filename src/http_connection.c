@@ -17,6 +17,7 @@
  */
 #include "http_connection.h"
 #include "utils.h"
+#include "stat_srv.h"
 
 /*{{{ struct*/
 
@@ -27,6 +28,7 @@ typedef struct {
 } HttpConnectionHeader;
 
 #define CON_LOG "con"
+#define CMD_IDLE 9999
 
 static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
 static gboolean http_connection_init (HttpConnection *con);
@@ -48,6 +50,10 @@ gpointer http_connection_create (Application *app)
     
     con->app = app;
     con->l_output_headers = NULL;
+    con->cur_cmd_type = CMD_IDLE;
+    con->cur_url = NULL;
+    con->cur_time_start = 0;
+    con->cur_time_stop = 0;
 
     con->is_acquired = FALSE;
     
@@ -131,6 +137,8 @@ void http_connection_destroy (gpointer data)
 {
     HttpConnection *con = (HttpConnection *) data;
     
+    if (con->cur_url)
+        g_free (con->cur_url);
     if (con->evcon)
         evhttp_connection_free (con->evcon);
     g_free (con);
@@ -175,6 +183,8 @@ static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx
     HttpConnection *con = (HttpConnection *) ctx;
 
     LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
+
+    con->cur_cmd_type = CMD_IDLE;
     
     //XXX: need further investigation !
     //con->evcon = NULL;
@@ -304,6 +314,7 @@ typedef struct {
     gchar *resource_path;
     gchar *http_cmd;
     struct evbuffer *out_buffer;
+    size_t out_size;
 
     struct timeval start_tv;
 } RequestData;
@@ -318,12 +329,49 @@ static void request_data_free (RequestData *data)
 static void http_connection_on_responce_cb (struct evhttp_request *req, void *ctx)
 {
     RequestData *data = (RequestData *) ctx;
+    HttpConnection *con;
     struct evbuffer *inbuf;
     const char *buf = NULL;
-    size_t buf_len;
+    size_t buf_len = 0;
     struct timeval end_tv;
+    gchar *s_history;
+    char ts[50];
+    guint diff_sec = 0;
 
+    con = data->con;
+    
     gettimeofday (&end_tv, NULL);
+    con->cur_time_stop = time (NULL);
+
+    if (con->cur_time_start) {
+        struct tm *cur_p;
+        struct tm cur;
+        
+        localtime_r (&con->cur_time_start, &cur);
+        cur_p = &cur;
+        if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
+            ts[0] = '\0';
+    } else {
+        strcpy (ts, "");
+    }
+
+    if (con->cur_time_start && con->cur_time_start < con->cur_time_stop)
+        diff_sec = con->cur_time_stop - con->cur_time_start;
+    
+    if (req) {
+        inbuf = evhttp_request_get_input_buffer (req);
+        buf_len = evbuffer_get_length (inbuf);
+    }
+    
+    s_history = g_strdup_printf ("%s (%u secs) %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
+        ts, diff_sec, data->http_cmd, data->con->cur_url, 
+        evhttp_request_get_response_code (req),
+        data->out_size,
+        buf_len
+    );
+    
+    stats_srv_add_op_history (application_get_stat_srv (data->con->app), s_history);
+    g_free (s_history);
 
     LOG_debug (CON_LOG, "Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)", timeval_diff (&data->start_tv, &end_tv));
 
@@ -499,6 +547,10 @@ gboolean http_connection_make_request (HttpConnection *con,
     data->resource_path = url_escape (resource_path);
     data->http_cmd = g_strdup (http_cmd);
     data->out_buffer = out_buffer;
+    if (out_buffer)
+        data->out_size = evbuffer_get_length (out_buffer);
+    else
+        data->out_size = 0;
     
     if (!strcasecmp (http_cmd, "GET")) {
         cmd_type = EVHTTP_REQ_GET;
@@ -547,7 +599,6 @@ gboolean http_connection_make_request (HttpConnection *con,
     http_connection_free_headers (con->l_output_headers);
     con->l_output_headers = NULL;
 
-
     if (out_buffer) {
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
@@ -558,11 +609,17 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_str = g_strdup_printf ("%s", data->resource_path);
     }
 
-
     LOG_msg (CON_LOG, "[%p] %s bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
         http_cmd, conf_get_string (conf, "s3.bucket_name"), request_str, conf_get_string (conf, "s3.host"));
+    
+    // update stats info
+    con->cur_cmd_type = cmd_type;
+    if (con->cur_url)
+        g_free (con->cur_url);
+    con->cur_url = g_strdup_printf ("%s%s%s", "http://", conf_get_string (conf, "s3.host"), request_str);
 
     gettimeofday (&data->start_tv, NULL);
+    con->cur_time_start = time (NULL);
     res = evhttp_make_request (http_connection_get_evcon (con), req, cmd_type, request_str);
     g_free (request_str);
 
@@ -571,4 +628,76 @@ gboolean http_connection_make_request (HttpConnection *con,
         return FALSE;
     } else
         return TRUE;
-}    
+}
+
+// return string with various statistics information
+void http_connection_get_stats_info_caption (gpointer client, GString *str, struct PrintFormat *print_format)
+{
+    HttpConnection *con = (HttpConnection *) client;
+
+    g_string_append_printf (str, 
+        "%s ID %s Current state %s Last CMD %s Last URL %s Time start (Total secs) %s"
+        , 
+        print_format->caption_start, 
+        print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
+        print_format->caption_end
+    );
+}
+
+void http_connection_get_stats_info_data (gpointer client, GString *str, struct PrintFormat *print_format)
+{
+    HttpConnection *con = (HttpConnection *) client;
+    gchar cmd[10];
+    char ts[50];
+    guint diff_sec = 0;
+
+    switch (con->cur_cmd_type) {
+        case EVHTTP_REQ_GET:
+            strcpy (cmd, "GET");
+            break;
+        case EVHTTP_REQ_PUT:
+            strcpy (cmd, "PUT");
+            break;
+        case EVHTTP_REQ_POST:
+            strcpy (cmd, "POST");
+            break;
+        case EVHTTP_REQ_DELETE:
+            strcpy (cmd, "DELETE");
+            break;
+        default:
+            strcpy (cmd, "-");
+    }
+
+    if (con->cur_time_start) {
+        struct tm *cur_p;
+        struct tm cur;
+        
+        localtime_r (&con->cur_time_start, &cur);
+        cur_p = &cur;
+        if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
+            ts[0] = '\0';
+    } else {
+        strcpy (ts, "");
+    }
+
+    if (con->cur_time_start && con->cur_time_start < con->cur_time_stop)
+        diff_sec = con->cur_time_stop - con->cur_time_start;
+    
+    g_string_append_printf (str, 
+        "%s" // header
+        "%p %s" // ID
+        "%s %s" // State
+        "%s %s" // CMD
+        "%s %s" // URL
+        "%s (%u secs)" // Time
+        "%s" // footer
+        ,
+        print_format->row_start,
+        con, print_format->col_div,
+        con->is_acquired ? "Busy" : "Idle", print_format->col_div,
+        cmd, print_format->col_div,
+        con->cur_url ? con->cur_url : "-",  print_format->col_div,
+        ts, diff_sec,
+        print_format->row_end
+    );
+}

@@ -36,6 +36,11 @@ struct _HttpConnection {
     // is taken by high level
     gboolean is_acquired;
     GList *l_output_headers;
+
+    enum evhttp_cmd_type cur_cmd_type;
+    gchar *cur_url;
+    time_t cur_time_start;
+    time_t cur_time_stop;
 };
 
 gpointer http_connection_create (Application *app);
@@ -47,6 +52,9 @@ void http_connection_set_on_released_cb (gpointer client, ClientPool_on_released
 gboolean http_connection_check_rediness (gpointer client);
 gboolean http_connection_acquire (HttpConnection *con);
 gboolean http_connection_release (HttpConnection *con);
+
+void http_connection_get_stats_info_data (gpointer client, GString *str, struct PrintFormat *print_format);
+void http_connection_get_stats_info_caption (gpointer client, GString *str, struct PrintFormat *print_format);
 
 struct evhttp_connection *http_connection_get_evcon (HttpConnection *con);
 Application *http_connection_get_app (HttpConnection *con);

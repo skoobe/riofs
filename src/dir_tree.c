@@ -216,6 +216,10 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     if (parent_ino)
         g_hash_table_insert (parent_en->h_dir_tree, g_strdup (en->basename), en);
 
+    // inform parent that the directory cache has changed
+    if (parent_ino)
+        dir_tree_entry_modified (dtree, parent_en);
+    
     return en;
 }
 
@@ -349,23 +353,18 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
         en->dir_cache_created = 0;
+
+        LOG_debug (DIR_TREE_LOG, INO_H"Invalidating cache for directory: %s", INO_T (en->ino), en->basename);
     } else {
         DirEntry *parent_en;
         
         parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (en->parent_ino));
-        if (!parent_en) {
-            LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO en->ino);
+        if (!parent_en || parent_en->type != DET_dir) {
+            LOG_err (DIR_TREE_LOG, INO_H"Parent not found! %", INO_T (en->ino));
             return;
         }
 
-        if (parent_en->dir_cache) {
-            g_free (parent_en->dir_cache);
-            parent_en->dir_cache = NULL;
-            parent_en->dir_cache_size = 0;
-            parent_en->dir_cache_created = 0;
-        }
-        
-        // XXX: get parent, update dir cache
+        dir_tree_entry_modified (dtree, parent_en);
     }
 }
 /*}}}*/
@@ -1146,6 +1145,9 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
         // update
         en->removed = FALSE;
         en->access_time = time (NULL);
+
+        // inform the parent that his dir cache is no longer up-to-dated
+        dir_tree_entry_modified (dtree, dir_en);
     }
 
     //XXX: set as new 
@@ -1154,7 +1156,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     fop = fileio_create (dtree->app, en->fullpath, en->ino, TRUE);
     fi->fh = (uint64_t) fop;
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"create %s, directory ino: %"INO_FMT, INO_T (en->ino), fop, name, INO parent_ino);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"New Entry created: %s, directory ino: %"INO_FMT, INO_T (en->ino), fop, name, INO parent_ino);
 
     file_create_cb (req, TRUE, en->ino, en->mode, en->size, fi);
 }
@@ -1275,19 +1277,46 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
 /*{{{ dir_tree_file_write */
 
 typedef struct {
+    DirTree *dtree;
     DirTree_file_write_cb file_write_cb;
     fuse_req_t req;
     fuse_ino_t ino;
+    off_t off;
 } FileWriteOpData;
 
 // buffer is written into local file, or error
 static void dir_tree_on_buffer_written_cb (FileIO *fop, gpointer ctx, gboolean success, size_t count)
 {
     FileWriteOpData *op_data = (FileWriteOpData *) ctx;
+    DirEntry *en;
 
     op_data->file_write_cb (op_data->req, success, count);
 
     LOG_debug (DIR_TREE_LOG, INO_FOP_H"Buffer written, count: %zu", INO_T (op_data->ino), fop, count);
+
+    // we need to update entry size !
+    if (success) {
+        guint64 len;
+
+        en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
+        if (!en) {
+            LOG_msg (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (op_data->ino));
+            g_free (op_data);
+            return;
+        }
+        
+        // try to get file size from CacheMng
+        len = cache_mng_get_file_length (application_get_cache_mng (op_data->dtree->app), op_data->ino);
+        
+        // calculate current size in case of CacheMng is disabled or the file is not stored in CacheMng
+        if (len == 0) {
+            len = op_data->off + count;
+            LOG_debug (DIR_TREE_LOG, INO_H"Recalculating file size !", INO_T (op_data->ino));
+        }
+
+        en->size = len;
+        //en->ctime = time (NULL);
+    }
     
     g_free (op_data);
 }
@@ -1320,9 +1349,11 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
 
     op_data = g_new0 (FileWriteOpData, 1);
+    op_data->dtree = dtree;
     op_data->file_write_cb = file_write_cb;
     op_data->req = req;
     op_data->ino = ino;
+    op_data->off = off;
 
     fileio_write_buffer (fop, buf, size, off, ino, dir_tree_on_buffer_written_cb, op_data);
 }
@@ -1811,6 +1842,8 @@ static void dir_tree_on_rename_copy_cb (HttpConnection *con, gpointer ctx, gbool
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     RenameData *rdata = (RenameData *) ctx;
+    DirEntry *newparent_en;
+    DirEntry *en;
     
     http_connection_release (con);
 
@@ -1823,6 +1856,31 @@ static void dir_tree_on_rename_copy_cb (HttpConnection *con, gpointer ctx, gbool
     }
 
     //XXX: a 200 OK response can contain either a success or an error
+
+    // Update new entry
+    newparent_en = g_hash_table_lookup (rdata->dtree->h_inodes, GUINT_TO_POINTER (rdata->newparent_ino));
+    if (!newparent_en || newparent_en->type != DET_dir) {
+        LOG_err (DIR_TREE_LOG, "Entry (ino = %"INO_FMT") not found !", INO rdata->newparent_ino);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+
+    en = g_hash_table_lookup (newparent_en->h_dir_tree, rdata->newname);
+    if (!en) {
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found !", rdata->newname);
+        if (rdata->rename_cb)
+            rdata->rename_cb (rdata->req, FALSE);
+        rename_data_destroy (rdata);
+        return;
+    }
+
+    en->removed = FALSE;
+    en->access_time = time (NULL);
+
+    // inform the parent that his dir cache is no longer up-to-dated
+    dir_tree_entry_modified (rdata->dtree, newparent_en);
 
     //XXX: reuse file_delete code
     if (!client_pool_get_client (application_get_ops_client_pool (rdata->dtree->app),
@@ -1880,7 +1938,13 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
     http_connection_add_output_header (con, "x-amz-copy-source", src_path);
     g_free (src_path);
 
-    dst_path = g_strdup_printf ("/%s/%s", newparent_en->fullpath, rdata->newname);
+    if (rdata->newparent_ino == FUSE_ROOT_ID)
+        dst_path = g_strdup_printf ("%s/%s", newparent_en->fullpath, rdata->newname);
+    else
+        dst_path = g_strdup_printf ("/%s/%s", newparent_en->fullpath, rdata->newname);
+
+    LOG_debug (DIR_TREE_LOG, INO_CON_H"Rename: coping %s to %s", INO_T (en->ino), con, en->fullpath, dst_path); 
+
     res = http_connection_make_request (con, 
         dst_path, "PUT", 
         NULL,

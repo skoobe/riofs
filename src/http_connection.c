@@ -628,8 +628,9 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_str = g_strdup_printf ("%s", data->resource_path);
     }
 
-    LOG_msg (CON_LOG, CON_H"%s bucket: %s path: %s host: %s", con, 
-        http_cmd, conf_get_string (conf, "s3.bucket_name"), request_str, conf_get_string (conf, "s3.host"));
+    LOG_msg (CON_LOG, CON_H"%s %s  bucket: %s, host: %s", con,
+        http_cmd, request_str, 
+        conf_get_string (conf, "s3.bucket_name"), conf_get_string (conf, "s3.host"));
     
     // update stats info
     con->cur_cmd_type = cmd_type;

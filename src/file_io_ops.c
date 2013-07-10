@@ -827,7 +827,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to get head from server !", INO_T (rdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get HEAD from server !", INO_T (rdata->ino), con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;

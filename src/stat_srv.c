@@ -120,15 +120,13 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
 {
     StatSrv *stat_srv = (StatSrv *) ctx;
     struct evbuffer *evb = NULL;
-    const gchar *refresh = NULL;
     gint ref = 0;
     GString *str;
     struct evhttp_uri *uri;
     guint32 total_inodes, file_num, dir_num;
-    guint64 read_ops, write_ops, dir_read_ops, lookup_ops;
+    guint64 read_ops, write_ops, readdir_ops, lookup_ops;
     guint32 cache_entries;
     guint64 total_cache_size, cache_hits, cache_miss;
-    const gchar *access_key = NULL;
     gboolean permitted = FALSE;
 
     uri = evhttp_uri_parse (evhttp_request_get_uri (req));
@@ -140,7 +138,10 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         
         query = evhttp_uri_get_query (uri);
         if (query) {
+            const gchar *access_key = NULL;
+            const gchar *refresh = NULL;
             struct evkeyvalq q_params;
+            
             TAILQ_INIT (&q_params);
             evhttp_parse_query_str (query, &q_params);
             refresh = http_find_header (&q_params, "refresh");
@@ -172,10 +173,10 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         total_inodes, file_num, dir_num);
 
     // Fuse
-    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops, &dir_read_ops, &lookup_ops);
+    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops, &readdir_ops, &lookup_ops);
     g_string_append_printf (str, "<BR>Fuse: <BR>-Read ops: %"G_GUINT64_FORMAT", Write ops: %"G_GUINT64_FORMAT
-        ", Dir read ops: %"G_GUINT64_FORMAT", Lookup ops: %"G_GUINT64_FORMAT"<BR>",
-        read_ops, write_ops, dir_read_ops, lookup_ops);
+        ", Readdir ops: %"G_GUINT64_FORMAT", Lookup ops: %"G_GUINT64_FORMAT"<BR>",
+        read_ops, write_ops, readdir_ops, lookup_ops);
 
     // CacheMng
     cache_mng_get_stats (application_get_cache_mng (stat_srv->app), &cache_entries, &total_cache_size, &cache_hits, &cache_miss);

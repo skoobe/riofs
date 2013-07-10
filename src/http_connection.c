@@ -57,6 +57,8 @@ gpointer http_connection_create (Application *app)
     con->jobs_nr = 0;
     con->connects_nr = 0;
     con->cur_code = 0;
+    con->total_bytes_out = con->total_bytes_in = 0;
+    con->errors_nr = 0;
 
     con->is_acquired = FALSE;
     
@@ -371,6 +373,8 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     
     if (req) {
         struct evkeyvalq *output_headers;
+        struct evkeyvalq *input_headers;
+        struct evkeyval *header;
 
         inbuf = evhttp_request_get_input_buffer (req);
         buf_len = evbuffer_get_length (inbuf);
@@ -380,11 +384,25 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             range_str = evhttp_find_header (output_headers, "Range");
 
         con->cur_code = evhttp_request_get_response_code (req);
+
+        // get the size of Output headers 
+        TAILQ_FOREACH(header, output_headers, next) {
+            con->total_bytes_out += strlen (header->key) + strlen (header->value);
+        }
+
+        // get the size of Input headers 
+        input_headers = evhttp_request_get_input_headers (req);
+        TAILQ_FOREACH(header, input_headers, next) {
+            con->total_bytes_in += strlen (header->key) + strlen (header->value);
+        }
+
+        con->total_bytes_in += buf_len;
+
     } else {
         con->cur_code = 500;
     }
     
-    s_history = g_strdup_printf ("[%p] %s (%u secs) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
+    s_history = g_strdup_printf ("[%p] %s (%u sec) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
         con,
         ts, diff_sec, data->http_cmd, data->con->cur_url, 
         range_str ? range_str : "",
@@ -401,6 +419,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
     if (!req) {
         LOG_err (CON_LOG, CON_H"Request failed !", con);
+        con->errors_nr++;
 
 #ifdef SSL_ENABLED
     { unsigned long oslerr;
@@ -419,6 +438,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     // check if we reached maximum redirect count
     if (data->redirects > conf_get_int (application_get_conf (data->con->app), "connection.max_redirects")) {
         LOG_err (CON_LOG, CON_H"Too many redirects !", con);
+        con->errors_nr++;
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
@@ -494,6 +514,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             g_free (tmp);
         }
         
+        con->errors_nr++;
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
@@ -623,7 +644,9 @@ gboolean http_connection_make_request (HttpConnection *con,
     http_connection_free_headers (con->l_output_headers);
     con->l_output_headers = NULL;
 
+
     if (out_buffer) {
+        con->total_bytes_out += evbuffer_get_length (out_buffer);
         evbuffer_add_buffer (req->output_buffer, out_buffer);
     }
 
@@ -661,11 +684,12 @@ gboolean http_connection_make_request (HttpConnection *con,
 void http_connection_get_stats_info_caption (G_GNUC_UNUSED gpointer client, GString *str, struct PrintFormat *print_format)
 {
     g_string_append_printf (str, 
-        "%s ID %s Current state %s Last CMD %s Last URL %s Last Code %s Time started (Total secs) %s Jobs Nr %s Connects Nr %s"
+        "%s ID %s Current state %s Last CMD %s Last URL %s Last Code %s Time started (Response sec) %s Jobs (Errors) %s Connects Nr %s Total Out %s Total In %s"
         , 
         print_format->caption_start, 
         print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
-        print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
+        print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
+        print_format->caption_col_div,
         print_format->caption_end
     );
 }
@@ -719,9 +743,11 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         "%s %s" // CMD
         "%s %s" // URL
         "%d %s" // Code
-        "%s (%u secs) %s" // Time
-        "%"G_GUINT64_FORMAT" %s" // Jobs nr
-        "%"G_GUINT64_FORMAT // Connects nr
+        "%s (%u sec) %s" // Time
+        "%"G_GUINT64_FORMAT" (%"G_GUINT64_FORMAT") %s" // Jobs nr
+        "%"G_GUINT64_FORMAT" %s" // Connects nr
+        "~ %"G_GUINT64_FORMAT" b %s" // Total Out
+        "~ %"G_GUINT64_FORMAT" b" // Total In
         "%s" // footer
         ,
         print_format->row_start,
@@ -731,8 +757,10 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         con->cur_url ? con->cur_url : "-",  print_format->col_div,
         con->cur_code, print_format->col_div,
         ts, diff_sec, print_format->col_div,
-        con->jobs_nr, print_format->col_div,
-        con->connects_nr,
+        con->jobs_nr, con->errors_nr, print_format->col_div,
+        con->connects_nr, print_format->col_div,
+        con->total_bytes_out, print_format->col_div,
+        con->total_bytes_in,
         print_format->row_end
     );
 }

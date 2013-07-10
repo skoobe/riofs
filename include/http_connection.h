@@ -45,6 +45,9 @@ struct _HttpConnection {
     time_t cur_time_stop;
     guint64 jobs_nr;
     guint64 connects_nr;
+    guint64 total_bytes_in;
+    guint64 total_bytes_out;
+    guint64 errors_nr;
 };
 
 gpointer http_connection_create (Application *app);

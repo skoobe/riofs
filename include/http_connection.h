@@ -37,10 +37,13 @@ struct _HttpConnection {
     gboolean is_acquired;
     GList *l_output_headers;
 
+    // statistics info
     enum evhttp_cmd_type cur_cmd_type;
     gchar *cur_url;
     time_t cur_time_start;
     time_t cur_time_stop;
+    guint64 jobs_nr;
+    guint64 connects_nr;
 };
 
 gpointer http_connection_create (Application *app);

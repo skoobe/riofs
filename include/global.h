@@ -143,5 +143,7 @@ LogLevel log_level;
 #define INO_FI_H "[ino: %"INO_FMT", fi: %p] "
 #define INO_FROP_H "[ino: %"INO_FMT", frop: %p] "
 #define INO_T(x) (INO x)
+#define CON_H "[con: %p] "
+#define INO_CON_H "[ino: %"INO_FMT", con: %p] "
 
 #endif

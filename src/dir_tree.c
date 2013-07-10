@@ -260,7 +260,8 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
     // process files only 
     if (en->age < dtree->current_age && 
         !en->is_modified && 
-        now > en->access_time && now - en->access_time >= conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time") &&
+        now > en->access_time && 
+        (guint32)(now - en->access_time) >= conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time") &&
         en->type != DET_dir) {
 
         // first remove item from the inode hash table !
@@ -456,21 +457,21 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     DirEntry *en;
     DirTreeFillDirData *dir_fill_data;
     
-    LOG_debug (DIR_TREE_LOG, "Requesting directory buffer for dir ino %"INO_FMT", size: %zd, off: %"OFF_FMT, INO ino, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_H"Requesting directory buffer: size: %zd, off: %"OFF_FMT, INO_T (ino), size, off);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
     // if directory does not exist
     // or it's not a directory type ?
     if (!en || en->type != DET_dir) {
-        LOG_msg (DIR_TREE_LOG, "Directory (ino = %"INO_FMT") not found !", INO ino);
+        LOG_msg (DIR_TREE_LOG, INO_H"Directory not found !", INO_T (ino));
         readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
         return;
     }
     
     // already have directory buffer in the cache
     if (!dir_tree_is_cache_expired (dtree, en)) {
-        LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
+        LOG_debug (DIR_TREE_LOG, INO_H"Sending directory buffer from cache !", INO_T (ino));
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
     }
@@ -479,7 +480,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     if (off > 0) {
         // update timer, if subsequent requests has the same "req" as the one which updated dir cache
         //XXX: dir_fill_data->en->dir_cache_created = time (NULL);
-        LOG_debug (DIR_TREE_LOG, "Sending directory buffer (ino = %"INO_FMT") from cache !", INO ino);
+        LOG_debug (DIR_TREE_LOG, INO_H"Sending directory buffer from cache !", INO_T (ino));
         readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
     }
@@ -660,12 +661,12 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
 
     // file not found
     if (!success) {
-        LOG_debug (DIR_TREE_LOG, "FileEntry not found %s", op_data->name);
+        LOG_debug (DIR_TREE_LOG, INO_H"FileEntry not found %s", INO_T (op_data->ino), op_data->name);
 
         // create a temporary entry to hold this object
         en = dir_tree_add_entry (op_data->dtree, op_data->name, FILE_DEFAULT_MODE, DET_file, op_data->parent_ino, 0, time (NULL));
         if (!en) {
-            LOG_err (DIR_TREE_LOG, "Failed to create file: %s !", op_data->name);
+            LOG_err (DIR_TREE_LOG, INO_H"Failed to create file: %s !", INO_T (op_data->ino), op_data->name);
         } else {
             // set as removed
             en->removed = TRUE;
@@ -682,7 +683,7 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
     if (size_header) {
         size = strtoll ((char *)size_header, NULL, 10);
         if (size < 0) {
-            LOG_err (DIR_TREE_LOG, "Header contains incorrect file size!");
+            LOG_err (DIR_TREE_LOG, INO_H"Header contains incorrect file size!", INO_T (op_data->ino));
             size = 0;
         }
     }
@@ -699,7 +700,8 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
         op_data->parent_ino, op_data->name, size, last_modified);
 
     if (!en) {
-        LOG_err (DIR_TREE_LOG, "Failed to create FileEntry parent ino: %"INO_FMT" !", INO op_data->parent_ino);
+        LOG_err (DIR_TREE_LOG, INO_H"Failed to create FileEntry parent ino: %"INO_FMT" !",
+            INO_T (op_data->ino), INO op_data->parent_ino);
 
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
@@ -726,7 +728,7 @@ static void dir_tree_on_lookup_not_found_con_cb (gpointer client, gpointer ctx)
 
     parent_en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->parent_ino));
     if (!parent_en) {
-        LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO op_data->parent_ino);
+        LOG_err (DIR_TREE_LOG, INO_H"Parent not found for ino: %"INO_FMT" !", INO_T (op_data->ino), INO op_data->parent_ino);
 
         op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data->name);
@@ -794,10 +796,10 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     time_t t;
     
     LOG_debug (DIR_TREE_LOG, "Looking up for '%s' in directory ino: %"INO_FMT, name, INO parent_ino);
-    
+
     dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     
-    // entry not found
+    // entry not found or not a dir
     if (!dir_en || dir_en->type != DET_dir) {
         LOG_msg (DIR_TREE_LOG, "Directory not found ! ino: %"INO_FMT, INO parent_ino);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
@@ -818,7 +820,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         op_data->parent_ino = parent_ino;
         op_data->name = g_strdup (name);
 
-        LOG_debug (DIR_TREE_LOG, "Getting directory listing ..");
+        LOG_debug (DIR_TREE_LOG, INO_H"Getting directory listing ..", INO_T (dir_en->ino));
         dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data);
 
         return;
@@ -838,9 +840,11 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         op_data->parent_ino = parent_ino;
         op_data->name = g_strdup (name);
 
-        LOG_debug (DIR_TREE_LOG, "Entry not found, sending request to storage server, name: %s", name);
+        LOG_debug (DIR_TREE_LOG, INO_H"Entry (%s) not found, sending request to the server.", INO_T (dir_en->ino), name);
         
-        if (!client_pool_get_client (application_get_ops_client_pool (op_data->dtree->app), dir_tree_on_lookup_not_found_con_cb, op_data)) {
+        if (!client_pool_get_client (application_get_ops_client_pool (op_data->dtree->app),
+            dir_tree_on_lookup_not_found_con_cb, op_data)) 
+        {
             LOG_err (DIR_TREE_LOG, "Failed to get http client !");
             op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
             g_free (op_data->name);
@@ -854,7 +858,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
     // file is removed
     if (en->removed) {
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' is removed !", name);
+        LOG_debug (DIR_TREE_LOG, INO_H"Entry '%s' is removed !", INO_T (en->ino), name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }
@@ -903,7 +907,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         en->is_updating = TRUE;
 
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' is modified !", name);
+        LOG_debug (DIR_TREE_LOG, INO_H"Entry '%s' is modified !", INO_T (en->ino), name);
         
         
         if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_on_lookup_con_cb, op_data)) {
@@ -1150,7 +1154,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     fop = fileio_create (dtree->app, en->fullpath, en->ino, TRUE);
     fi->fh = (uint64_t) fop;
 
-    LOG_debug (DIR_TREE_LOG, INO_H"[fop: %p] create %s, directory ino: %"INO_FMT, INO_T (en->ino), fop, name, INO parent_ino);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"create %s, directory ino: %"INO_FMT, INO_T (en->ino), fop, name, INO parent_ino);
 
     file_create_cb (req, TRUE, en->ino, en->mode, en->size, fi);
 }
@@ -2185,6 +2189,7 @@ void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
 }
 /*}}}*/
 
+/*{{{ get_stats */
 void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_num, guint32 *dir_num)
 {
     GHashTableIter iter;
@@ -2209,3 +2214,4 @@ void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_nu
         }
     }
 }
+/*}}}*/

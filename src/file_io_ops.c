@@ -103,13 +103,13 @@ static void fileio_release_on_update_header_cb (HttpConnection *con, void *ctx, 
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_H"Failed to update headers on the server !", INO_T (fop->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to update headers on the server !", INO_T (fop->ino), con);
         fileio_destroy (fop);
         return;
     }
 
     // done 
-    LOG_debug (FIO_LOG, INO_H"Headers are updated !", INO_T (fop->ino));
+    LOG_debug (FIO_LOG, INO_CON_H"Headers are updated !", INO_T (fop->ino), con);
 
     fileio_destroy (fop);
 }
@@ -126,7 +126,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     gchar *md5str;
     size_t i;
 
-    LOG_debug (FIO_LOG, INO_H"Updating object's headers..", INO_T (fop->ino));
+    LOG_debug (FIO_LOG, INO_CON_H"Updating object's headers..", INO_T (fop->ino), con);
 
     http_connection_acquire (con);
     
@@ -152,7 +152,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (fop->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), con);
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -188,7 +188,7 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_H"Failed to send Multipart data to the server !", INO_T (fop->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send Multipart data to the server !", INO_T (fop->ino), con);
         fileio_destroy (fop);
         return;
     }
@@ -200,7 +200,7 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     }
 
     // done 
-    LOG_debug (FIO_LOG, INO_H"Multipart Upload is done !", INO_T (fop->ino));
+    LOG_debug (FIO_LOG, INO_CON_H"Multipart Upload is done !", INO_T (fop->ino), con);
 
     // fileio_destroy (fop);
     fileio_release_update_headers (fop);
@@ -226,7 +226,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     }
     evbuffer_add_printf (xml_buf, "%s", "</CompleteMultipartUpload>");
 
-    LOG_debug (FIO_LOG, INO_H"Sending Multipart Final part..", INO_T (fop->ino));
+    LOG_debug (FIO_LOG, INO_CON_H"Sending Multipart Final part..", INO_T (fop->ino), con);
 
     http_connection_acquire (con);
     
@@ -241,7 +241,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     evbuffer_free (xml_buf);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (fop->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), con);
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -277,7 +277,7 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_H"Failed to send bufer to server !", INO_T (fop->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send bufer to server !", INO_T (fop->ino), con);
         fileio_destroy (fop);
         return;
     }
@@ -309,7 +309,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     size_t buf_len;
     const gchar *buf;
 
-    LOG_debug (FIO_LOG, INO_H"[http_con: %p] Releasing fop. Size: %zu", INO_T (fop->ino), con, evbuffer_get_length (fop->write_buf));
+    LOG_debug (FIO_LOG, INO_CON_H"Releasing fop. Size: %zu", INO_T (fop->ino), con, evbuffer_get_length (fop->write_buf));
     
     // add part information to the list
     part = g_new0 (FileIOPart, 1);
@@ -329,7 +329,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     if (fop->multipart_initiated) {
    
         if (!fop->uploadid) {
-            LOG_err (FIO_LOG, INO_H"UploadID is not set, aborting operation !", INO_T (fop->ino));
+            LOG_err (FIO_LOG, INO_CON_H"UploadID is not set, aborting operation !", INO_T (fop->ino), con);
             fileio_destroy (fop);
             return;
         }
@@ -355,7 +355,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (fop->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), con);
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -411,7 +411,7 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
     http_connection_release (con);
     
     if (!success) {
-        LOG_err (FIO_LOG, INO_H"Failed to send bufer to server !", INO_T (wdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send bufer to server !", INO_T (wdata->ino), con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -473,7 +473,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (wdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (wdata->ino), con);
         http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
@@ -555,7 +555,7 @@ static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, g
     wdata->fop->multipart_initiated = TRUE;
     
     if (!success || !buf_len) {
-        LOG_err (FIO_LOG, INO_H"Failed to get multipart init data from the server !", INO_T (wdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get multipart init data from the server !", INO_T (wdata->ino), con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -563,7 +563,7 @@ static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, g
 
     uploadid = get_uploadid (buf, buf_len);
     if (!uploadid) {
-        LOG_err (FIO_LOG, INO_H"Failed to parse multipart init data!", INO_T (wdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to parse multipart init data!", INO_T (wdata->ino), con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -595,7 +595,7 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (wdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (wdata->ino), con);
         http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
@@ -691,7 +691,7 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     http_connection_release (con);
    
     if (!success) {
-        LOG_err (FIO_LOG, INO_H"Failed to get file from server !", INO_T (rdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get file from server !", INO_T (rdata->ino), con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;
@@ -751,7 +751,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (rdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), con);
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
@@ -827,7 +827,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_H"Failed to get head from server !", INO_T (rdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get head from server !", INO_T (rdata->ino), con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);
         return;
@@ -845,7 +845,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 
         size = strtoll ((char *)content_len_header, NULL, 10);
         if (size < 0) {
-            LOG_err (FIO_LOG, INO_H"Header contains incorrect file size!", INO_T (rdata->ino));
+            LOG_err (FIO_LOG, INO_CON_H"Header contains incorrect file size!", INO_T (rdata->ino), con);
             size = 0;
         }
 
@@ -930,7 +930,7 @@ static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_H"Failed to create HTTP request !", INO_T (rdata->ino));
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), con);
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
         g_free (rdata);

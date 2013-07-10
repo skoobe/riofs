@@ -46,6 +46,7 @@ struct _RFuse {
     guint64 read_ops;
     guint64 write_ops;
     guint64 dir_read_ops;
+    guint64 lookup_ops;
 };
 
 #define FUSE_LOG "fuse"
@@ -108,7 +109,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->app = app;
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
-    rfuse->read_ops = rfuse->write_ops = rfuse->dir_read_ops = 0;
+    rfuse->read_ops = rfuse->write_ops = rfuse->dir_read_ops = rfuse->lookup_ops = 0;
 
     if (fuse_opts) {
         if (fuse_opt_add_arg (&args, "riofs") == -1) {
@@ -445,6 +446,8 @@ static void rfuse_lookup (fuse_req_t req, fuse_ino_t parent_ino, const char *nam
 
     LOG_debug (FUSE_LOG, "lookup  name: %s parent inode: %"INO_FMT, name, INO parent_ino);
 
+    rfuse->lookup_ops++;
+
     dir_tree_lookup (rfuse->dir_tree, parent_ino, name, rfuse_lookup_cb, req);
 }
 /*}}}*/
@@ -761,7 +764,8 @@ static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, si
 }
 /*}}}*/
 
-void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops, guint64 *dir_read_ops)
+/*{{{ get_stats */
+void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops, guint64 *dir_read_ops, guint64 *lookup_ops)
 {
     if (!rfuse)
         return;
@@ -769,4 +773,6 @@ void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops, guint
     *read_ops = rfuse->read_ops;
     *write_ops = rfuse->write_ops;
     *dir_read_ops = rfuse->dir_read_ops;
+    *lookup_ops = rfuse->lookup_ops;
 }
+/*}}}*/

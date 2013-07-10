@@ -124,7 +124,7 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     GString *str;
     struct evhttp_uri *uri;
     guint32 total_inodes, file_num, dir_num;
-    guint64 read_ops, write_ops, dir_read_ops;
+    guint64 read_ops, write_ops, dir_read_ops, lookup_ops;
     const gchar *access_key = NULL;
     gboolean permitted = FALSE;
 
@@ -158,18 +158,19 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
 
     str = g_string_new (NULL);
 
-    g_string_append_printf (str, "Uptime: %zd secs<BR>", time (NULL) - stat_srv->boot_time);
+    g_string_append_printf (str, "Uptime: %u secs, Log level: %d<BR>", 
+        (guint32)(time (NULL) - stat_srv->boot_time), log_level);
 
     // DirTree
     dir_tree_get_stats (application_get_dir_tree (stat_srv->app), &total_inodes, &file_num, &dir_num);
-    g_string_append_printf (str, "<BR>DirTree: <BR>-Total inodes: %zu Total files: %zu Total directories: %zu<BR>",
+    g_string_append_printf (str, "<BR>DirTree: <BR>-Total inodes: %zu, Total files: %zu, Total directories: %zu<BR>",
         total_inodes, file_num, dir_num);
 
     // Fuse
-    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops, &dir_read_ops);
+    rfuse_get_stats (application_get_rfuse (stat_srv->app), &read_ops, &write_ops, &dir_read_ops, &lookup_ops);
     g_string_append_printf (str, "<BR>Fuse: <BR>-Read ops: %"G_GUINT64_FORMAT", Write ops: %"G_GUINT64_FORMAT
-        " Dir read ops: %"G_GUINT64_FORMAT"<BR>",
-        read_ops, write_ops, dir_read_ops);
+        ", Dir read ops: %"G_GUINT64_FORMAT", Lookup ops: %"G_GUINT64_FORMAT"<BR>",
+        read_ops, write_ops, dir_read_ops, lookup_ops);
     
     g_string_append_printf (str, "<BR>Read workers (%d): <BR>", 
         client_pool_get_client_count (application_get_read_client_pool (stat_srv->app)));

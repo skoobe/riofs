@@ -54,6 +54,8 @@ gpointer http_connection_create (Application *app)
     con->cur_url = NULL;
     con->cur_time_start = 0;
     con->cur_time_stop = 0;
+    con->jobs_nr = 0;
+    con->connects_nr = 0;
 
     con->is_acquired = FALSE;
     
@@ -68,10 +70,13 @@ gpointer http_connection_create (Application *app)
 static gboolean http_connection_init (HttpConnection *con)
 {
     ConfData *conf = application_get_conf (con->app);
-    LOG_debug (CON_LOG, "Connecting to %s:%d", 
+
+    LOG_debug (CON_LOG, CON_H"Connecting to %s:%d", con,
         conf_get_string (conf, "s3.host"),
         conf_get_int (conf, "s3.port")
     );
+
+    con->connects_nr++;
 
     if (con->evcon)
         evhttp_connection_free (con->evcon);
@@ -83,7 +88,7 @@ static gboolean http_connection_init (HttpConnection *con)
         
         ssl = SSL_new (application_get_ssl_ctx (con->app));
         if (!ssl) {
-            LOG_err (CON_LOG, "Failed to create SSL connection: %s", 
+            LOG_err (CON_LOG, CON_H"Failed to create SSL connection: %s", con,
                 ERR_reason_error_string (ERR_get_error ()));
             return FALSE;
         }
@@ -96,7 +101,7 @@ static gboolean http_connection_init (HttpConnection *con)
         );
 
         if (!bev) {
-            LOG_err (CON_LOG, "Failed to create SSL connection !");
+            LOG_err (CON_LOG, CON_H"Failed to create SSL connection !", con);
             return FALSE;
         }
 
@@ -164,12 +169,16 @@ gboolean http_connection_acquire (HttpConnection *con)
 {
     con->is_acquired = TRUE;
 
+    LOG_debug (CON_LOG, CON_H"Connection object is acquired!", con);
+
     return TRUE;
 }
 
 gboolean http_connection_release (HttpConnection *con)
 {
     con->is_acquired = FALSE;
+
+    LOG_debug (CON_LOG, CON_H"Connection object is released!", con);
 
     if (con->client_on_released_cb)
         con->client_on_released_cb (con, con->pool_ctx);
@@ -182,7 +191,7 @@ static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx
 {
     HttpConnection *con = (HttpConnection *) ctx;
 
-    LOG_debug (CON_LOG, "[evcon: %p][con: %p] Connection closed !", evcon, con);
+    LOG_debug (CON_LOG, CON_H"Connection closed !", con);
 
     //con->cur_cmd_type = CMD_IDLE;
     
@@ -382,17 +391,18 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     stats_srv_add_op_history (application_get_stat_srv (data->con->app), s_history);
     g_free (s_history);
 
-    LOG_debug (CON_LOG, "Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)", timeval_diff (&data->start_tv, &end_tv));
+    LOG_debug (CON_LOG, CON_H"Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)", 
+        con, timeval_diff (&data->start_tv, &end_tv));
 
     if (!req) {
-        LOG_err (CON_LOG, "Request failed !");
+        LOG_err (CON_LOG, CON_H"Request failed !", con);
 
 #ifdef SSL_ENABLED
     { unsigned long oslerr;
       while ((oslerr = bufferevent_get_openssl_error (evhttp_connection_get_bufferevent (data->con->evcon))))
         { char b[128];
           ERR_error_string_n (oslerr, b, sizeof (b));
-          LOG_err (CON_LOG, "SSL error: %s\n", b);
+          LOG_err (CON_LOG, CON_H"SSL error: %s", con, b);
         }
     }
 #endif
@@ -403,7 +413,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     
     // check if we reached maximum redirect count
     if (data->redirects > conf_get_int (application_get_conf (data->con->app), "connection.max_redirects")) {
-        LOG_err (CON_LOG, "Too many redirects !");
+        LOG_err (CON_LOG, CON_H"Too many redirects !", con);
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
@@ -427,14 +437,14 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             loc = get_endpoint (buf, buf_len);
             
             if (!loc) {
-                LOG_err (CON_LOG, "Redirect URL not found !");
+                LOG_err (CON_LOG, CON_H"Redirect URL not found !", con);
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 goto done;
             }
         }
 
-        LOG_debug (CON_LOG, "New URL: %s", loc);
+        LOG_debug (CON_LOG, CON_H"New URL: %s", con, loc);
 
         if (!application_set_url (data->con->app, loc)) {
             if (data->responce_cb)
@@ -467,15 +477,15 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     if (evhttp_request_get_response_code (req) != 200 && 
         evhttp_request_get_response_code (req) != 204 && 
         evhttp_request_get_response_code (req) != 206) {
-        LOG_debug (CON_LOG, "Server returned HTTP error: %d !", evhttp_request_get_response_code (req));
-        LOG_debug (CON_LOG, "Error str: %s", req->response_code_line);
+        LOG_debug (CON_LOG, CON_H"Server returned HTTP error: %d (%s) !", 
+            con, evhttp_request_get_response_code (req), req->response_code_line);
         
         // if it contains any readable information
         if (buf_len > 1) {
             gchar *tmp;
             tmp = g_new0 (gchar, buf_len + 1);
             strncpy (tmp, buf, buf_len);
-            LOG_debug (CON_LOG, "Error msg: >>\n%s<<", tmp);
+            LOG_debug (CON_LOG, CON_H"Error msg: >>\n%s<<", con, tmp);
             g_free (tmp);
         }
         
@@ -488,7 +498,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     if (data->responce_cb)
         data->responce_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));
     else
-        LOG_debug (CON_LOG, ">>> NO callback function !");
+        LOG_debug (CON_LOG, CON_H"NO callback function !", con);
 
 done:
     request_data_free (data);
@@ -544,7 +554,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     if (!con->evcon)
         if (!http_connection_init (con)) {
-            LOG_err (CON_LOG, "Failed to init HTTP connection !");
+            LOG_err (CON_LOG, CON_H"Failed to init HTTP connection !", con);
             return FALSE;
         }
 
@@ -572,7 +582,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     } else if (!strcasecmp (http_cmd, "HEAD")) {
         cmd_type = EVHTTP_REQ_HEAD;
     } else {
-        LOG_err (CON_LOG, "Unsupported HTTP method: %s", http_cmd);
+        LOG_err (CON_LOG, CON_H"Unsupported HTTP method: %s", con, http_cmd);
         request_data_free (data);
         return FALSE;
     }
@@ -585,7 +595,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     req = evhttp_request_new (http_connection_on_responce_cb, data);
     if (!req) {
-        LOG_err (CON_LOG, "Failed to create HTTP request object !");
+        LOG_err (CON_LOG, CON_H"Failed to create HTTP request object !", con);
         request_data_free (data);
         return FALSE;
     }
@@ -618,7 +628,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_str = g_strdup_printf ("%s", data->resource_path);
     }
 
-    LOG_msg (CON_LOG, "[%p] %s bucket: %s path: %s host: %s", http_connection_get_evcon (con), 
+    LOG_msg (CON_LOG, CON_H"%s bucket: %s path: %s host: %s", con, 
         http_cmd, conf_get_string (conf, "s3.bucket_name"), request_str, conf_get_string (conf, "s3.host"));
     
     // update stats info
@@ -629,6 +639,8 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     gettimeofday (&data->start_tv, NULL);
     con->cur_time_start = time (NULL);
+    con->jobs_nr++;
+
     res = evhttp_make_request (http_connection_get_evcon (con), req, cmd_type, request_str);
     g_free (request_str);
 
@@ -645,10 +657,11 @@ void http_connection_get_stats_info_caption (gpointer client, GString *str, stru
     HttpConnection *con = (HttpConnection *) client;
 
     g_string_append_printf (str, 
-        "%s ID %s Current state %s Last CMD %s Last URL %s Time started (Total secs) %s"
+        "%s ID %s Current state %s Last CMD %s Last URL %s Time started (Total secs) %s Jobs Nr %s Connects Nr %s"
         , 
         print_format->caption_start, 
         print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
+        print_format->caption_col_div, print_format->caption_col_div, 
         print_format->caption_end
     );
 }
@@ -698,7 +711,9 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         "%s %s" // State
         "%s %s" // CMD
         "%s %s" // URL
-        "%s (%u secs)" // Time
+        "%s (%u secs) %s" // Time
+        "%"G_GUINT64_FORMAT" %s" // Jobs nr
+        "%"G_GUINT64_FORMAT // Connects nr
         "%s" // footer
         ,
         print_format->row_start,
@@ -706,7 +721,9 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         con->is_acquired ? "Busy" : "Idle", print_format->col_div,
         cmd, print_format->col_div,
         con->cur_url ? con->cur_url : "-",  print_format->col_div,
-        ts, diff_sec,
+        ts, diff_sec, print_format->col_div,
+        con->jobs_nr, print_format->col_div,
+        con->connects_nr,
         print_format->row_end
     );
 }

@@ -56,6 +56,7 @@ gpointer http_connection_create (Application *app)
     con->cur_time_stop = 0;
     con->jobs_nr = 0;
     con->connects_nr = 0;
+    con->cur_code = 0;
 
     con->is_acquired = FALSE;
     
@@ -187,7 +188,7 @@ gboolean http_connection_release (HttpConnection *con)
 }
 
 // callback connection is closed
-static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx)
+static void http_connection_on_close (G_GNUC_UNUSED struct evhttp_connection *evcon, void *ctx)
 {
     HttpConnection *con = (HttpConnection *) ctx;
 
@@ -377,13 +378,17 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         output_headers = evhttp_request_get_output_headers (req);
         if (output_headers)
             range_str = evhttp_find_header (output_headers, "Range");
+
+        con->cur_code = evhttp_request_get_response_code (req);
+    } else {
+        con->cur_code = 500;
     }
     
     s_history = g_strdup_printf ("[%p] %s (%u secs) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
         con,
         ts, diff_sec, data->http_cmd, data->con->cur_url, 
         range_str ? range_str : "",
-        evhttp_request_get_response_code (req),
+        con->cur_code,
         data->out_size,
         buf_len
     );
@@ -653,16 +658,14 @@ gboolean http_connection_make_request (HttpConnection *con,
 }
 
 // return string with various statistics information
-void http_connection_get_stats_info_caption (gpointer client, GString *str, struct PrintFormat *print_format)
+void http_connection_get_stats_info_caption (G_GNUC_UNUSED gpointer client, GString *str, struct PrintFormat *print_format)
 {
-    HttpConnection *con = (HttpConnection *) client;
-
     g_string_append_printf (str, 
-        "%s ID %s Current state %s Last CMD %s Last URL %s Time started (Total secs) %s Jobs Nr %s Connects Nr %s"
+        "%s ID %s Current state %s Last CMD %s Last URL %s Last Code %s Time started (Total secs) %s Jobs Nr %s Connects Nr %s"
         , 
         print_format->caption_start, 
         print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
-        print_format->caption_col_div, print_format->caption_col_div, 
+        print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
         print_format->caption_end
     );
 }
@@ -715,6 +718,7 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         "%s %s" // State
         "%s %s" // CMD
         "%s %s" // URL
+        "%d %s" // Code
         "%s (%u secs) %s" // Time
         "%"G_GUINT64_FORMAT" %s" // Jobs nr
         "%"G_GUINT64_FORMAT // Connects nr
@@ -725,6 +729,7 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         con->is_acquired ? "Busy" : "Idle", print_format->col_div,
         cmd, print_format->col_div,
         con->cur_url ? con->cur_url : "-",  print_format->col_div,
+        con->cur_code, print_format->col_div,
         ts, diff_sec, print_format->col_div,
         con->jobs_nr, print_format->col_div,
         con->connects_nr,

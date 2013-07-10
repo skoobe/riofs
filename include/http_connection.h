@@ -40,6 +40,7 @@ struct _HttpConnection {
     // statistics info
     enum evhttp_cmd_type cur_cmd_type;
     gchar *cur_url;
+    gint cur_code;
     time_t cur_time_start;
     time_t cur_time_stop;
     guint64 jobs_nr;

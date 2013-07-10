@@ -32,6 +32,10 @@ struct _CacheMng {
     guint64 max_size;
     gchar *cache_dir;
     time_t check_time; // last check time of stored objects
+
+    // stats
+    guint64 cache_hits;
+    guint64 cache_miss;
 };
 
 struct _CacheEntry {
@@ -70,6 +74,8 @@ CacheMng *cache_mng_create (Application *app)
     cmng->check_time = time (NULL);
     cmng->max_size = conf_get_uint (cmng->conf, "filesystem.cache_dir_max_size");
     cmng->cache_dir = g_strdup_printf ("%s/%s", conf_get_string (cmng->conf, "filesystem.cache_dir"), CACHE_MNGR_DIR);
+    cmng->cache_hits = 0;
+    cmng->cache_miss = 0;
 
     cache_mng_rm_cache_dir (cmng);
     if (g_mkdir_with_parents (cmng->cache_dir, 0700) != 0) {
@@ -178,6 +184,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
             if (context->cb.retrieve_cb)
                 context->cb.retrieve_cb (NULL, 0, FALSE, context->user_ctx);
             cache_context_destroy (context);
+            cmng->cache_miss++;
             return;
         }
 
@@ -191,7 +198,10 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         if (!context->success) {
             g_free (context->buf);
             context->buf = NULL;
-        }
+
+            cmng->cache_miss++;
+        } else
+            cmng->cache_hits++;
 
         // move entry to the front of q_lru
         g_queue_unlink (cmng->q_lru, entry->ll_lru);
@@ -199,6 +209,8 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
     } else {
         LOG_debug (CMNG_LOG, INO_H"Entry isn't found or doesn't contain requested range: [%"OFF_FMT": %"OFF_FMT"]", 
             INO_T (ino), off, off + size);
+
+        cmng->cache_miss++;
     }
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
@@ -394,3 +406,23 @@ void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *v
     } else 
         entry->version_id = g_strdup (version_id);
 }
+
+/*{{{ get_stats*/
+void cache_mng_get_stats (CacheMng *cmng, guint32 *entries_num, guint64 *total_size, guint64 *cache_hits, guint64 *cache_miss)
+{
+    GHashTableIter iter;
+    struct _CacheEntry *entry;
+    gpointer value;
+
+    *entries_num = g_hash_table_size (cmng->h_entries);
+    *cache_hits = cmng->cache_hits;
+    *cache_miss = cmng->cache_miss;
+    *total_size = 0;
+
+    g_hash_table_iter_init (&iter, cmng->h_entries);
+    while (g_hash_table_iter_next (&iter, NULL, &value)) {
+        entry = (struct _CacheEntry *) value;
+        *total_size = *total_size + range_length (entry->avail_range);
+    }
+
+}/*}}}*/

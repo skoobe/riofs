@@ -20,6 +20,7 @@
 #include "client_pool.h"
 #include "dir_tree.h"
 #include "rfuse.h"
+#include "cache_mng.h"
 
 struct _StatSrv {
     Application *app;
@@ -125,6 +126,8 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     struct evhttp_uri *uri;
     guint32 total_inodes, file_num, dir_num;
     guint64 read_ops, write_ops, dir_read_ops, lookup_ops;
+    guint32 cache_entries;
+    guint64 total_cache_size, cache_hits, cache_miss;
     const gchar *access_key = NULL;
     gboolean permitted = FALSE;
 
@@ -171,6 +174,12 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     g_string_append_printf (str, "<BR>Fuse: <BR>-Read ops: %"G_GUINT64_FORMAT", Write ops: %"G_GUINT64_FORMAT
         ", Dir read ops: %"G_GUINT64_FORMAT", Lookup ops: %"G_GUINT64_FORMAT"<BR>",
         read_ops, write_ops, dir_read_ops, lookup_ops);
+
+    // CacheMng
+    cache_mng_get_stats (application_get_cache_mng (stat_srv->app), &cache_entries, &total_cache_size, &cache_hits, &cache_miss);
+    g_string_append_printf (str, "<BR>CacheMng: <BR>-Total entries: %"G_GUINT32_FORMAT", Total size: %"G_GUINT64_FORMAT
+        " bytes, Cache hits: %"G_GUINT64_FORMAT", Cache misses: %"G_GUINT64_FORMAT" <BR>", 
+        cache_entries, total_cache_size, cache_hits, cache_miss);
     
     g_string_append_printf (str, "<BR>Read workers (%d): <BR>", 
         client_pool_get_client_count (application_get_read_client_pool (stat_srv->app)));

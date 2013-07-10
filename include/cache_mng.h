@@ -53,4 +53,5 @@ gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str);
 const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino);
 void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id);
 
+void cache_mng_get_stats (CacheMng *cmng, guint32 *entries_num, guint64 *total_size, guint64 *cache_hits, guint64 *cache_miss);
 #endif

@@ -687,6 +687,9 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         case EVHTTP_REQ_DELETE:
             strcpy (cmd, "DELETE");
             break;
+        case EVHTTP_REQ_HEAD:
+            strcpy (cmd, "HEAD");
+            break;
         default:
             strcpy (cmd, "-");
     }

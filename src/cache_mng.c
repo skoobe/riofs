@@ -20,8 +20,7 @@
 #include "utils.h"
 #include "conf.h"
 
-#define CACHE_MNGR_DIR "riofs_cache"
-#define CMNG_LOG "cmng"
+/*{{{ structs / func defs */
 
 struct _CacheMng {
     Application *app;
@@ -58,9 +57,14 @@ struct _CacheContext {
     struct event *ev;
 };
 
+#define CACHE_MNGR_DIR "riofs_cache"
+#define CMNG_LOG "cmng"
+
 static void cache_entry_destroy (gpointer data);
 static void cache_mng_rm_cache_dir (CacheMng *cmng);
+/*}}}*/
 
+/*{{{ create / destroy */
 CacheMng *cache_mng_create (Application *app)
 {
     CacheMng *cmng;
@@ -132,6 +136,36 @@ static struct _CacheContext* cache_context_create (guint64 size, void *user_ctx)
     return context;
 }
 
+static void cache_context_destroy (struct _CacheContext* context)
+{
+    event_free (context->ev);
+    g_free (context->buf);
+    g_free (context);
+}
+/*}}}*/
+
+/*{{{ utils */
+static int cache_mng_file_name (CacheMng *cmng, char *buf, int buflen, fuse_ino_t ino)
+{
+    return snprintf (buf, buflen, "%s/cache_mng_%"INO_FMT"", cmng->cache_dir, INO ino);
+}
+
+guint64 cache_mng_size (CacheMng *cmng)
+{
+    return cmng->size;
+}
+
+guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino)
+{
+    struct _CacheEntry *entry;
+
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return 0;
+
+    return range_length (entry->avail_range);
+}
+
 static void cache_mng_rm_cache_dir (CacheMng *cmng)
 {
     if (cmng->cache_dir && strstr (cmng->cache_dir, CACHE_MNGR_DIR))
@@ -141,13 +175,84 @@ static void cache_mng_rm_cache_dir (CacheMng *cmng)
     }
 }
 
-static void cache_context_destroy (struct _CacheContext* context)
+
+// we can only get md5 of an object containing 1 range
+// XXX: move code to separate thread
+gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
 {
-    event_free (context->ev);
-    g_free (context->buf);
-    g_free (context);
+    struct _CacheEntry *entry;
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5_CTX md5ctx;
+    ssize_t bytes;
+    unsigned char data[1024];
+    char path[PATH_MAX];
+    size_t i;
+    gchar *out;
+    FILE *in;
+
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return FALSE;
+    
+    if (range_count (entry->avail_range) != 1) {
+        LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such object !", INO_T (ino));
+        return FALSE;
+    }
+
+    cache_mng_file_name (cmng, path, sizeof (path), ino);
+    in = fopen (path, "rb");
+    if (in == NULL) {
+        LOG_debug (CMNG_LOG, INO_H"Can't open file for reading: %s", INO_T (ino), path);
+        return FALSE;
+    }
+
+    MD5_Init (&md5ctx);
+    while ((bytes = fread (data, 1, 1024, in)) != 0)
+        MD5_Update (&md5ctx, data, bytes);
+    MD5_Final (digest, &md5ctx);
+    fclose (in);
+
+    out = g_malloc (33);
+    for (i = 0; i < 16; ++i)
+        sprintf (&out[i*2], "%02x", (unsigned int)digest[i]);
+
+    *md5str = out;
+
+    return TRUE;
 }
 
+// return version ID of cached file
+// return NULL if version ID is not set
+const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
+{
+    struct _CacheEntry *entry;
+    
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return NULL;
+
+    return entry->version_id;
+}
+
+void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id)
+{
+    struct _CacheEntry *entry;
+    
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return;
+    
+    if (entry->version_id) {
+        if (strcmp (entry->version_id, version_id)) {
+            g_free (entry->version_id);
+            entry->version_id = g_strdup (version_id);
+        }
+    } else 
+        entry->version_id = g_strdup (version_id);
+}
+/*}}}*/
+
+/*{{{ retrieve_file_buf */
 static void cache_read_cb (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short flags, void *ctx)
 {
     struct _CacheContext *context = (struct _CacheContext *) ctx;
@@ -155,11 +260,6 @@ static void cache_read_cb (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
     if (context->cb.retrieve_cb)
         context->cb.retrieve_cb (context->buf, context->size, context->success, context->user_ctx);
     cache_context_destroy (context);
-}
-
-static int cache_mng_file_name (CacheMng *cmng, char *buf, int buflen, fuse_ino_t ino)
-{
-    return snprintf (buf, buflen, "%s/cache_mng_%"INO_FMT"", cmng->cache_dir, INO ino);
 }
 
 // retrieve file buffer from local storage
@@ -223,7 +323,9 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
     event_active (context->ev, 0, 0);
     event_add (context->ev, NULL);
 }
+/*}}}*/
 
+/*{{{ store_file_buf */
 static void cache_write_cb (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short flags, void *ctx)
 {
     struct _CacheContext *context = (struct _CacheContext *) ctx;
@@ -303,7 +405,9 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     event_active (context->ev, 0, 0);
     event_add (context->ev, NULL);
 }
+/*}}}*/
 
+/*{{{ remove_file*/
 // removes file from local storage
 void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
 {
@@ -322,97 +426,7 @@ void cache_mng_remove_file (CacheMng *cmng, fuse_ino_t ino)
         LOG_debug (CMNG_LOG, INO_H"Entry not found", INO_T (ino));
     }
 }
-
-guint64 cache_mng_size (CacheMng *cmng)
-{
-    return cmng->size;
-}
-
-guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino)
-{
-    struct _CacheEntry *entry;
-
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return 0;
-
-    return range_length (entry->avail_range);
-}
-
-// we can only get md5 of an object containing 1 range
-// XXX: move code to separate thread
-gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
-{
-    struct _CacheEntry *entry;
-    unsigned char digest[MD5_DIGEST_LENGTH];
-    MD5_CTX md5ctx;
-    ssize_t bytes;
-    unsigned char data[1024];
-    char path[PATH_MAX];
-    size_t i;
-    gchar *out;
-    FILE *in;
-
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return FALSE;
-    
-    if (range_count (entry->avail_range) != 1) {
-        LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such object !", INO_T (ino));
-        return FALSE;
-    }
-
-    cache_mng_file_name (cmng, path, sizeof (path), ino);
-    in = fopen (path, "rb");
-    if (in == NULL) {
-        LOG_debug (CMNG_LOG, INO_H"Can't open file for reading: %s", INO_T (ino), path);
-        return FALSE;
-    }
-
-    MD5_Init (&md5ctx);
-    while ((bytes = fread (data, 1, 1024, in)) != 0)
-        MD5_Update (&md5ctx, data, bytes);
-    MD5_Final (digest, &md5ctx);
-    fclose (in);
-
-    out = g_malloc (33);
-    for (i = 0; i < 16; ++i)
-        sprintf (&out[i*2], "%02x", (unsigned int)digest[i]);
-
-    *md5str = out;
-
-    return TRUE;
-}
-
-// return version ID of cached file
-// return NULL if version ID is not set
-const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
-{
-    struct _CacheEntry *entry;
-    
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return NULL;
-
-    return entry->version_id;
-}
-
-void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id)
-{
-    struct _CacheEntry *entry;
-    
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return;
-    
-    if (entry->version_id) {
-        if (strcmp (entry->version_id, version_id)) {
-            g_free (entry->version_id);
-            entry->version_id = g_strdup (version_id);
-        }
-    } else 
-        entry->version_id = g_strdup (version_id);
-}
+/*}}}*/
 
 /*{{{ get_stats*/
 void cache_mng_get_stats (CacheMng *cmng, guint32 *entries_num, guint64 *total_size, guint64 *cache_hits, guint64 *cache_miss)

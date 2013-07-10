@@ -47,6 +47,7 @@ static const gchar *colors[] = {
 };
 
 static const gchar c_reset[] = "\033[0m";
+static FILE *f_log = NULL;
 
 // prints a message string to stdout
 // XXX: extend it (syslog, etc)
@@ -75,21 +76,23 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
         g_vsnprintf (out_str, sizeof (out_str), format, args);
     va_end (args);
 
+    if (!f_log)
+        f_log = stdout;
 
     if (log_level == LOG_debug) {
         if (level == LOG_err) {
             if (use_color) {
-                g_fprintf (stdout, "%s \033[1;31m[%s]\033[0m  (%s %s:%d) \033[1;31m%s\033[0m\n", ts, subsystem, func, file, line, out_str);
+                g_fprintf (f_log, "%s \033[1;31m[%s]\033[0m  (%s %s:%d) \033[1;31m%s\033[0m\n", ts, subsystem, func, file, line, out_str);
             } else {
-                g_fprintf (stdout, "%s \033[1;31m[%s]\033[0m  (%s %s:%d) %s\n", ts, subsystem, func, file, line, out_str);
+                g_fprintf (f_log, "%s \033[1;31m[%s]\033[0m  (%s %s:%d) %s\n", ts, subsystem, func, file, line, out_str);
             }
         } else {
             if (use_color) {
                 guint i;
                 i = g_str_hash (subsystem) % CD_DEFAULT;
-                g_fprintf (stdout, "%s [%s%s%s] (%s %s:%d) %s%s%s\n", ts, colors[i], subsystem, c_reset, func, file, line, colors[i], out_str, c_reset);
+                g_fprintf (f_log, "%s [%s%s%s] (%s %s:%d) %s%s%s\n", ts, colors[i], subsystem, c_reset, func, file, line, colors[i], out_str, c_reset);
             } else {
-                g_fprintf (stdout, "%s [%s] (%s %s:%d) %s\n", ts, subsystem, func, file, line, out_str);
+                g_fprintf (f_log, "%s [%s] (%s %s:%d) %s\n", ts, subsystem, func, file, line, out_str);
             }
         }
     }
@@ -98,9 +101,9 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
             syslog (log_level == LOG_msg ? LOG_INFO : LOG_ERR, "%s", out_str);
         else {
             if (level == LOG_err)
-                g_fprintf (stdout, "\033[1;31mERROR!\033[0m %s\n", out_str);
+                g_fprintf (f_log, "\033[1;31mERROR!\033[0m %s\n", out_str);
             else
-                g_fprintf (stdout, "%s\n", out_str);
+                g_fprintf (f_log, "%s\n", out_str);
         }
     }
 }
@@ -119,4 +122,11 @@ void logger_set_syslog (gboolean use)
 void logger_set_color (gboolean use)
 {
     use_color = use;
+}
+
+void logger_set_file (FILE *f)
+{
+    if (f_log)
+        fclose (f_log);
+    f_log = f;
 }

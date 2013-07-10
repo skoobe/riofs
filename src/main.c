@@ -30,6 +30,7 @@ struct _Application {
     ConfData *conf;
     struct event_base *evbase;
     struct evdns_base *dns_base;
+    FILE *f_log;
     
     RFuse *rfuse;
     DirTree *dir_tree;
@@ -491,6 +492,10 @@ static void application_destroy (Application *app)
 #endif
 
     logger_destroy ();
+
+    if (app->f_log)
+        fclose (app->f_log);
+
     g_free (app);
     
     ENGINE_cleanup ();
@@ -518,6 +523,7 @@ int main (int argc, char *argv[])
     gboolean path_style = FALSE;
     gchar **cache_dir = NULL;
     gchar **s_fuse_opts = NULL;
+    gchar **s_log_file = NULL;
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
     gboolean disable_stats = FALSE;
@@ -536,6 +542,7 @@ int main (int argc, char *argv[])
         { "disable-syslog", 0, 0, G_OPTION_ARG_NONE, &disable_syslog, "Flag. Disable logging to syslog.", NULL },
         { "disable-stats", 0, 0, G_OPTION_ARG_NONE, &disable_stats, "Flag. Disable Statistics HTTP interface.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
+        { "log-file", 'l', 0, G_OPTION_ARG_STRING_ARRAY, &s_log_file, "File to write output.", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
         { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
         { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
@@ -573,6 +580,8 @@ int main (int argc, char *argv[])
         return -1;
     }
 
+    app->f_log = NULL;
+
 /*{{{ cmd line args */
 
     // parse command line options
@@ -585,6 +594,7 @@ int main (int argc, char *argv[])
         g_option_context_free (context);
         return -1;
     }
+    g_option_context_free (context);
 
     if (verbose)
         log_level = LOG_debug;
@@ -609,7 +619,6 @@ int main (int argc, char *argv[])
         if (!conf_parse_file (app->conf, app->conf_path)) {
             LOG_err (APP_LOG, "Failed to parse configuration file: %s", app->conf_path);
             application_destroy (app);
-            g_option_context_free (context);
             return -1;
         }
 
@@ -667,7 +676,6 @@ int main (int argc, char *argv[])
             );
             g_fprintf (stdout, "Features:\n");
             g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
-        g_option_context_free (context);
         return 0;
     }
     
@@ -681,17 +689,13 @@ int main (int argc, char *argv[])
     // check if both strings are set
     if (!conf_get_string (app->conf, "s3.access_key_id") || !conf_get_string (app->conf, "s3.secret_access_key")) {
         LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);
-        //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         application_destroy (app);
-        g_option_context_free (context);
         return -1;
     }
 
     if (!s_params || g_strv_length (s_params) != 3) {
         LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
-        //g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
         application_destroy (app);
-        g_option_context_free (context);
         return -1;
     }
 
@@ -711,7 +715,6 @@ int main (int argc, char *argv[])
     conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
     if (!application_set_url (app, s_params[0])) {
         application_destroy (app);
-        g_option_context_free (context);
         return -1;
     }
 
@@ -720,29 +723,36 @@ int main (int argc, char *argv[])
         g_strfreev (s_fuse_opts);
     }
 
+    if (s_log_file  && g_strv_length (s_log_file) > 0) {
+        app->f_log = fopen (s_log_file[0], "a+");
+        if (!app->f_log) {
+            LOG_err (APP_LOG, "Failed to open log file: %s : ", s_log_file[0], strerror (errno));
+            application_destroy (app);
+            return -1;
+        }
+
+        LOG_debug (APP_LOG, "Using %s for storing application logs.", s_log_file[0]);
+        logger_set_file (app->f_log);
+        g_strfreev (s_log_file);
+    }
+
     conf_set_string (app->conf, "app.mountpoint", s_params[2]);
 
     // check if directory exists
     if (stat (conf_get_string (app->conf, "app.mountpoint"), &st) == -1) {
         LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", 
             conf_get_string (app->conf, "app.mountpoint"));
-        // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
-        g_option_context_free (context);
         application_destroy (app);
         return -1;
     }
     // check if it's a directory
     if (!S_ISDIR (st.st_mode)) {
         LOG_err (APP_LOG, "Mountpoint %s is not a directory!", conf_get_string (app->conf, "app.mountpoint"));
-        // g_fprintf (stdout, "%s\n", g_option_context_get_help (context, TRUE, NULL));
-        g_option_context_free (context);
         application_destroy (app);
         return -1;
     }
     
     g_strfreev (s_params);
-
-    g_option_context_free (context);
 
 #ifdef SSL_ENABLED
     app->ssl_ctx = SSL_CTX_new (SSLv23_client_method ());

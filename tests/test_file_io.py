@@ -40,8 +40,7 @@ class App ():
             bin_path = os.path.join(base_path, "src")
             cache = "--cache-dir=" + cache_dir
             conf = "--config=../riofs.conf.xml"
-            sys.stdout = open (log_file, 'w')
-            args = [os.path.join(bin_path, "riofs"), "--disable-stats", "-f", conf, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
+            args = [os.path.join(bin_path, "riofs"), "--disable-stats", "-f", conf, "-l", log_file, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
             print "Starting RioFS: " + " ".join (args)
             try:
                 os.execv(args[0], args)

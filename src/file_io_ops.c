@@ -781,7 +781,7 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 
 static void fileio_read_get_buf (FileReadData *rdata)
 {
-    if (rdata->off >= rdata->fop->file_size) {
+    if ((guint64)rdata->off >= rdata->fop->file_size) {
         // requested range is outsize the file size
         LOG_debug (FIO_LOG, INO_H"requested size is beyond the file size!", INO_T (rdata->ino));
         fileio_read_on_cache_cb (NULL, 0, TRUE, rdata);

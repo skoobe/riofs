@@ -416,7 +416,7 @@ static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 {
     struct fuse_entry_param e;
 
-    LOG_debug (FUSE_LOG, INO_H"lookup_cb  success: %s", INO_T (ino), success?"YES":"NO");
+    LOG_debug (FUSE_LOG, INO_H"lookup_cb, file size: %"OFF_FMT" success: %s", INO_T (ino), file_size, success?"YES":"NO");
     if (!success) {
         fuse_reply_err (req, ENOENT);
         return;

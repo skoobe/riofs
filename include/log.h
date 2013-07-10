@@ -32,6 +32,7 @@ void logger_log_msg (const gchar *file, gint line, const gchar *func,
 
 void logger_set_syslog (gboolean use);
 void logger_set_color (gboolean use);
+void logger_set_file (FILE *f);
 void logger_destroy (void);
 
 #define LOG_debug(subsystem, x...) \

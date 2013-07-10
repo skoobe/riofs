@@ -132,7 +132,8 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     gboolean permitted = FALSE;
 
     uri = evhttp_uri_parse (evhttp_request_get_uri (req));
-    LOG_debug (STAT_LOG, "Incoming request: %s", evhttp_request_get_uri (req));
+    LOG_debug (STAT_LOG, "Incoming request: %s from %s:%d", 
+        evhttp_request_get_uri (req), req->remote_host, req->remote_port);
 
     if (uri) {
         const gchar *query;
@@ -161,8 +162,9 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
 
     str = g_string_new (NULL);
 
-    g_string_append_printf (str, "Uptime: %u secs, Log level: %d<BR>", 
-        (guint32)(time (NULL) - stat_srv->boot_time), log_level);
+    g_string_append_printf (str, "Uptime: %u sec, Log level: %d, Dir cache time: %u sec<BR>", 
+        (guint32)(time (NULL) - stat_srv->boot_time), log_level,
+        conf_get_uint (stat_srv->conf, "filesystem.dir_cache_max_time"));
 
     // DirTree
     dir_tree_get_stats (application_get_dir_tree (stat_srv->app), &total_inodes, &file_num, &dir_num);
@@ -177,7 +179,7 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
 
     // CacheMng
     cache_mng_get_stats (application_get_cache_mng (stat_srv->app), &cache_entries, &total_cache_size, &cache_hits, &cache_miss);
-    g_string_append_printf (str, "<BR>CacheMng: <BR>-Total entries: %"G_GUINT32_FORMAT", Total size: %"G_GUINT64_FORMAT
+    g_string_append_printf (str, "<BR>CacheMng: <BR>-Total entries: %"G_GUINT32_FORMAT", Total cache size: %"G_GUINT64_FORMAT
         " bytes, Cache hits: %"G_GUINT64_FORMAT", Cache misses: %"G_GUINT64_FORMAT" <BR>", 
         cache_entries, total_cache_size, cache_hits, cache_miss);
     
@@ -193,7 +195,8 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         client_pool_get_client_count (application_get_ops_client_pool (stat_srv->app)));
     client_pool_get_client_stats_info (application_get_ops_client_pool (stat_srv->app), str, &print_format_http);
 
-    g_string_append_printf (str, "<BR><BR>Operation history: <BR>");
+    g_string_append_printf (str, "<BR><BR>Operation history (%u max items): <BR>",
+        conf_get_uint (stat_srv->conf, "statistics.history_size"));
     g_queue_foreach (stat_srv->q_op_history, (GFunc) stat_srv_print_history_item, str);
 
     evb = evbuffer_new ();

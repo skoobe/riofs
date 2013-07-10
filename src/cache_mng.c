@@ -195,6 +195,10 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         res = pread (fd, context->buf, size, off);
         close (fd);
         context->success = (res == (ssize_t) size);
+        
+        LOG_debug (CMNG_LOG, INO_H"Read [%"OFF_FMT":%zu] bytes, result: %s", 
+            INO_T (ino), off, size, context->success ? "OK" : "Failed");
+        
         if (!context->success) {
             g_free (context->buf);
             context->buf = NULL;
@@ -289,6 +293,9 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     entry->modification_time = time (NULL);
    
     context->success = (res == (ssize_t) size);
+
+    LOG_debug (CMNG_LOG, INO_H"Written [%"OFF_FMT":%zu] bytes, result: %s", 
+        INO_T (ino), off, size, context->success ? "OK" : "Failed");
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,
                     cache_write_cb, context);

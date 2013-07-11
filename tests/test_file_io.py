@@ -8,6 +8,7 @@ import struct
 import hashlib
 import string
 import signal
+import collections
 
 class App ():
     def __init__(self, bucket, base_dir = "/tmp/riofs_test", nr_tests = 10):
@@ -16,18 +17,22 @@ class App ():
         self.nr_tests = nr_tests
         self.read_pid = None
         self.write_pid = None
+        self.write_log = "./write.log"
+        self.read_log = "./read.log"
         self.src_dir = self.base_dir + "/orig/"
         self.dst_dir = self.base_dir + "/dest/"
         self.write_dir = self.base_dir + "/write/"
         self.write_cache_dir = self.base_dir + "/write_cache/"
         self.read_dir = self.base_dir + "/read/"
         self.read_cache_dir = self.base_dir + "/read_cache/"
-        self.nr_retries = 60
+        self.nr_retries = 120
         self.l_files = []
         self.interrupted = False
         self.fuse_block = 4096
         self.verbose = "-v"
         random.seed (time.time())
+        self.seed = "1092384956781341341234656953214543219"
+        self.words = open("lorem.txt", "r").read().replace("\n", '').split()
 
     def start_riofs (self, mnt_dir, log_file, cache_dir):
         try:
@@ -97,16 +102,26 @@ class App ():
             print "Failed to create temp dirs !", e
             return
         
+        try:
+            shutil.rmtree (self.write_log)
+        except:
+            None
+        try:
+            shutil.rmtree (self.read_log)
+        except:
+            None
+
         print "Launching RioFS instances .."
 
-        self.write_pid = self.start_riofs (self.write_dir, "./write.log", self.write_cache_dir)
-        self.read_pid = self.start_riofs (self.read_dir, "./read.log", self.read_cache_dir)
+        self.write_pid = self.start_riofs (self.write_dir, self.write_log, self.write_cache_dir)
+        self.read_pid = self.start_riofs (self.read_dir, self.read_log, self.read_cache_dir)
 
         if self.write_pid == 0 or self.read_pid == 0:
             print "Failed to start RioFS instance !"
             return
-
-        time.sleep (2)
+        
+        print "Waiting for both RioFS instances to initialize .."
+        time.sleep (10)
         
         print "Creating list of files .."
         self.create_files ()
@@ -171,9 +186,20 @@ class App ():
         except:
             None
 
+    def fdata (self):
+        a = collections.deque (self.words)
+        b = collections.deque (self.seed)
+        while True:
+            yield ' '.join (list (a)[0:1024])
+            a.rotate (int (b[0]))
+            b.rotate (1)
+
     def create_file (self, fname, flen):
+        g = self.fdata ()
         fout = open (fname, 'w')
-        fout.write (os.urandom (flen))
+        while os.path.getsize (fname) < flen:
+            fout.write (g.next())
+        # fout.write (os.urandom (flen))
         fout.close ()
 
     def md5_for_file (self, fname, block_size=2**20):
@@ -277,7 +303,7 @@ class App ():
                 print "File not found, sleeping .."
         
         in_dst_name = self.read_dir + os.path.basename (entry["name"])
-
+        
         # TEST
         # shutil.copy (out_src_name, in_dst_name)
 

@@ -288,7 +288,7 @@ class App ():
 
     def check_file (self, entry):
         out_src_name = self.write_dir + os.path.basename (entry["name"])
-        print >> sys.stderr, ">> Copying to SRV", entry["name"], " to: ", out_src_name
+        print >> sys.stderr, ">> Copying to SRV, from:", entry["name"], " to:", out_src_name
 
         for i in range (0, self.nr_retries):
             self.check_running ()
@@ -309,7 +309,7 @@ class App ():
 
         out_dst_name = self.dst_dir + os.path.basename (entry["name"])
         
-        print >> sys.stderr, ">> Copying to LOC", in_dst_name, " to: ", out_dst_name
+        print >> sys.stderr, ">> Copying to LOC, from:", in_dst_name, " to:", out_dst_name
         # write can take some extra time (due file release does not wait)
         for i in range (0, self.nr_retries):
             self.check_running ()

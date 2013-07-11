@@ -315,7 +315,6 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
     DirEntry *parent_en;
     DirEntry *en;
 
-    LOG_debug (DIR_TREE_LOG, "Updating %s %ld", entry_name, size);
     
     // get parent
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
@@ -329,6 +328,8 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
     if (en) {
         en->age = dtree->current_age;
         en->size = size;
+        // we got this entry from the server, mark as existing file
+        en->removed = FALSE;
     } else {
         mode_t mode;
 
@@ -340,6 +341,8 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
         en = dir_tree_add_entry (dtree, entry_name, mode,
             type, parent_ino, size, last_modified);
     }
+
+    LOG_debug (DIR_TREE_LOG, INO_H"Updating %s %ld", INO_T (en->ino), entry_name, size);
 
     return en;
 }
@@ -663,6 +666,7 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
         LOG_debug (DIR_TREE_LOG, INO_H"FileEntry not found %s", INO_T (op_data->ino), op_data->name);
 
         // create a temporary entry to hold this object
+        // this is required to avoid further HEAD requests
         en = dir_tree_add_entry (op_data->dtree, op_data->name, FILE_DEFAULT_MODE, DET_file, op_data->parent_ino, 0, time (NULL));
         if (!en) {
             LOG_err (DIR_TREE_LOG, INO_H"Failed to create file: %s !", INO_T (op_data->ino), op_data->name);

@@ -464,7 +464,7 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     Application *app = (Application *)ctx;
     
     if (!success) {
-        LOG_err (APP_LOG, "Failed to get bucket ACL!");
+        LOG_err (APP_LOG, "Failed to get bucket ACL! Most likely you provided wrong AWS keys or bucket name !");
         event_base_loopexit (app->evbase, NULL);
         return;
     }

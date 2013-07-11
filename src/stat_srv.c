@@ -128,6 +128,10 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     guint32 cache_entries;
     guint64 total_cache_size, cache_hits, cache_miss;
     gboolean permitted = FALSE;
+    struct tm *cur_p;
+    struct tm cur;
+    time_t now;
+    char ts[50];
 
     uri = evhttp_uri_parse (evhttp_request_get_uri (req));
     LOG_debug (STAT_LOG, "Incoming request: %s from %s:%d", 
@@ -162,9 +166,15 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     }
 
     str = g_string_new (NULL);
+    
+    now = time (NULL);
+    localtime_r (&now, &cur);
+    cur_p = &cur;
+    if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
+        ts[0] = '\0';
 
-    g_string_append_printf (str, "Uptime: %u sec, Log level: %d, Dir cache time: %u sec<BR>", 
-        (guint32)(time (NULL) - stat_srv->boot_time), log_level,
+    g_string_append_printf (str, "Uptime: %u sec, Now: %s, Log level: %d, Dir cache time: %u sec<BR>", 
+        (guint32)(now - stat_srv->boot_time), ts, log_level,
         conf_get_uint (stat_srv->conf, "filesystem.dir_cache_max_time"));
 
     // DirTree

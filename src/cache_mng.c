@@ -24,7 +24,6 @@
 
 struct _CacheMng {
     Application *app;
-    ConfData *conf;
     GHashTable *h_entries; 
     GQueue *q_lru;
     guint64 size;
@@ -71,13 +70,13 @@ CacheMng *cache_mng_create (Application *app)
 
     cmng = g_new0 (CacheMng, 1);
     cmng->app = app;
-    cmng->conf = application_get_conf (app);
     cmng->h_entries = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, cache_entry_destroy);
     cmng->q_lru = g_queue_new ();
     cmng->size = 0;
     cmng->check_time = time (NULL);
-    cmng->max_size = conf_get_uint (cmng->conf, "filesystem.cache_dir_max_size");
-    cmng->cache_dir = g_strdup_printf ("%s/%s", conf_get_string (cmng->conf, "filesystem.cache_dir"), CACHE_MNGR_DIR);
+    cmng->max_size = conf_get_uint (application_get_conf (cmng->app), "filesystem.cache_dir_max_size");
+    cmng->cache_dir = g_strdup_printf ("%s/%s", 
+        conf_get_string (application_get_conf (cmng->app), "filesystem.cache_dir"), CACHE_MNGR_DIR);
     cmng->cache_hits = 0;
     cmng->cache_miss = 0;
 

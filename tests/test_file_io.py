@@ -26,6 +26,7 @@ class App ():
         self.l_files = []
         self.interrupted = False
         self.fuse_block = 4096
+        self.verbose = "-v"
         random.seed (time.time())
 
     def start_riofs (self, mnt_dir, log_file, cache_dir):
@@ -40,7 +41,7 @@ class App ():
             bin_path = os.path.join(base_path, "src")
             cache = "--cache-dir=" + cache_dir
             conf = "--config=../riofs.conf.xml"
-            args = [os.path.join(bin_path, "riofs"), "--disable-stats", "-f", conf, "-l", log_file, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
+            args = [os.path.join(bin_path, "riofs"), self.verbose, "--disable-stats", "-f", conf, "-l", log_file, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
             print "Starting RioFS: " + " ".join (args)
             try:
                 os.execv(args[0], args)
@@ -119,13 +120,17 @@ class App ():
 
         print "STARTING .."
         failed = False
+        i = 1
+        total = len (self.l_files)
+
         for entry in self.l_files:
             self.check_running ()
             if self.interrupted:
                 break
             
             time.sleep (1)
-            print >> sys.stderr, ">> FILE:", entry
+            print >> sys.stderr, ">> (" + str (i) + " out of " + str (total) + ") FILE:", entry
+            i = i + 1
             res = self.check_file (entry)
             if res == False:
                 print "Test failed !"
@@ -201,7 +206,7 @@ class App ():
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
             files_created = files_created + 1
-            print "Created file " + str (files_created) + " out of " + str (total_files)
+            print "Created file " + str (files_created) + " out of " + str (total_files) + " len: " + str (flen) + "b"
 
         # small files < 1mb
         for i in range (0, self.nr_tests):
@@ -214,7 +219,7 @@ class App ():
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
             files_created = files_created + 1
-            print "Created file " + str (files_created) + " out of " + str (total_files)
+            print "Created file " + str (files_created) + " out of " + str (total_files) + " len: " + str (flen) + "b"
 
         # medium files 6mb - 20mb
         for i in range (0, self.nr_tests):
@@ -227,7 +232,7 @@ class App ():
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
             files_created = files_created + 1
-            print "Created file " + str (files_created) + " out of " + str (total_files)
+            print "Created file " + str (files_created) + " out of " + str (total_files) + " len: " + str (flen) + "b"
        
         # large files 30mb - 40mb
         for i in range (0, self.nr_tests):
@@ -240,7 +245,7 @@ class App ():
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
             files_created = files_created + 1
-            print "Created file " + str (files_created) + " out of " + str (total_files)
+            print "Created file " + str (files_created) + " out of " + str (total_files) + " len: " + str (flen) + "b"
         
         # Fuse blocks
         for i in range (0, self.nr_tests):
@@ -253,7 +258,7 @@ class App ():
             self.create_file (self.src_dir + fname, flen)
             self.l_files.append ({"name":self.src_dir + fname, "len": flen, "md5": self.md5_for_file (self.src_dir + fname)})
             files_created = files_created + 1
-            print "Created file " + str (files_created) + " out of " + str (total_files)
+            print "Created file " + str (files_created) + " out of " + str (total_files) + " len: " + str (flen) + "b"
 
     def check_file (self, entry):
         out_src_name = self.write_dir + os.path.basename (entry["name"])
@@ -262,6 +267,7 @@ class App ():
         for i in range (0, self.nr_retries):
             self.check_running ()
             if self.interrupted:
+                print "Interrupted !"
                 return
             try:
                 time.sleep (2)
@@ -279,11 +285,11 @@ class App ():
         
         print >> sys.stderr, ">> Copying to LOC", in_dst_name, " to: ", out_dst_name
         # write can take some extra time (due file release does not wait)
-        for i in range (0, 10):
+        for i in range (0, self.nr_retries):
             self.check_running ()
             if self.interrupted:
+                print "Interrupted !"
                 return
-
             try:
                 time.sleep (2)
                 with open(in_dst_name) as f: pass
@@ -293,11 +299,13 @@ class App ():
 
         try:
             shutil.copy (in_dst_name, out_dst_name)
-        except:
+        except Exception, e:
+            print "Failed to copy: from ", in_dst_name, " to ", out_dst_name, " Error: ", e
             return False
         
         self.check_running ()
         if self.interrupted:
+            print "Interrupted !"
             return
        
         md5 = self.md5_for_file (out_dst_name)

@@ -679,12 +679,26 @@ int main (int argc, char *argv[])
         return 0;
     }
     
-    // get access parameters from the environment
-    if (getenv ("AWSACCESSKEYID")) 
+    // try to get access parameters from the environment
+    if (getenv ("AWSACCESSKEYID")) {
         conf_set_string (app->conf, "s3.access_key_id", getenv ("AWSACCESSKEYID"));
-    
-    if (getenv ("AWSSECRETACCESSKEY"))
+    // else check if it's set it the config file
+    } else {
+        if (!conf_node_exists (app->conf, "s3.access_key_id")) {
+            LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);
+            application_destroy (app);
+            return -1;
+        }
+    }
+    if (getenv ("AWSSECRETACCESSKEY")) {
         conf_set_string (app->conf, "s3.secret_access_key", getenv ("AWSSECRETACCESSKEY"));
+    } else {
+        if (!conf_node_exists (app->conf, "s3.secret_access_key")) {
+            LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);
+            application_destroy (app);
+            return -1;
+        }
+    }
 
     // check if both strings are set
     if (!conf_get_string (app->conf, "s3.access_key_id") || !conf_get_string (app->conf, "s3.secret_access_key")) {

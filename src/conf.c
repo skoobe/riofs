@@ -478,6 +478,11 @@ void conf_print (ConfData *conf)
     g_printf ("=============== \n");
 }
 
+gboolean conf_node_exists (ConfData *conf, const gchar *path)
+{
+    return g_hash_table_lookup (conf->h_conf, path) ? TRUE : FALSE;
+}
+
 gboolean conf_set_node_change_cb (ConfData *conf, const gchar *path, ConfNodeChangeCB change_cb, gpointer user_data)
 {
     ConfNode *conf_node;

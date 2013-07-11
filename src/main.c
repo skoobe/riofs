@@ -31,6 +31,7 @@ struct _Application {
     struct event_base *evbase;
     struct evdns_base *dns_base;
     FILE *f_log;
+    gchar *log_file_name;
     
     RFuse *rfuse;
     DirTree *dir_tree;
@@ -51,6 +52,7 @@ struct _Application {
     struct event *sigint_ev;
     struct event *sigpipe_ev;
     struct event *sigusr1_ev;
+    struct event *sigusr2_ev;
 
 #ifdef SSL_ENABLED
     SSL_CTX *ssl_ctx;
@@ -230,7 +232,7 @@ static void sigpipe_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
     LOG_msg (APP_LOG, "Got SIGPIPE");
 }
 
-// XXX: re-read config or do some useful work here
+// USR1 signal: re-read configuration file
 static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
 {
     ConfData *conf_new = conf_create();
@@ -254,6 +256,34 @@ static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
 
         log_level = conf_get_int(_app->conf, "log.level");
     }
+}
+
+// USR2 signal: reopen log file
+static void sigusr2_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, G_GNUC_UNUSED void *user_data)
+{
+    Application *app = _app;
+
+     // just flush, if log file name is not specified
+    if (!app->log_file_name || !app->f_log) {
+        fflush (app->f_log);
+        return;
+    }
+
+    LOG_msg (APP_LOG, "Reopening log file: %s !", app->log_file_name);
+    
+    fflush (app->f_log);
+    fclose (app->f_log);
+
+    app->f_log = fopen (app->log_file_name, "a+");
+    if (!app->f_log) {
+        LOG_err (APP_LOG, "Failed to open log file: %s, output goes to stdout. Error: %s", app->log_file_name, strerror (errno));
+        // XXX: set output to stdout
+        logger_set_file (stdout);
+        return;
+    }
+    
+    logger_set_file (app->f_log);
+
 }
 
 // terminate application, freeing all used memory
@@ -375,9 +405,15 @@ static gint application_finish_initialization_and_run (Application *app)
     // SIGPIPE
     app->sigpipe_ev = evsignal_new (app->evbase, SIGPIPE, sigpipe_cb, app);
     event_add (app->sigpipe_ev, NULL);
+
     // SIGUSR1
     app->sigusr1_ev = evsignal_new (app->evbase, SIGUSR1, sigusr1_cb, app);
     event_add (app->sigusr1_ev, NULL);
+
+    // SIGUSR2
+    app->sigusr2_ev = evsignal_new (app->evbase, SIGUSR2, sigusr2_cb, app);
+    event_add (app->sigusr2_ev, NULL);
+
 /*}}}*/
     
     if (!conf_get_boolean (app->conf, "app.foreground"))
@@ -462,7 +498,9 @@ static void application_destroy (Application *app)
         event_free (app->sigpipe_ev);
     if (app->sigusr1_ev)
         event_free (app->sigusr1_ev);
-    
+     if (app->sigusr2_ev)
+        event_free (app->sigusr2_ev);
+   
     if (app->service_con)
         http_connection_destroy (app->service_con);
 
@@ -495,6 +533,9 @@ static void application_destroy (Application *app)
 
     if (app->f_log)
         fclose (app->f_log);
+    
+    if (app->log_file_name)
+        g_free (app->log_file_name);
 
     g_free (app);
     
@@ -581,6 +622,7 @@ int main (int argc, char *argv[])
     }
 
     app->f_log = NULL;
+    app->log_file_name = NULL;
 
 /*{{{ cmd line args */
 
@@ -738,9 +780,10 @@ int main (int argc, char *argv[])
     }
 
     if (s_log_file  && g_strv_length (s_log_file) > 0) {
+        app->log_file_name = g_strdup (s_log_file[0]);
         app->f_log = fopen (s_log_file[0], "a+");
         if (!app->f_log) {
-            LOG_err (APP_LOG, "Failed to open log file: %s : ", s_log_file[0], strerror (errno));
+            LOG_err (APP_LOG, "Failed to open log file: %s Error: %s", s_log_file[0], strerror (errno));
             application_destroy (app);
             return -1;
         }

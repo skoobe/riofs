@@ -126,7 +126,5 @@ void logger_set_color (gboolean use)
 
 void logger_set_file (FILE *f)
 {
-    if (f_log)
-        fclose (f_log);
     f_log = f;
 }

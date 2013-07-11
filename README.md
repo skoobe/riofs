@@ -42,22 +42,46 @@ export AWSSECRETACCESSKEY="your AWS secret access key"
 riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 ```
 
-Where options could be:
+Where options are:
 
 ```
 -v: Verbose output
 -f: Do not daemonize process
 -c path:  Path to configuration file
+-o "opt[,opt...]": fuse options
+-l path: Log file to use
 --version: Display application version
 --help: Display help
 ```
 
 Please note, that you can specify default S3 service URL (http://s3.amazonaws.com).
 
+You can send USR1 signal to RioFS to re-read the configuration file:
+```
+killall -s USR1 riofs
+```
+
+Send USR2 signal to tell RioFS to reopen log file (useful for logrotate):
+```
+killall -s USR2 riofs
+```
+
 Configuration file
 ------------------
     
 Configuration file (riofs.conf.xml) is located in $(prefix)/etc directory.
+
+
+Statistics information
+------------------
+
+You can enable statistics HTTP server in the configuration file. 
+To access stats page use the following URL:
+```
+http://host:port/stats?access_key=key
+```
+replace ```host```, ```port``` and ```key``` with the actual values from the configuration file.
+
 
 Bug reporting
 -------------

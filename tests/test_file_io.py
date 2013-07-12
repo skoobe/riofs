@@ -19,6 +19,7 @@ class App ():
         self.write_pid = None
         self.write_log = "./write.log"
         self.read_log = "./read.log"
+        self.test_dir = None
         self.src_dir = self.base_dir + "/orig/"
         self.dst_dir = self.base_dir + "/dest/"
         self.write_dir = self.base_dir + "/write/"
@@ -137,6 +138,10 @@ class App ():
         failed = False
         i = 1
         total = len (self.l_files)
+        
+        # XXX: currently test fails with this line enabled !
+        #self.test_dir = "test_" + time.strftime("%Y%m%d-%H%M%S") + "/"
+        self.test_dir = ""
 
         for entry in self.l_files:
             self.check_running ()
@@ -152,8 +157,31 @@ class App ():
                 failed = True
                 break
 
-        if failed == False and not self.interrupted:
+        if not failed and not self.interrupted:
             print "All tests passed !"
+
+        if not self.interrupted and not failed:
+            print "Removing files .."
+            
+            failed = False
+            i = 1
+            total = len (self.l_files)
+
+            for entry in self.l_files:
+                self.check_running ()
+                if self.interrupted:
+                    break
+                
+                time.sleep (1)
+                res = self.remove_remote_file_and_check (entry, i, total)
+                i = i + 1
+                if res == False:
+                    print "Test failed !"
+                    failed = True
+                    break
+
+            if not self.interrupted and not failed:
+                print "Files are removed !"
 
         print "Killing processes .."
         
@@ -289,17 +317,30 @@ class App ():
     def check_file (self, entry):
         
         # create paths
-        out_src_name = self.write_dir + os.path.basename (entry["name"])
-        in_dst_name = self.read_dir + os.path.basename (entry["name"])
+        out_src_dir = self.write_dir + self.test_dir
+        out_src_name = out_src_dir + os.path.basename (entry["name"])
+
+        in_dst_dir = self.read_dir + self.test_dir
+        in_dst_name = in_dst_dir + os.path.basename (entry["name"])
+
         out_dst_name = self.dst_dir + os.path.basename (entry["name"])
         
         print >> sys.stderr, ">> Copying to SRV, from:", entry["name"], " to:", out_src_name
         
+        # create a new remote directory to store test files
+        if len (self.test_dir) > 0:
+            try:
+                os.mkdir (out_src_dir);
+            except Exception, e:
+                print "Failed to create output directory !", e
+                self.interrupted = True
+                return False
+
         for i in range (0, self.nr_retries):
             self.check_running ()
             if self.interrupted:
                 print "Interrupted !"
-                return
+                return False
             
             # force "read" instance to lookup for a file, it will fail the first time, as the file doesn't exist yet
             os.path.isfile (in_dst_name)
@@ -318,7 +359,7 @@ class App ():
             self.check_running ()
             if self.interrupted:
                 print "Interrupted !"
-                return
+                return False
             try:
                 time.sleep (2)
                 with open(in_dst_name) as f: pass
@@ -333,10 +374,9 @@ class App ():
             return False
         
         self.check_running ()
-
         if self.interrupted:
             print "Interrupted !"
-            return
+            return False
        
         md5 = self.md5_for_file (out_dst_name)
 
@@ -348,6 +388,39 @@ class App ():
             print "Files (", entry["name"], ") DOES NOT match: ", entry["md5"], " != ", md5
             print "======"
             return False
+
+    # remove file on "write" RioFS instance and then check it on the "read" RioFS instance
+    def remove_remote_file_and_check (self, entry, i, total):
+        # create paths
+        out_src_dir = self.write_dir + self.test_dir
+        out_src_name = out_src_dir + os.path.basename (entry["name"])
+        
+        in_dst_dir = self.read_dir + self.test_dir
+        in_dst_name = in_dst_dir + os.path.basename (entry["name"])
+        
+        out_dst_name = self.dst_dir + os.path.basename (entry["name"]) + "_tmp"
+
+        print >> sys.stderr, "Removing (" + str (i) + " out of " + str (total) + ") FILE: ", out_src_name
+        try:
+            os.remove (out_src_name)
+        except OSError, e:
+            print "Failed to remove file " + out_src_name + " Error: " + e
+            return False
+        
+        self.check_running ()
+        if self.interrupted:
+            print "Interrupted !"
+            return False
+        
+        try:
+            shutil.copy (in_dst_name, out_dst_name)
+        except Exception, e:
+            None
+        else:
+            print "File is still accessible: " + in_dst_name
+            return False
+
+        return True
 
 if __name__ == "__main__":
     if len (sys.argv) < 2:

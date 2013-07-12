@@ -45,3 +45,6 @@ depcomp
 install-sh
 missing
 riofs.conf.xml.local
+src/mnt
+tests/read.log
+tests/write.log

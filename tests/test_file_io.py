@@ -287,14 +287,23 @@ class App ():
             print "Created file " + str (files_created) + " out of " + str (total_files) + " len: " + str (flen) + "b"
 
     def check_file (self, entry):
+        
+        # create paths
         out_src_name = self.write_dir + os.path.basename (entry["name"])
+        in_dst_name = self.read_dir + os.path.basename (entry["name"])
+        out_dst_name = self.dst_dir + os.path.basename (entry["name"])
+        
         print >> sys.stderr, ">> Copying to SRV, from:", entry["name"], " to:", out_src_name
-
+        
         for i in range (0, self.nr_retries):
             self.check_running ()
             if self.interrupted:
                 print "Interrupted !"
                 return
+            
+            # force "read" instance to lookup file, it will fail the first time, as file doesn't exist
+            os.path.isfile (in_dst_name)
+
             try:
                 time.sleep (2)
                 shutil.copy (entry["name"], out_src_name)
@@ -302,14 +311,8 @@ class App ():
             except:
                 print "File not found, sleeping .."
         
-        in_dst_name = self.read_dir + os.path.basename (entry["name"])
-        
-        # TEST
-        # shutil.copy (out_src_name, in_dst_name)
-
-        out_dst_name = self.dst_dir + os.path.basename (entry["name"])
-        
         print >> sys.stderr, ">> Copying to LOC, from:", in_dst_name, " to:", out_dst_name
+        
         # write can take some extra time (due file release does not wait)
         for i in range (0, self.nr_retries):
             self.check_running ()

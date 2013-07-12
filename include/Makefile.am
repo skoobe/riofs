@@ -1,5 +1,3 @@
-includedir=$(includedir)/riofs
-
 include_HEADERS = global.h
 include_HEADERS += log.h
 include_HEADERS += conf.h

@@ -883,6 +883,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     en->access_time = time (NULL);
 
     // file is removed
+    // XXX: need to re-check if the file appeared on the server
     if (en->removed) {
         LOG_debug (DIR_TREE_LOG, INO_H"Entry '%s' is removed !", INO_T (en->ino), name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);

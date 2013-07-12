@@ -447,7 +447,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
                 rfuse_add_dirbuf (dir_fill_data->req, &b, tmp_en->basename, tmp_en->ino, tmp_en->size);
             } else {
                 LOG_debug (DIR_TREE_LOG, INO_H"Entry %s is removed from directory listing!", 
-                    INO_T (tmp_en->ino), tmp_en->fullname);
+                    INO_T (tmp_en->ino), tmp_en->basename);
             }
         }
         

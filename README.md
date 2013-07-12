@@ -69,24 +69,31 @@ killall -s USR2 riofs
 Configuration file
 ------------------
     
-Configuration file (riofs.conf.xml) is located in $(prefix)/etc directory.
+Configuration file (riofs.conf.xml) is located in $(prefix)/etc directory, or specified by "-c" command line parameter.
+Please read comments in configuration file to understand the meanings of values.
 
 
 Statistics information
 ------------------
 
 You can enable statistics HTTP server in the configuration file. 
-To access stats page use the following URL:
+Use the following URL to access statistics page:
 ```
 http://host:port/stats?access_key=key
 ```
 replace ```host```, ```port``` and ```key``` with the actual values from the configuration file.
+Add ```&refresh=1``` at the end of URL to refresh this page every second.
+
+
+Known limitations
+------------------
+* Appending data to an existing file is not supported.
 
 
 Bug reporting
 -------------
     
-Please include version of riofs and libraries by running:
+Please include the version of RioFS and libraries by running:
 
 ```
 riofs --version

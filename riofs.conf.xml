@@ -26,13 +26,17 @@
     <path_style type="boolean">False</path_style>
     <!-- The maximum number of keys returned in the response body. -->
     <keys_per_request type="uint">1000</keys_per_request>
+    
     <!-- part size for upload / download files (5mb) -->
     <part_size type="uint">5242880</part_size>
-    <!-- compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory -->
+    
+    <!-- compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory 
+        Greatly increases directory access time. Consider to disable this option.
+    -->
     <check_empty_files type="boolean">True</check_empty_files>
 
     <!-- Use either environment variables AWSACCESSKEYID and AWSSECRETACCESSKEY or configuration file.
-         Uncommend these 2 lines and replace ### strings with your data: --!>
+         Uncomment these 2 lines and replace ### strings with your data: --!>
     <!--
     <access_key_id type="string">### AWS Access Key ID ###</access_key_id>
     <secret_access_key type="string">### AWS Secret Access Key ###</secret_access_key>
@@ -51,10 +55,11 @@
 <filesystem>
     <!-- time to keep directory cache (seconds) -->
     <dir_cache_max_time type="uint">300</dir_cache_max_time>
-    <!-- set True to enable objects caching -->
-    <cache_enabled type="boolean">True</cache_enabled>
     <!-- set True to enable calculating MD5 sum of file content, increases CPU load -->
     <md5_enabled type="boolean">True</md5_enabled>
+    
+    <!-- set True to enable objects caching -->
+    <cache_enabled type="boolean">True</cache_enabled>
     <!-- directory for storing cache objects -->
     <cache_dir type="string">/tmp/riofs</cache_dir>
     <!-- maximum size of cache directory (1Gb) -->
@@ -64,12 +69,17 @@
 </filesystem>
 
 <statistics>
-    <!-- set True to enable statistics server -->
+    <!-- set True to enable statistics server, disabled by default. -->
     <enabled type="boolean">False</enabled>
-    <!-- set host to bind server to, or 0.0.0.0 -->
+
+    <!-- set host to bind server to, or 0.0.0.0 to bind on all available interfaces -->
     <host type="string">0.0.0.0</host>
     <port type="int">8011</port>
+
+    <!-- URI path -->
     <stats_path type="string">/stats</stats_path>
     <history_size type="uint">1000</history_size>
+
+    <!-- Replace this access_key string with your own random string !! -->
     <access_key type="string">iddqd</access_key>
 </statistics>

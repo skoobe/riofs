@@ -600,7 +600,7 @@ static void rfuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup)
 {
     RFuse *rfuse = fuse_req_userdata (req);
     
-    LOG_debug (FUSE_LOG, "forget  inode: %"INO_FMT", nlookup: %lu", INO ino, nlookup);
+    LOG_debug (FUSE_LOG, INO_H"forget nlookup: %lu", INO_T (ino), nlookup);
     
     if (nlookup != 0) {
         LOG_debug (FUSE_LOG, "Ignoring forget with nlookup > 0");

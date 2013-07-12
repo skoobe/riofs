@@ -506,7 +506,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             gchar *tmp;
             tmp = g_new0 (gchar, buf_len + 1);
             strncpy (tmp, buf, buf_len);
-            LOG_debug (CON_LOG, CON_H"Error msg: >>\n%s<<", con, tmp);
+            LOG_debug (CON_LOG, CON_H"Error msg: =====\n%s\n=====", con, tmp);
             g_free (tmp);
         }
         
@@ -576,6 +576,8 @@ gboolean http_connection_make_request (HttpConnection *con,
     if (!con->evcon)
         if (!http_connection_init (con)) {
             LOG_err (CON_LOG, CON_H"Failed to init HTTP connection !", con);
+            if (data->responce_cb)
+                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             return FALSE;
         }
 
@@ -604,6 +606,8 @@ gboolean http_connection_make_request (HttpConnection *con,
         cmd_type = EVHTTP_REQ_HEAD;
     } else {
         LOG_err (CON_LOG, CON_H"Unsupported HTTP method: %s", con, http_cmd);
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
         return FALSE;
     }
@@ -617,6 +621,9 @@ gboolean http_connection_make_request (HttpConnection *con,
     req = evhttp_request_new (http_connection_on_responce_cb, data);
     if (!req) {
         LOG_err (CON_LOG, CON_H"Failed to create HTTP request object !", con);
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+
         request_data_free (data);
         return FALSE;
     }
@@ -670,6 +677,8 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     if (res < 0) {
         request_data_free (data);
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         return FALSE;
     } else
         return TRUE;

@@ -36,7 +36,8 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType
 void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
 
 // mark that DirTree is being updated
-void dir_tree_start_update (DirTree *dtree, const gchar *dir_path);
+
+void dir_tree_start_update (DirEntry *en, G_GNUC_UNUSED const gchar *dir_path);
 void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino);
 
 typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, 

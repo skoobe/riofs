@@ -301,7 +301,7 @@ class App ():
                 print "Interrupted !"
                 return
             
-            # force "read" instance to lookup file, it will fail the first time, as file doesn't exist
+            # force "read" instance to lookup for a file, it will fail the first time, as the file doesn't exist yet
             os.path.isfile (in_dst_name)
 
             try:
@@ -333,6 +333,7 @@ class App ():
             return False
         
         self.check_running ()
+
         if self.interrupted:
             print "Interrupted !"
             return

@@ -171,8 +171,8 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
         ts[0] = '\0';
 
-    g_string_append_printf (str, "Uptime: %u sec, Now: %s, Log level: %d, Dir cache time: %u sec<BR>", 
-        (guint32)(now - stat_srv->boot_time), ts, log_level,
+    g_string_append_printf (str, "RioFS version: %s Uptime: %u sec, Now: %s, Log level: %d, Dir cache time: %u sec<BR>", 
+        VERSION, (guint32)(now - stat_srv->boot_time), ts, log_level,
         conf_get_uint (application_get_conf (stat_srv->app), "filesystem.dir_cache_max_time"));
 
     // DirTree

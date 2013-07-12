@@ -405,6 +405,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     if (!en) {
         LOG_err (DIR_TREE_LOG, INO_H"Entry not found!", INO_T (dir_fill_data->ino));
         dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
+        g_free (dir_fill_data);
         return;
     }
     
@@ -478,6 +479,14 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
     HttpConnection *con = (HttpConnection *) client;
     DirTreeFillDirData *dir_fill_data = (DirTreeFillDirData *) ctx;
     DirEntry *en;
+
+    en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
+    if (!en) {
+        LOG_err (DIR_TREE_LOG, INO_H"Entry not found!", INO_T (dir_fill_data->ino));
+        dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
+        g_free (dir_fill_data);
+        return;
+    }
 
     en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
     if (!en) {
@@ -922,6 +931,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     en->access_time = time (NULL);
 
     // file is removed
+    // XXX: need to re-check if the file appeared on the server
     if (en->removed) {
         LOG_debug (DIR_TREE_LOG, INO_H"Entry '%s' is removed !", INO_T (en->ino), name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
@@ -1450,6 +1460,7 @@ static void dir_tree_file_remove_on_con_data_cb (HttpConnection *con, gpointer c
         LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
         if (data->file_remove_cb)
             data->file_remove_cb (data->req, FALSE);
+		g_free (data);
         return;
     }
    
@@ -1480,6 +1491,7 @@ static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
         LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
         if (data->file_remove_cb)
             data->file_remove_cb (data->req, FALSE);
+        g_free (data);
         return;
     }
 
@@ -1559,7 +1571,6 @@ void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *na
         LOG_err (DIR_TREE_LOG, "Parent not found: %"INO_FMT, INO parent_ino);
         file_remove_cb (req, FALSE);
         return;
-
     }
 
     dir_tree_file_remove (dtree, en->ino, file_remove_cb, req);
@@ -1638,9 +1649,10 @@ static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRe
     if (!res) {
         LOG_err (DIR_TREE_LOG, "Failed to create http request !");
         http_connection_release (con);
-        g_queue_free_full (data->q_objects_to_remove, g_free);
         if (data->dir_remove_cb)
             data->dir_remove_cb (data->req, FALSE);
+
+        g_queue_free_full (data->q_objects_to_remove, g_free);
         g_free (data);
     }
 
@@ -1695,6 +1707,7 @@ static void dir_tree_dir_remove_on_con_cb (gpointer client, gpointer ctx)
             data->dir_remove_cb (data->req, FALSE);
 
         g_free (data);
+        return;
     }
 
     // XXX: max keys

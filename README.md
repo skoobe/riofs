@@ -66,6 +66,10 @@ Send USR2 signal to tell RioFS to reopen log file (useful for logrotate):
 killall -s USR2 riofs
 ```
 
+In order to allow other users to access mounted directory:
+1) make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
+2) launch RioFS with  ```-o "allow_other"````  parameter.
+
 Configuration file
 ------------------
     

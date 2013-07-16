@@ -67,8 +67,9 @@ killall -s USR2 riofs
 ```
 
 In order to allow other users to access mounted directory:
-1) make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
-2) launch RioFS with  ```-o "allow_other"````  parameter.
+
+1. make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
+2. launch RioFS with  ```-o "allow_other"```  parameter.
 
 Configuration file
 ------------------

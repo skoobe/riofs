@@ -323,7 +323,7 @@ static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size,
         return;
     }
 
-    if (off < buf_size)
+    if (off < (off_t)buf_size)
         fuse_reply_buf (req, buf + off, min (buf_size - off, max_size));
     else
         fuse_reply_buf (req, NULL, 0);
@@ -726,8 +726,9 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
     // XXX: move to DirTree
     gchar attr_list[] = "user.version\0user.etag\0user.content_type\0";
     
-    LOG_debug (FUSE_LOG, "listxattr for: %"INO_FMT" size: %zu", INO ino, size);
+    LOG_debug (FUSE_LOG, INO_H"listxattr, size: %zu", INO_T (ino), size);
 
+    (void) rfuse;
     if (size == 0) {
         fuse_reply_xattr (req, sizeof (attr_list));
     } else {
@@ -740,7 +741,7 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
 
 static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, const gchar *str, size_t size)
 {
-    LOG_debug (FUSE_LOG, "getattr_cb  success: %s  str: %s", success?"YES":"NO", str);
+    LOG_debug (FUSE_LOG, INO_H"getattr_cb  success: %s  str: %s", INO_T (ino), success?"YES":"NO", str);
     
     if (!success || !str) {
         fuse_reply_err (req, ENOTSUP);

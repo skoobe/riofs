@@ -177,7 +177,7 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
 
     // DirTree
     dir_tree_get_stats (application_get_dir_tree (stat_srv->app), &total_inodes, &file_num, &dir_num);
-    g_string_append_printf (str, "<BR>DirTree: <BR>-Total inodes: %zu, Total files: %zu, Total directories: %zu<BR>",
+    g_string_append_printf (str, "<BR>DirTree: <BR>-Total inodes: %u, Total files: %u, Total directories: %u<BR>",
         total_inodes, file_num, dir_num);
 
     // Fuse
@@ -232,5 +232,6 @@ static void stat_srv_on_gen_cb (struct evhttp_request *req, void *ctx)
     
     LOG_debug (STAT_LOG, "Unhandled request to: %s", query);
 
+    (void) stat_srv;
     evhttp_send_reply (req, HTTP_NOTFOUND, "Not found", NULL);
 }

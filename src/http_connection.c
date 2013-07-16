@@ -576,8 +576,8 @@ gboolean http_connection_make_request (HttpConnection *con,
     if (!con->evcon)
         if (!http_connection_init (con)) {
             LOG_err (CON_LOG, CON_H"Failed to init HTTP connection !", con);
-            if (data->responce_cb)
-                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            if (responce_cb)
+                responce_cb (con, ctx, FALSE, NULL, 0, NULL);
             return FALSE;
         }
 

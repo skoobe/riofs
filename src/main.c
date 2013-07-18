@@ -570,7 +570,7 @@ int main (int argc, char *argv[])
     gboolean disable_stats = FALSE;
 
     app = g_new0 (Application, 1);
-    app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf", NULL);
+    app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf.xml", NULL);
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", app->conf_path);
 
     GOptionEntry entries[] = {

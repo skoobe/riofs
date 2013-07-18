@@ -11,6 +11,7 @@ AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_RANLIB
 PKG_PROG_PKG_CONFIG
+AC_CHECK_SIZEOF(long int)
 
 PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.32.1 fuse >= 2.8.4 libevent >= 2.0 libxml-2.0 >= 2.6 libcrypto >= 0.9])
 

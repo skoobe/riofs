@@ -349,7 +349,7 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     guint64 range_size;
     time_t now;
 
-    range_size = (guint64)off + (guint64) size;
+    range_size = (guint64)(off + size);
 
     // limit the number of cache checks
     now = time (NULL);

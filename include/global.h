@@ -133,10 +133,27 @@ struct PrintFormat {
 
 LogLevel log_level;
 
-#define OFF_FMT "ju"
-#define INO_FMT "llu"
-#define INO (unsigned long long)
 #define FIVEG 5368709120  // five gigabytes
+
+// XXX: improve this part !!
+// this test is to determine Fuse ino_t size on 32bit systems
+// tested on both 32bit and 64bit Ubuntu and Centos 
+#ifdef SIZEOF_LONG_INT
+    #if SIZEOF_LONG_INT == 4
+        #define OFF_FMT "ju"
+        #define INO_FMT "lu"
+        #define INO (unsigned long)
+    #else 
+        #define OFF_FMT "ju"
+        #define INO_FMT "llu"
+        #define INO (unsigned long long)
+    #endif
+#else
+    #define OFF_FMT "ju"
+    #define INO_FMT "lu"
+    #define INO (unsigned long)
+#endif
+
 // log header to print INO
 #define INO_H "[ino: %"INO_FMT"] "
 #define INO_FOP_H "[ino: %"INO_FMT", fop: %p] "

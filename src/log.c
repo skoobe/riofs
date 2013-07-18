@@ -97,9 +97,12 @@ void logger_log_msg (G_GNUC_UNUSED const gchar *file, G_GNUC_UNUSED gint line, G
         }
     }
     else {
-        if (use_syslog)
+        if (use_syslog) {
             syslog (log_level == LOG_msg ? LOG_INFO : LOG_ERR, "%s", out_str);
-        else {
+            // print critical messages to stderr as well
+            if (level == LOG_err)
+                g_fprintf (stderr, "%s\n", out_str);
+        } else {
             if (level == LOG_err)
                 g_fprintf (f_log, "\033[1;31mERROR!\033[0m %s\n", out_str);
             else

@@ -1578,7 +1578,7 @@ static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRe
                 data->dir_remove_cb (data->req, TRUE);
         }
 
-        g_queue_free_full (data->q_objects_to_remove, g_free);
+        _queue_free_full (data->q_objects_to_remove, g_free);
         g_free (data);
         return;
     }
@@ -1603,7 +1603,7 @@ static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRe
         if (data->dir_remove_cb)
             data->dir_remove_cb (data->req, FALSE);
 
-        g_queue_free_full (data->q_objects_to_remove, g_free);
+        _queue_free_full (data->q_objects_to_remove, g_free);
         g_free (data);
     }
 

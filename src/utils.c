@@ -281,3 +281,10 @@ char *url_escape (const char *s)
 {
     return url_escape_1 (s, urlchr_unsafe);
 }
+
+// copy-paste from glib sources
+void _queue_free_full (GQueue *queue, GDestroyNotify  free_func)
+{
+  g_queue_foreach (queue, (GFunc) free_func, NULL);
+  g_queue_free (queue);
+}

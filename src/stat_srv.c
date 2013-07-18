@@ -86,7 +86,7 @@ StatSrv *stat_srv_create (Application *app)
 
 void stat_srv_destroy (StatSrv *stat_srv)
 {
-    g_queue_free_full (stat_srv->q_op_history, g_free);
+    _queue_free_full (stat_srv->q_op_history, g_free);
 
     if (stat_srv->http)
         evhttp_free (stat_srv->http);

@@ -17,6 +17,7 @@
  */
 #include "global.h"
 #include "client_pool.h"
+#include "utils.h"
 
 struct _ClientPool {
     Application *app;
@@ -92,7 +93,7 @@ void client_pool_destroy (ClientPool *pool)
     PoolClient *pc;
     
     if (pool->q_requests)
-        g_queue_free_full (pool->q_requests, g_free);
+        _queue_free_full (pool->q_requests, g_free);
     for (l = g_list_first (pool->l_clients); l; l = g_list_next (l)) {
         pc = (PoolClient *) l->data;
         pc->client_destroy (pc->client);

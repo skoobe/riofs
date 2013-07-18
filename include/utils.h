@@ -40,4 +40,8 @@ gchar *str_remove_quotes (gchar *str);
    string, returning a freshly allocated string.  */
 char *url_escape (const char *s);
 
+// this function was added to glib since v2.32
+void _queue_free_full (GQueue *queue, GDestroyNotify  free_func);
+
+
 #endif

@@ -41,9 +41,9 @@ AC_ARG_ENABLE(debug-mode,
      AS_HELP_STRING(--enable-debug-mode, enable support for running in debug mode),
         [], [enable_debug_mode=no])
 if test x$enable_debug_mode = xyes; then
-    CFLAGS="$CFLAGS -Wall -Wextra -march=native -O1 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE"
+    CFLAGS="$CFLAGS -Wall -Wextra -O1 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE"
 else
-    CFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -O2 -march=native"
+    CFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -O2"
 fi
 
 AC_CONFIG_FILES(Makefile src/Makefile include/Makefile tests/Makefile)

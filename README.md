@@ -7,8 +7,8 @@ RioFS is a userspace filesystem to mount Amazon S3 buckets
 Requirements
 ------------
 
-* glib-2.0 >= 2.32
-* fuse >= 2.8.4
+* glib-2.0 >= 2.22
+* fuse >= 2.8.3
 * libevent >= 2.0
 * libxml-2.0 >= 2.6
 * libcrypto >= 0.9
@@ -21,10 +21,27 @@ This is a command line to install all requirements to build this project on Ubun
 sudo apt-get install build-essential gcc make automake autoconf libtool pkg-config intltool libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
 ```
 
+Please follow the following steps to install the requirements on Centos (tested on Centos 6.2 32bit):
+```
+sudo yum groupinstall "Development Tools"
+sudo yum install glib2-devel fuse-devel libevent-devel libxml2-devel openssl-devel
+wget https://github.com/downloads/libevent/libevent/libevent-2.0.21-stable.tar.gz
+tar -xzf libevent-2.0.21-stable.tar.gz
+cd libevent-2.0.21-stable
+./configure && make
+sudo make install
+sudo echo "/usr/local/lib/" > /etc/ld.so.conf.d/riofs.conf
+sudo ldconfig
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+cd ..
+```
+
 How to build RioFS
 ------------------
 
 ```
+git clone https://github.com/skoobe/riofs.git
+cd riofs
 ./autogen.sh
 ./configure
 make
@@ -33,8 +50,13 @@ sudo make install
 
 Provide configure script with --enable-debug-mode flag if you want to get a debug build.
 
+
 How to start using RioFS
 ------------------------
+
+Edit ```riofs.conf.xml``` configuration file, by the default it's placed in ```/usr/local/etc/riofs/riofs.conf.xml```.
+
+Launch RioFS:
 
 ```
 export AWSACCESSKEYID="your AWS access key"
@@ -42,7 +64,7 @@ export AWSSECRETACCESSKEY="your AWS secret access key"
 riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 ```
 
-Where options are:
+Where possible options are:
 
 ```
 -v: Verbose output
@@ -70,6 +92,7 @@ In order to allow other users to access mounted directory:
 
 1. make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
 2. launch RioFS with  ```-o "allow_other"```  parameter.
+
 
 Configuration file
 ------------------

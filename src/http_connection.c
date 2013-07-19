@@ -623,7 +623,6 @@ gboolean http_connection_make_request (HttpConnection *con,
         LOG_err (CON_LOG, CON_H"Failed to create HTTP request object !", con);
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
-
         request_data_free (data);
         return FALSE;
     }
@@ -676,9 +675,9 @@ gboolean http_connection_make_request (HttpConnection *con,
     g_free (request_str);
 
     if (res < 0) {
-        request_data_free (data);
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        request_data_free (data);
         return FALSE;
     } else
         return TRUE;

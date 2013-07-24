@@ -48,3 +48,4 @@ riofs.conf.xml.local
 src/mnt
 tests/read.log
 tests/write.log
+.ycm_extra_conf.py

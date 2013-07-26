@@ -289,6 +289,14 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
 
         cache_mng_file_name (cmng, path, sizeof (path), ino);
         fd = open (path, O_RDONLY);
+        if (fd < 0) {
+            LOG_err (CMNG_LOG, INO_H"Failed to open file for reading! Path: %s", INO_T (ino), path);
+            if (context->cb.retrieve_cb)
+                context->cb.retrieve_cb (NULL, 0, FALSE, context->user_ctx);
+            cache_context_destroy (context);
+            cmng->cache_miss++;
+            return;            
+        }
 
         context->buf = g_malloc (size);
         res = pread (fd, context->buf, size, off);
@@ -368,6 +376,13 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
 
     cache_mng_file_name (cmng, path, sizeof (path), ino);
     fd = open (path, O_WRONLY|O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd < 0) {
+        LOG_err (CMNG_LOG, INO_H"Failed to create / open file for writing! Path: %s", INO_T (ino), path);
+        if (context->cb.store_cb)
+            context->cb.store_cb (FALSE, context->user_ctx);
+        cache_context_destroy (context);
+        return;
+    }
     res = pwrite(fd, buf, size, off);
     close (fd);
 

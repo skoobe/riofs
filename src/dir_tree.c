@@ -46,6 +46,7 @@ struct _DirEntry {
     char *dir_cache; // FUSE directory cache
     size_t dir_cache_size; // directory cache size
     time_t dir_cache_created;
+    gboolean dir_cache_updating; // currently sending request for a fresh copy of dir list, return local directory cache
 
     GHashTable *h_dir_tree; // name -> data
 
@@ -65,7 +66,6 @@ struct _DirTree {
     Application *app;
 
     fuse_ino_t max_ino;
-    guint64 current_age;
 
     gint64 current_write_ops; // the number of current write operations
 };
@@ -93,7 +93,6 @@ DirTree *dir_tree_create (Application *app)
     // children entries are destroyed by parent directory entries
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
-    dtree->current_age = 0;
     dtree->current_write_ops = 0;
 
     dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
@@ -145,6 +144,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     gchar *fullpath = NULL;
     char tmbuf[64];
     struct tm *nowtm;
+    guint64 current_age = 0; 
 
     // get the parent, for inodes > 0
     if (parent_ino) {
@@ -168,6 +168,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     if (parent_ino) {
         // update directory buffer
         dir_tree_entry_modified (dtree, parent_en);
+        current_age = parent_en->age;
 
         if (parent_ino == FUSE_ROOT_ID)
             fullpath = g_strdup_printf ("%s", basename);
@@ -181,7 +182,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->is_updating = FALSE;
     en->fullpath = fullpath;
     en->ino = dtree->max_ino++;
-    en->age = dtree->current_age;
+    en->age = current_age;
     en->basename = g_strdup (basename);
     en->mode = mode;
     en->size = size;
@@ -198,6 +199,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->dir_cache = NULL;
     en->dir_cache_size = 0;
     en->dir_cache_created = 0;
+    en->dir_cache_updating = FALSE;
 
     nowtm = localtime (&en->ctime);
     strftime (tmbuf, sizeof (tmbuf), "%Y-%m-%d %H:%M:%S", nowtm);
@@ -245,10 +247,12 @@ static gboolean dir_tree_is_cache_expired (DirTree *dtree, DirEntry *en)
 }
 
 // increase the age of directory
-void dir_tree_start_update (DirTree *dtree, G_GNUC_UNUSED const gchar *dir_path)
+void dir_tree_start_update (DirEntry *en, G_GNUC_UNUSED const gchar *dir_path)
 {
     //XXX: per directory ?
-    dtree->current_age++;
+    en->age++;
+    
+    LOG_err (DIR_TREE_LOG, "UPDATED CURRENT AGE: %"G_GUINT64_FORMAT, en->age);
 }
 
 // remove DirEntry, which age is lower than the current
@@ -256,13 +260,20 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
 {
     DirTree *dtree = (DirTree *)ctx;
     DirEntry *en = (DirEntry *) value;
+    DirEntry *parent_en;
     const gchar *name = (const gchar *) key;
     time_t now = time (NULL);
+    
+    parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (en->parent_ino));
+    if (!parent_en) {
+        LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO en->parent_ino);
+        return NULL;
+    }
 
     // if entry is "old", but someone still tries to access it - leave it untouched
     // XXX: implement smarter algorithm here, "time to remove" should be based on the number of hits
     // process files only 
-    if (en->age < dtree->current_age && 
+    if (en->age < parent_en->age && 
         !en->is_modified && 
         now > en->access_time && 
         (guint32)(now - en->access_time) >= conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time") &&
@@ -326,7 +337,7 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
     // get child
     en = g_hash_table_lookup (parent_en->h_dir_tree, entry_name);
     if (en) {
-        en->age = dtree->current_age;
+        en->age = parent_en->age;
         en->size = size;
         // we got this entry from the server, mark as existing file
         en->removed = FALSE;
@@ -355,7 +366,7 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
             g_free (en->dir_cache);
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
-        en->dir_cache_created = 0;
+        //en->dir_cache_created = 0;
 
         LOG_debug (DIR_TREE_LOG, INO_H"Invalidating cache for directory: %s", INO_T (en->ino), en->basename);
     } else {
@@ -400,6 +411,8 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     
     LOG_debug (DIR_TREE_LOG, "[ino: %"INO_FMT" req: %p] Dir fill callback: %s", 
         INO_T (dir_fill_data->ino), dir_fill_data->req, success ? "SUCCESS" : "FAILED");
+    
+    en->dir_cache_updating = FALSE;
 
     if (!success) {
         dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
@@ -407,6 +420,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         struct dirbuf b; // directory buffer
         GHashTableIter iter;
         gpointer value;
+        DirEntry *parent_en;
 
         // construct directory buffer
         // add "." and ".."
@@ -414,14 +428,23 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         rfuse_add_dirbuf (dir_fill_data->req, &b, ".", dir_fill_data->ino, 0);
         rfuse_add_dirbuf (dir_fill_data->req, &b, "..", dir_fill_data->ino, 0);
 
+        parent_en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
+        if (!parent_en) {
+            LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO dir_fill_data->ino);
+            dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, 
+                NULL, 0, dir_fill_data->ctx);
+            return;
+        }
+
         LOG_debug (DIR_TREE_LOG, INO_H"Entries in directory : %u", INO_T (dir_fill_data->ino), g_hash_table_size (en->h_dir_tree));
         
         // get all directory items
         g_hash_table_iter_init (&iter, en->h_dir_tree);
         while (g_hash_table_iter_next (&iter, NULL, &value)) {
             DirEntry *tmp_en = (DirEntry *) value;
-            // add only updated entries
-            if (tmp_en->age >= dir_fill_data->dtree->current_age) {
+
+            // Add only updated entries
+            if (tmp_en->age >= parent_en->age) {
                 rfuse_add_dirbuf (dir_fill_data->req, &b, tmp_en->basename, tmp_en->ino, tmp_en->size);
             } else {
                 LOG_debug (DIR_TREE_LOG, INO_H"Entry %s is removed from directory listing!", 
@@ -465,6 +488,15 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
         return;
     }
 
+    en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
+    if (!en) {
+        LOG_err (DIR_TREE_LOG, INO_H"Entry not found!", INO_T (dir_fill_data->ino));
+        dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
+        return;
+    }
+    
+    // increase directory "age"
+    dir_tree_start_update (en, NULL);
     //send http request
     http_connection_get_directory_listing (con, 
         en->fullpath, dir_fill_data->ino,
@@ -515,7 +547,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         g_free (en->dir_cache);
     en->dir_cache = NULL;
     en->dir_cache_size = 0;
-    en->dir_cache_created = 0;
+    //en->dir_cache_created = 0;
 
     dir_fill_data = g_new0 (DirTreeFillDirData, 1);
     dir_fill_data->dtree = dtree;
@@ -525,11 +557,28 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->readdir_cb = readdir_cb;
     dir_fill_data->req = req;
     dir_fill_data->ctx = ctx;
+    
+#warning "XXXX"
+    // if no request is being sent
+    // and it's new or expired
+    if (!en->dir_cache_updating && 
+        (!en->dir_cache_created || 
+        time (NULL) - en->dir_cache_created > 
+        (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time")))
+    {
+        LOG_debug (DIR_TREE_LOG, INO_H"Directory cache is expired, getting a fresh list from the server !", INO_T (en->ino));
+        
+        en->dir_cache_updating = TRUE;
 
-    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
-        LOG_err (DIR_TREE_LOG, "Failed to get http client !");
-        readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
-        g_free (dir_fill_data);
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
+            readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
+            en->dir_cache_updating = FALSE;
+            g_free (dir_fill_data);
+        }
+    } else {
+        LOG_debug (DIR_TREE_LOG, INO_H"Returning directory cache from local tree !", INO_T (en->ino));
+        dir_tree_fill_on_dir_buf_cb (dir_fill_data, TRUE);
     }
 }
 /*}}}*/
@@ -605,7 +654,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
             g_free (en->dir_cache);
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
-        en->dir_cache_created = 0;
+        //en->dir_cache_created = 0;
         
         LOG_debug (DIR_TREE_LOG, INO_H"Converting to directory: %s", INO_T (en->ino), en->fullpath);
     }
@@ -1172,6 +1221,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
         // update
         en->removed = FALSE;
         en->access_time = time (NULL);
+        en->age = dir_en->age;
 
         // inform the parent that his dir cache is no longer up-to-dated
         dir_tree_entry_modified (dtree, dir_en);
@@ -1765,11 +1815,12 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
             g_free (en->dir_cache);
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
-        en->dir_cache_created = 0;
+        //en->dir_cache_created = 0;
     }
 
     //XXX: set as new 
     en->is_modified = FALSE;
+    
     // do not delete it
     en->age = G_MAXUINT32;
     en->mode = DIR_DEFAULT_MODE;

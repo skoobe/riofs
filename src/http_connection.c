@@ -376,20 +376,23 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         buf_len = evbuffer_get_length (inbuf);
         
         output_headers = evhttp_request_get_output_headers (req);
-        if (output_headers)
+        if (output_headers) {
             range_str = evhttp_find_header (output_headers, "Range");
-
-        con->cur_code = evhttp_request_get_response_code (req);
-
-        // get the size of Output headers 
-        TAILQ_FOREACH(header, output_headers, next) {
-            con->total_bytes_out += strlen (header->key) + strlen (header->value);
+            
+            // get the size of Output headers 
+            TAILQ_FOREACH(header, output_headers, next) {
+                con->total_bytes_out += strlen (header->key) + strlen (header->value);
+            }
         }
+            
+        con->cur_code = evhttp_request_get_response_code (req);
 
         // get the size of Input headers 
         input_headers = evhttp_request_get_input_headers (req);
-        TAILQ_FOREACH(header, input_headers, next) {
-            con->total_bytes_in += strlen (header->key) + strlen (header->value);
+        if (input_headers) {
+            TAILQ_FOREACH(header, input_headers, next) {
+                con->total_bytes_in += strlen (header->key) + strlen (header->value);
+            }
         }
 
         con->total_bytes_in += buf_len;
@@ -482,8 +485,12 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         }
 
         // re-send request
-        http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer,
-            data->responce_cb, data->ctx);
+        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer,
+            data->responce_cb, data->ctx)) {
+            LOG_err (CON_LOG, CON_H"Failed to send request !", con);
+            if (data->responce_cb)
+                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        }
         goto done;
     }
     
@@ -613,7 +620,13 @@ gboolean http_connection_make_request (HttpConnection *con,
     }
     
     t = time (NULL);
-    strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+    if (!strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
+        LOG_err (CON_LOG, CON_H"strftime returned error !", con);
+        if (data->responce_cb)
+            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        request_data_free (data);
+        return FALSE;
+    }
     auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, con->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     g_free (auth_str);

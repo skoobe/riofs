@@ -1548,8 +1548,13 @@ void dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remove_c
     data->file_remove_cb = file_remove_cb;
     data->req = req;
 
-    client_pool_get_client (application_get_ops_client_pool (dtree->app),
-        dir_tree_file_remove_on_con_cb, data);
+    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app),
+        dir_tree_file_remove_on_con_cb, data)) {
+        LOG_err (DIR_TREE_LOG, INO_H"Failed to get PoolClient !", INO_T (ino));
+        file_remove_cb (req, FALSE);
+        g_free (data);
+        return;
+    }
 }
 
 void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *name, 

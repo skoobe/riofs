@@ -28,14 +28,14 @@
 struct _DirEntry {
     fuse_ino_t ino;
     fuse_ino_t parent_ino;
-    gchar *basename;
-    gchar *fullpath;
-    guint64 age; // if age >= parent's age, then show entry in directory listing
-    gboolean removed;
+    gchar *basename; // file name, without path
+    gchar *fullpath; // file name with path and delimiters 
     
     // type of directory entry
     DirEntryType type;
 
+    guint64 age; // if age >= parent's age, then show entry in directory listing
+    gboolean removed;
     gboolean is_modified; // do not show it
 
     guint64 size;
@@ -48,7 +48,8 @@ struct _DirEntry {
     time_t dir_cache_created;
     gboolean dir_cache_updating; // currently sending request for a fresh copy of dir list, return local directory cache
 
-    GHashTable *h_dir_tree; // name -> data
+    // for directory only, content of the directory
+    GHashTable *h_dir_tree; // name -> DirEntry
 
     gboolean is_updating; // TRUE if getting attributes
     time_t updated_time; // time when entry was updated
@@ -65,7 +66,7 @@ struct _DirTree {
     GHashTable *h_inodes; // inode -> DirEntry
     Application *app;
 
-    fuse_ino_t max_ino;
+    fuse_ino_t max_ino; // value for the new DirEntry->ino
 
     gint64 current_write_ops; // the number of current write operations
 };
@@ -415,12 +416,14 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     en->dir_cache_updating = FALSE;
 
     if (!success) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Failed to fill directory listing !", INO_T (dir_fill_data->ino));
         dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
     } else {
         struct dirbuf b; // directory buffer
         GHashTableIter iter;
         gpointer value;
         DirEntry *parent_en;
+        guint32 items = 0;
 
         // construct directory buffer
         // add "." and ".."
@@ -430,22 +433,25 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
 
         parent_en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
         if (!parent_en) {
-            LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO dir_fill_data->ino);
+            LOG_err (DIR_TREE_LOG, INO_H"Parent not found !", INO_T (dir_fill_data->ino));
             dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, 
                 NULL, 0, dir_fill_data->ctx);
             return;
         }
 
-        LOG_debug (DIR_TREE_LOG, INO_H"Entries in directory : %u", INO_T (dir_fill_data->ino), g_hash_table_size (en->h_dir_tree));
+        LOG_debug (DIR_TREE_LOG, INO_H"Total entries in directory: %u", INO_T (dir_fill_data->ino), g_hash_table_size (en->h_dir_tree));
         
         // get all directory items
         g_hash_table_iter_init (&iter, en->h_dir_tree);
         while (g_hash_table_iter_next (&iter, NULL, &value)) {
             DirEntry *tmp_en = (DirEntry *) value;
 
-            // Add only updated entries
-            if (tmp_en->age >= parent_en->age) {
+            // Add only:
+            // 1) updated entries
+            // 2) which are not "removed"
+            if (tmp_en->age >= parent_en->age && !tmp_en->removed) {
                 rfuse_add_dirbuf (dir_fill_data->req, &b, tmp_en->basename, tmp_en->ino, tmp_en->size);
+                items++;
             } else {
                 LOG_debug (DIR_TREE_LOG, INO_H"Entry %s is removed from directory listing!", 
                     INO_T (tmp_en->ino), tmp_en->basename);
@@ -468,7 +474,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         g_free (b.p);
         
         en->dir_cache_created = time (NULL);
-        LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u", INO_T (dir_fill_data->ino), en->dir_cache_created);
+        LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u, items: %u", INO_T (dir_fill_data->ino), en->dir_cache_created, items);
     }
 
     g_free (dir_fill_data);

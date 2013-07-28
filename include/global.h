@@ -140,19 +140,19 @@ LogLevel log_level;
 // tested on both 32bit and 64bit Ubuntu and Centos 
 #ifdef SIZEOF_LONG_INT
     #if SIZEOF_LONG_INT == 4
-        #define OFF_FMT "ju"
         #define INO_FMT "lu"
         #define INO (unsigned long)
     #else 
-        #define OFF_FMT "ju"
         #define INO_FMT "llu"
         #define INO (unsigned long long)
     #endif
 #else
-    #define OFF_FMT "ju"
     #define INO_FMT "lu"
     #define INO (unsigned long)
 #endif
+
+// we have defined -D_FILE_OFFSET_BITS=64
+#define OFF_FMT G_GOFFSET_FORMAT
 
 // log header to print INO
 #define INO_H "[ino: %"INO_FMT"] "

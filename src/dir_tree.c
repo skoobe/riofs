@@ -387,6 +387,11 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
 /*{{{ dir_tree_fill_dir_buf */
 
 typedef struct {
+    gchar *buf;
+    size_t size;
+} DirOpData;
+
+typedef struct {
     DirTree *dtree;
     fuse_ino_t ino;
     guint64 size;
@@ -394,6 +399,7 @@ typedef struct {
     dir_tree_readdir_cb readdir_cb;
     fuse_req_t req;
     gpointer ctx;
+    DirOpData *dop;
 } DirTreeFillDirData;
 
 // callback: directory structure
@@ -458,17 +464,29 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
             }
         }
         
-        // done, save as cache
+        // 1. Update directory cache
         if (en->dir_cache)
             g_free (en->dir_cache);
-
         en->dir_cache_size = b.size;
         en->dir_cache = g_malloc0 (b.size);
-
         memcpy (en->dir_cache, b.p, b.size);
+        
+        // 2. Update request buffer
+        if (dir_fill_data->dop) {
+            if (dir_fill_data->dop->buf)
+                g_free (dir_fill_data->dop->buf);
+            dir_fill_data->dop->size = b.size;
+            dir_fill_data->dop->buf = g_malloc0 (b.size);
+            memcpy (dir_fill_data->dop->buf, b.p, b.size);
+        } else {
+            LOG_debug (DIR_TREE_LOG, INO_H"Dir data is not set ????", INO_T (dir_fill_data->ino));
+        }
+
         // send buffer to fuse
-        dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, dir_fill_data->size, dir_fill_data->off, 
-            b.p, b.size, dir_fill_data->ctx);
+        dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, 
+            dir_fill_data->size, dir_fill_data->off, 
+            en->dir_cache, en->dir_cache_size,
+            dir_fill_data->ctx);
 
         //free buffer
         g_free (b.p);
@@ -510,15 +528,49 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
     );
 }
 
+gboolean dir_tree_opendir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    DirOpData *dop;
+
+    if (!g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino))) {
+        LOG_msg (DIR_TREE_LOG, INO_H"Directory not found !", INO_T (ino));
+        return FALSE;
+    }
+
+    dop = g_new0 (DirOpData, 1);
+    dop->buf = NULL;
+    dop->size = 0;
+
+    fi->fh = (uint64_t) dop;
+
+    return TRUE;
+}
+
+gboolean dir_tree_releasedir (G_GNUC_UNUSED DirTree *dtree, G_GNUC_UNUSED fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    DirOpData *dop;
+
+    dop = (DirOpData *) fi->fh;
+    if (dop) {
+        if (dop->buf)
+            g_free (dop->buf);
+        g_free (dop);
+    }
+
+    return TRUE;
+}
+
+
 // return directory buffer from the cache
 // or regenerate directory cache
 void dir_tree_fill_dir_buf (DirTree *dtree, 
         fuse_ino_t ino, size_t size, off_t off,
         dir_tree_readdir_cb readdir_cb, fuse_req_t req,
-        gpointer ctx)
+        gpointer ctx, struct fuse_file_info *fi)
 {
     DirEntry *en;
     DirTreeFillDirData *dir_fill_data;
+    DirOpData *dop = NULL;
     
     LOG_debug (DIR_TREE_LOG, INO_H"Requesting directory buffer: [%zd: %"OFF_FMT"]", INO_T (ino), size, off);
     
@@ -532,19 +584,38 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         return;
     }
     
+    if (fi && fi->fh) {
+        dop = (DirOpData *) fi->fh;
+    }
+
     // already have directory buffer in the cache
     if (!dir_tree_is_cache_expired (dtree, en)) {
         LOG_debug (DIR_TREE_LOG, INO_H"Sending directory buffer from cache !", INO_T (ino));
-        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
+        
+        // Fuse request 
+        if (dop) {
+            // cache is empty
+            if (!dop->buf) {
+                dop->buf = g_malloc0 (en->dir_cache_size);
+                dop->size = en->dir_cache_size;
+                memcpy (dop->buf, en->dir_cache, en->dir_cache_size);
+            }
+            readdir_cb (req, TRUE, size, off, dop->buf, dop->size, ctx);
+        } else 
+            readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
     }
 
     // make sure that subsequent requests return the same directory structure
     if (off > 0) {
-        // update timer, if subsequent requests has the same "req" as the one which updated dir cache
-        //XXX: dir_fill_data->en->dir_cache_created = time (NULL);
+        // must be set !
+        if (!dop || !dop->buf) {
+            LOG_err (DIR_TREE_LOG, INO_H"Dir cache is not set !", INO_T (ino));
+            readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
+            return;
+        }
         LOG_debug (DIR_TREE_LOG, INO_H"Sending directory buffer from cache !", INO_T (ino));
-        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
+        readdir_cb (req, TRUE, size, off, dop->buf, dop->size, ctx);
         return;
     }
 
@@ -563,6 +634,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->readdir_cb = readdir_cb;
     dir_fill_data->req = req;
     dir_fill_data->ctx = ctx;
+    dir_fill_data->dop = dop;
     
 #warning "XXXX"
     // if no request is being sent
@@ -901,7 +973,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         op_data->name = g_strdup (name);
 
         LOG_debug (DIR_TREE_LOG, INO_H"Getting directory listing ..", INO_T (dir_en->ino));
-        dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data);
+        dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data, NULL);
 
         return;
     }    

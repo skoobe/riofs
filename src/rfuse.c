@@ -55,8 +55,9 @@ struct _RFuse {
 /*{{{ func declarations */
 static void rfuse_init (void *userdata, struct fuse_conn_info *conn);
 static void rfuse_on_read (evutil_socket_t fd, short what, void *arg);
-static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, 
-    size_t size, off_t off, struct fuse_file_info *fi);
+static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
+static void rfuse_opendir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
+static void rfuse_releasedir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void rfuse_lookup (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 static void rfuse_getattr (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void rfuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi);
@@ -76,7 +77,9 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
+    .opendir    = rfuse_opendir,
     .readdir    = rfuse_readdir,
+    .releasedir = rfuse_releasedir,
     .lookup     = rfuse_lookup,
     .getattr    = rfuse_getattr,
     .setattr    = rfuse_setattr,
@@ -283,6 +286,33 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
 }
 /*}}}*/
 
+/*{{{ opendir operation */
+static void rfuse_opendir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+    
+    LOG_debug (FUSE_LOG, INO_H"opendir", INO_T (ino));
+    
+    if (dir_tree_opendir (rfuse->dir_tree, ino, fi))
+        fuse_reply_open (req, fi);
+    else
+        fuse_reply_err (req, ENOENT);
+}
+/*}}}*/
+
+/*{{{ releasedir operation */
+static void rfuse_releasedir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+    
+    LOG_debug (FUSE_LOG, INO_H"releasedir", INO_T (ino));
+
+    dir_tree_releasedir (rfuse->dir_tree, ino, fi);
+    
+    fuse_reply_err (req, 0);
+}
+/*}}}*/
+
 /*{{{ readdir operation */
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
@@ -331,7 +361,7 @@ static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size,
 
 // FUSE lowlevel operation: readdir
 // Valid replies: fuse_reply_buf() fuse_reply_err()
-static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, G_GNUC_UNUSED struct fuse_file_info *fi)
+static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
@@ -339,7 +369,7 @@ static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
     
     rfuse->readdir_ops++;
     // fill directory buffer for "ino" directory
-    dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req, NULL);
+    dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req, NULL, fi);
 }
 /*}}}*/
 

@@ -627,6 +627,12 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_data_free (data);
         return FALSE;
     }
+    
+    // add x-amz-storage-class header when storing an object
+    if (cmd_type == EVHTTP_REQ_PUT || cmd_type == EVHTTP_REQ_POST) {
+        http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
+    }
+
     auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, con->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     g_free (auth_str);

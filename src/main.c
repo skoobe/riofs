@@ -50,6 +50,7 @@ struct _Application {
     struct evhttp_uri *uri;
 
     struct event *sigint_ev;
+    struct event *sigterm_ev;
     struct event *sigpipe_ev;
     struct event *sigusr1_ev;
     struct event *sigusr2_ev;
@@ -296,6 +297,17 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
     // terminate after running all active events 
     event_base_loopexit (app->evbase, NULL);
 }
+// same as SIGINT
+static void sigterm_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, void *user_data)
+{
+    Application *app = (Application *) user_data;
+
+    LOG_err (APP_LOG, "Got SIGTERM");
+
+    // terminate after running all active events 
+    event_base_loopexit (app->evbase, NULL);
+}
+
 /*}}}*/
 
 /*{{{ application_finish_initialization_and_run */
@@ -393,6 +405,9 @@ static gint application_finish_initialization_and_run (Application *app)
         event_base_loopexit (app->evbase, NULL);
         return 1;
     }
+    // SIGTERM
+    app->sigterm_ev = evsignal_new (app->evbase, SIGTERM, sigterm_cb, app);
+    event_add (app->sigterm_ev, NULL);
     // SIGABRT
     sigact.sa_sigaction = sigsegv_cb;
     sigact.sa_flags = (int)SA_RESETHAND | SA_SIGINFO;
@@ -478,6 +493,8 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
 /*{{{ application_destroy */
 static void application_destroy (Application *app)
 {
+    LOG_debug (APP_LOG, "Destroying application !");
+
     g_free (app->conf_path);
     if (app->read_client_pool)
         client_pool_destroy (app->read_client_pool);
@@ -494,6 +511,8 @@ static void application_destroy (Application *app)
 
     if (app->sigint_ev)
         event_free (app->sigint_ev);
+    if (app->sigterm_ev)
+        event_free (app->sigterm_ev);
     if (app->sigpipe_ev)
         event_free (app->sigpipe_ev);
     if (app->sigusr1_ev)

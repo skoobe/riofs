@@ -711,14 +711,17 @@ static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 
 // Remove a directory
 // Valid replies: fuse_reply_err
-// XXX: not used, see rfuse_forget
 static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name)
 {
     RFuse *rfuse = fuse_req_userdata (req);
     
     LOG_debug (FUSE_LOG, "[%p] rmdir  parent_ino: %"INO_FMT", name: %s", rfuse, INO parent_ino, name);
 
-    fuse_reply_err (req, 0);
+    // notify dir tree
+    if (dir_tree_dir_remove (rfuse->dir_tree, parent_ino, name, req))
+        fuse_reply_err (req, 0);
+    else
+        fuse_reply_err (req, EPERM);
 }
 /*}}}*/
 

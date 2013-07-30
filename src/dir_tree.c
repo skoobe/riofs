@@ -1677,201 +1677,43 @@ void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *na
 
 /*{{{ dir_tree_dir_remove */
 
-typedef struct {
-    DirTree *dtree;
-    fuse_ino_t ino;
-    DirTree_dir_remove_cb dir_remove_cb;
-    fuse_req_t req;
-    GQueue *q_objects_to_remove;
-} DirRemoveData;
-
-static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRemoveData *data);
-
-// object is removed, call remove function again
-static void dir_tree_dir_remove_on_object_removed_cb (HttpConnection *con, gpointer ctx, 
-    G_GNUC_UNUSED gboolean success,
-    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
-    G_GNUC_UNUSED struct evkeyvalq *headers)
+gboolean dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *name, G_GNUC_UNUSED fuse_req_t req)
 {
-    DirRemoveData *data = (DirRemoveData *) ctx;
-
-    dir_tree_dir_remove_try_to_remove_object (con, data);
-}
-
-// check if there is any object left in the queue and remove it
-static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRemoveData *data)
-{
-    gchar *line;
-    gchar *req_path;
-    gboolean res;
-
-    // check if all objects are removed
-    if (g_queue_is_empty (data->q_objects_to_remove)) {
-        DirEntry *en;
-        
-        http_connection_release (con);
-
-        LOG_debug (DIR_TREE_LOG, INO_H"All objects are removed !", INO_T (data->ino));
-
-        en = g_hash_table_lookup (data->dtree->h_inodes, GUINT_TO_POINTER (data->ino));
-        if (!en) {
-            LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
-            if (data->dir_remove_cb)
-                data->dir_remove_cb (data->req, FALSE);
-        } else {
-            // hide from the dir list
-            en->age = 0;
-            if (data->dir_remove_cb)
-                data->dir_remove_cb (data->req, TRUE);
-        }
-
-        _queue_free_full (data->q_objects_to_remove, g_free);
-        g_free (data);
-        return;
-    }
-
-    line = g_queue_pop_tail (data->q_objects_to_remove);
-
-    req_path = g_strdup_printf ("/%s", line);
-    g_free (line);
-
-    res = http_connection_make_request (con, 
-        req_path, "DELETE", 
-        NULL,
-        dir_tree_dir_remove_on_object_removed_cb,
-        data
-    );
-
-    g_free (req_path);
-
-    if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
-        http_connection_release (con);
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-
-        _queue_free_full (data->q_objects_to_remove, g_free);
-        g_free (data);
-    }
-
-}
-
-// got the list of all objects in the directory
-// create list to-remove
-static void dir_tree_dir_remove_on_con_objects_cb (HttpConnection *con, gpointer ctx, gboolean success,
-        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
-{
-    DirRemoveData *data = (DirRemoveData *) ctx;
-    struct evbuffer *evb;
-    char *line;
-
-    if (!success) {
-        LOG_err (DIR_TREE_LOG, "Failed to get directory's content !");
-        http_connection_release (con);
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-        g_free (data);
-        return;
-    }
-
-    evb = evbuffer_new ();
-    evbuffer_add (evb, buf, buf_len);
-
-    data->q_objects_to_remove = g_queue_new ();
-    while ((line = evbuffer_readln (evb, NULL, EVBUFFER_EOL_CRLF))) {
-        LOG_debug (DIR_TREE_LOG, "Removing %s", line);
-        g_queue_push_head (data->q_objects_to_remove, line);
-    }
-
-    evbuffer_free (evb);
-
-    dir_tree_dir_remove_try_to_remove_object (con, data);
-
-}
-
-// http Connection is ready
-static void dir_tree_dir_remove_on_con_cb (gpointer client, gpointer ctx)
-{
-    HttpConnection *con = (HttpConnection *) client;
-    DirRemoveData *data = (DirRemoveData *) ctx;
-    gchar *req_path;
-    gboolean res;
     DirEntry *en;
-    
-    en = g_hash_table_lookup (data->dtree->h_inodes, GUINT_TO_POINTER (data->ino));
-    if (!en) {
-        LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-
-        g_free (data);
-        return;
-    }
-
-    // XXX: max keys
-    req_path = g_strdup_printf ("?prefix=%s/", en->fullpath);
-
-    http_connection_acquire (con);
-    res = http_connection_make_request (con, 
-        req_path, "GET", 
-        NULL,
-        dir_tree_dir_remove_on_con_objects_cb,
-        data
-    );
-
-    g_free (req_path);
-
-    if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-        
-        http_connection_release (con);
-        g_free (data);
-    }
-}
-
-// try to get directory entry
-void dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *name, 
-    DirTree_dir_remove_cb dir_remove_cb, fuse_req_t req)
-{
-    DirRemoveData *data;
     DirEntry *parent_en;
-    DirEntry *en;
-
+    
     LOG_debug (DIR_TREE_LOG, "Removing dir: %s parent_ino: %"INO_FMT, name, INO parent_ino);
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
         LOG_err (DIR_TREE_LOG, "Entry not found, parent_ino: %"INO_FMT, INO parent_ino);
-        if (dir_remove_cb)
-            dir_remove_cb (req, FALSE);
-        return;
+        return FALSE;
     }
 
     en = g_hash_table_lookup (parent_en->h_dir_tree, name);
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, name, INO parent_ino);
-        if (dir_remove_cb)
-            dir_remove_cb (req, FALSE);
-        return;
+        LOG_err (DIR_TREE_LOG, "Entry not found: %s", name);
+        return FALSE;
     }
-    
-    // ok, directory is found, get HttpConnection
-    data = g_new0 (DirRemoveData, 1);
-    data->dtree = dtree;
-    data->dir_remove_cb = dir_remove_cb;
-    data->req = req;
-    data->ino = en->ino;
 
-    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app),
-        dir_tree_dir_remove_on_con_cb, data)) {
-        LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
-        if (dir_remove_cb)
-            dir_remove_cb (req, FALSE);
-        g_free (data);
-        return;
+    if (en->type != DET_dir || !en->h_dir_tree) {
+        LOG_err (DIR_TREE_LOG, INO_H"Entry is not a directory !", INO_T (en->ino));
+        return FALSE;
     }
+
+    if (g_hash_table_size (en->h_dir_tree) > 2) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Directory is not empty !", INO_T (en->ino));
+        return FALSE;
+    }
+
+    en->removed = TRUE;
+    en->age = 0;
+
+    dir_tree_entry_modified (dtree, parent_en);
+
+    LOG_debug (DIR_TREE_LOG, INO_H"Directory is removed: %s", INO_T (en->ino), name);
+
+    return TRUE;
 }
 /*}}}*/
 

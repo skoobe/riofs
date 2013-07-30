@@ -244,6 +244,10 @@ static gboolean dir_tree_is_cache_expired (DirTree *dtree, DirEntry *en)
     if (t - en->dir_cache_created > (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time"))
         return TRUE;
 
+    // if directory was modified, the cache is no longer valid
+    if (en->is_modified)
+        return TRUE;
+
     return FALSE;
 }
 
@@ -268,10 +272,11 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (en->parent_ino));
     if (!parent_en) {
         LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO en->parent_ino);
-        return NULL;
+        return FALSE;
     }
 
     // if entry is "old", but someone still tries to access it - leave it untouched
+    // is_modified = TRUE - the local file has a modification, don't remove it for now
     // XXX: implement smarter algorithm here, "time to remove" should be based on the number of hits
     // process files only 
     if (en->age < parent_en->age && 
@@ -420,6 +425,8 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         INO_T (dir_fill_data->ino), dir_fill_data->req, success ? "SUCCESS" : "FAILED");
     
     en->dir_cache_updating = FALSE;
+    // directory is updated
+    en->is_modified = FALSE;
 
     if (!success) {
         LOG_debug (DIR_TREE_LOG, INO_H"Failed to fill directory listing !", INO_T (dir_fill_data->ino));
@@ -560,7 +567,6 @@ gboolean dir_tree_releasedir (G_GNUC_UNUSED DirTree *dtree, G_GNUC_UNUSED fuse_i
     return TRUE;
 }
 
-
 // return directory buffer from the cache
 // or regenerate directory cache
 void dir_tree_fill_dir_buf (DirTree *dtree, 
@@ -572,7 +578,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     DirTreeFillDirData *dir_fill_data;
     DirOpData *dop = NULL;
     
-    LOG_debug (DIR_TREE_LOG, INO_H"Requesting directory buffer: [%zd: %"OFF_FMT"]", INO_T (ino), size, off);
+    LOG_debug (DIR_TREE_LOG, INO_H"Requesting directory buffer: [%zu: %"OFF_FMT"]", INO_T (ino), size, off);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -584,8 +590,16 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         return;
     }
     
+    // get request structure
     if (fi && fi->fh) {
         dop = (DirOpData *) fi->fh;
+    }
+
+    // if request buffer is set - return it right away
+    if (dop && dop->buf) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Returning request cache ..", INO_T (ino));
+        readdir_cb (req, TRUE, size, off, dop->buf, dop->size, ctx);
+        return;
     }
 
     // already have directory buffer in the cache
@@ -972,7 +986,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         op_data->parent_ino = parent_ino;
         op_data->name = g_strdup (name);
 
-        LOG_debug (DIR_TREE_LOG, INO_H"Getting directory listing ..", INO_T (dir_en->ino));
+        LOG_debug (DIR_TREE_LOG, INO_H"Getting directory listing for lookup op ..", INO_T (dir_en->ino));
         dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data, NULL);
 
         return;
@@ -1417,7 +1431,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     
     fop = (FileIO *)fi->fh;
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fop, size, off);
     
     op_data = g_new0 (FileReadOpData, 1);
     op_data->file_read_cb = file_read_cb;
@@ -1501,7 +1515,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     // set updated time for write op
     en->updated_time = time (NULL);
     
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fop, size, off);
 
     op_data = g_new0 (FileWriteOpData, 1);
     op_data->dtree = dtree;
@@ -1901,11 +1915,15 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
         //en->dir_cache_created = 0;
     }
 
+    // inform parent that directory listing is no longer valid
+    dir_en->is_modified = TRUE;
+
     //XXX: set as new 
     en->is_modified = FALSE;
     
     // do not delete it
-    en->age = G_MAXUINT32;
+    // en->age = G_MAXUINT32;
+    en->removed = FALSE;
     en->mode = DIR_DEFAULT_MODE;
 
     mkdir_cb (req, TRUE, en->ino, en->mode, en->size, en->ctime);

@@ -257,7 +257,7 @@ void dir_tree_start_update (DirEntry *en, G_GNUC_UNUSED const gchar *dir_path)
     //XXX: per directory ?
     en->age++;
     
-    LOG_err (DIR_TREE_LOG, "UPDATED CURRENT AGE: %"G_GUINT64_FORMAT, en->age);
+    LOG_debug (DIR_TREE_LOG, "UPDATED CURRENT AGE: %"G_GUINT64_FORMAT, en->age);
 }
 
 // remove DirEntry, which age is lower than the current

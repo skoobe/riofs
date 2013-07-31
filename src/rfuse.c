@@ -50,6 +50,8 @@ struct _RFuse {
 };
 
 #define FUSE_LOG "fuse"
+#define ENTRY_TIMEOUT 1.0
+#define ATTR_TIMEOUT 1.0
 /*}}}*/
 
 /*{{{ func declarations */
@@ -454,8 +456,8 @@ static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
 
     memset(&e, 0, sizeof(e));
     e.ino = ino;
-    e.attr_timeout = 1.0;
-    e.entry_timeout = 1.0;
+    e.attr_timeout = ATTR_TIMEOUT;
+    e.entry_timeout = ENTRY_TIMEOUT;
 
     e.attr.st_ino = ino;
     e.attr.st_mode = mode;
@@ -518,8 +520,8 @@ void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode
 
     memset(&e, 0, sizeof(e));
     e.ino = ino;
-    e.attr_timeout = 1.0;
-    e.entry_timeout = 1.0;
+    e.attr_timeout = ATTR_TIMEOUT;
+    e.entry_timeout = ENTRY_TIMEOUT;
 
     e.attr.st_ino = ino;
     e.attr.st_mode = mode;
@@ -680,8 +682,8 @@ static void rfuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, in
 
     memset(&e, 0, sizeof(e));
     e.ino = ino;
-    e.attr_timeout = 1.0;
-    e.entry_timeout = 1.0;
+    e.attr_timeout = ATTR_TIMEOUT;
+    e.entry_timeout = ENTRY_TIMEOUT;
     //e.attr.st_mode = S_IFDIR | 0755;
     e.attr.st_mode = mode;
     e.attr.st_nlink = 1;

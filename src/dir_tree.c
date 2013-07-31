@@ -1767,6 +1767,7 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
     // en->age = G_MAXUINT32;
     en->removed = FALSE;
     en->mode = DIR_DEFAULT_MODE;
+    en->age = dir_en->age;
 
     mkdir_cb (req, TRUE, en->ino, en->mode, en->size, en->ctime);
 }

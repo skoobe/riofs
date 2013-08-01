@@ -1680,6 +1680,9 @@ gboolean dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char 
 {
     DirEntry *en;
     DirEntry *parent_en;
+    GHashTableIter iter;
+    gboolean entries_removed = TRUE;
+    gpointer value;
     
     LOG_debug (DIR_TREE_LOG, "Removing dir: %s parent_ino: %"INO_FMT, name, INO parent_ino);
 
@@ -1699,9 +1702,20 @@ gboolean dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char 
         LOG_err (DIR_TREE_LOG, INO_H"Entry is not a directory !", INO_T (en->ino));
         return FALSE;
     }
+    
+    // check that all entries are removed
+    g_hash_table_iter_init (&iter, en->h_dir_tree);
+    while (g_hash_table_iter_next (&iter, NULL, &value)) {
+        DirEntry *tmp_en = (DirEntry *) value;
+        if (!tmp_en->removed) {
+            LOG_debug (DIR_TREE_LOG, INO_H"Directory contains entry which wasn't deleted! Entry: %"INO_FMT, INO_T (en->ino), INO_T (tmp_en->ino));
+            entries_removed = FALSE;
+            break;
+        }
+    }
 
-    if (g_hash_table_size (en->h_dir_tree) > 2) {
-        LOG_debug (DIR_TREE_LOG, INO_H"Directory is not empty !", INO_T (en->ino));
+    if (!entries_removed) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Directory is not empty, items: %zu !", INO_T (en->ino), g_hash_table_size (en->h_dir_tree));
         return FALSE;
     }
 

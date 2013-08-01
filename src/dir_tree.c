@@ -1058,7 +1058,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     }
     */
 
-    if (en->is_modified && !en->is_updating && en->type == DET_dir) {
+    if (en->is_modified && !en->is_updating && en->type != DET_dir) {
 
         LookupOpData *op_data;
 

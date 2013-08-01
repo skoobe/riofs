@@ -650,7 +650,6 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->ctx = ctx;
     dir_fill_data->dop = dop;
     
-#warning "XXXX"
     // if no request is being sent
     // and it's new or expired
     if (!en->dir_cache_updating && 

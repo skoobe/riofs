@@ -486,7 +486,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
             dir_fill_data->dop->buf = g_malloc0 (b.size);
             memcpy (dir_fill_data->dop->buf, b.p, b.size);
         } else {
-            LOG_debug (DIR_TREE_LOG, INO_H"Dir data is not set ????", INO_T (dir_fill_data->ino));
+            LOG_debug (DIR_TREE_LOG, INO_H"Dir data is not set (lookup request).", INO_T (dir_fill_data->ino));
         }
 
         // send buffer to fuse

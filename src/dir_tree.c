@@ -28,14 +28,14 @@
 struct _DirEntry {
     fuse_ino_t ino;
     fuse_ino_t parent_ino;
-    gchar *basename;
-    gchar *fullpath;
-    guint64 age; // if age >= parent's age, then show entry in directory listing
-    gboolean removed;
+    gchar *basename; // file name, without path
+    gchar *fullpath; // file name with path and delimiters 
     
     // type of directory entry
     DirEntryType type;
 
+    guint64 age; // if age >= parent's age, then show entry in directory listing
+    gboolean removed;
     gboolean is_modified; // do not show it
 
     guint64 size;
@@ -46,8 +46,10 @@ struct _DirEntry {
     char *dir_cache; // FUSE directory cache
     size_t dir_cache_size; // directory cache size
     time_t dir_cache_created;
+    gboolean dir_cache_updating; // currently sending request for a fresh copy of dir list, return local directory cache
 
-    GHashTable *h_dir_tree; // name -> data
+    // for directory only, content of the directory
+    GHashTable *h_dir_tree; // name -> DirEntry
 
     gboolean is_updating; // TRUE if getting attributes
     time_t updated_time; // time when entry was updated
@@ -64,8 +66,7 @@ struct _DirTree {
     GHashTable *h_inodes; // inode -> DirEntry
     Application *app;
 
-    fuse_ino_t max_ino;
-    guint64 current_age;
+    fuse_ino_t max_ino; // value for the new DirEntry->ino
 
     gint64 current_write_ops; // the number of current write operations
 };
@@ -93,7 +94,6 @@ DirTree *dir_tree_create (Application *app)
     // children entries are destroyed by parent directory entries
     dtree->h_inodes = g_hash_table_new (g_direct_hash, g_direct_equal);
     dtree->max_ino = FUSE_ROOT_ID;
-    dtree->current_age = 0;
     dtree->current_write_ops = 0;
 
     dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
@@ -145,6 +145,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     gchar *fullpath = NULL;
     char tmbuf[64];
     struct tm *nowtm;
+    guint64 current_age = 0; 
 
     // get the parent, for inodes > 0
     if (parent_ino) {
@@ -168,6 +169,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     if (parent_ino) {
         // update directory buffer
         dir_tree_entry_modified (dtree, parent_en);
+        current_age = parent_en->age;
 
         if (parent_ino == FUSE_ROOT_ID)
             fullpath = g_strdup_printf ("%s", basename);
@@ -181,7 +183,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->is_updating = FALSE;
     en->fullpath = fullpath;
     en->ino = dtree->max_ino++;
-    en->age = dtree->current_age;
+    en->age = current_age;
     en->basename = g_strdup (basename);
     en->mode = mode;
     en->size = size;
@@ -198,6 +200,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     en->dir_cache = NULL;
     en->dir_cache_size = 0;
     en->dir_cache_created = 0;
+    en->dir_cache_updating = FALSE;
 
     nowtm = localtime (&en->ctime);
     strftime (tmbuf, sizeof (tmbuf), "%Y-%m-%d %H:%M:%S", nowtm);
@@ -241,14 +244,20 @@ static gboolean dir_tree_is_cache_expired (DirTree *dtree, DirEntry *en)
     if (t - en->dir_cache_created > (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time"))
         return TRUE;
 
+    // if directory was modified, the cache is no longer valid
+    if (en->is_modified)
+        return TRUE;
+
     return FALSE;
 }
 
 // increase the age of directory
-void dir_tree_start_update (DirTree *dtree, G_GNUC_UNUSED const gchar *dir_path)
+void dir_tree_start_update (DirEntry *en, G_GNUC_UNUSED const gchar *dir_path)
 {
     //XXX: per directory ?
-    dtree->current_age++;
+    en->age++;
+    
+    LOG_debug (DIR_TREE_LOG, "UPDATED CURRENT AGE: %"G_GUINT64_FORMAT, en->age);
 }
 
 // remove DirEntry, which age is lower than the current
@@ -256,13 +265,21 @@ static gboolean dir_tree_stop_update_on_remove_child_cb (gpointer key, gpointer 
 {
     DirTree *dtree = (DirTree *)ctx;
     DirEntry *en = (DirEntry *) value;
+    DirEntry *parent_en;
     const gchar *name = (const gchar *) key;
     time_t now = time (NULL);
+    
+    parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (en->parent_ino));
+    if (!parent_en) {
+        LOG_err (DIR_TREE_LOG, "Parent not found for ino: %"INO_FMT" !", INO en->parent_ino);
+        return FALSE;
+    }
 
     // if entry is "old", but someone still tries to access it - leave it untouched
+    // is_modified = TRUE - the local file has a modification, don't remove it for now
     // XXX: implement smarter algorithm here, "time to remove" should be based on the number of hits
     // process files only 
-    if (en->age < dtree->current_age && 
+    if (en->age < parent_en->age && 
         !en->is_modified && 
         now > en->access_time && 
         (guint32)(now - en->access_time) >= conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time") &&
@@ -326,7 +343,7 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
     // get child
     en = g_hash_table_lookup (parent_en->h_dir_tree, entry_name);
     if (en) {
-        en->age = dtree->current_age;
+        en->age = parent_en->age;
         en->size = size;
         // we got this entry from the server, mark as existing file
         en->removed = FALSE;
@@ -355,7 +372,7 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
             g_free (en->dir_cache);
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
-        en->dir_cache_created = 0;
+        //en->dir_cache_created = 0;
 
         LOG_debug (DIR_TREE_LOG, INO_H"Invalidating cache for directory: %s", INO_T (en->ino), en->basename);
     } else {
@@ -375,6 +392,11 @@ static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en)
 /*{{{ dir_tree_fill_dir_buf */
 
 typedef struct {
+    gchar *buf;
+    size_t size;
+} DirOpData;
+
+typedef struct {
     DirTree *dtree;
     fuse_ino_t ino;
     guint64 size;
@@ -382,6 +404,7 @@ typedef struct {
     dir_tree_readdir_cb readdir_cb;
     fuse_req_t req;
     gpointer ctx;
+    DirOpData *dop;
 } DirTreeFillDirData;
 
 // callback: directory structure
@@ -400,13 +423,20 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     
     LOG_debug (DIR_TREE_LOG, "[ino: %"INO_FMT" req: %p] Dir fill callback: %s", 
         INO_T (dir_fill_data->ino), dir_fill_data->req, success ? "SUCCESS" : "FAILED");
+    
+    en->dir_cache_updating = FALSE;
+    // directory is updated
+    en->is_modified = FALSE;
 
     if (!success) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Failed to fill directory listing !", INO_T (dir_fill_data->ino));
         dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
     } else {
         struct dirbuf b; // directory buffer
         GHashTableIter iter;
         gpointer value;
+        DirEntry *parent_en;
+        guint32 items = 0;
 
         // construct directory buffer
         // add "." and ".."
@@ -414,38 +444,62 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         rfuse_add_dirbuf (dir_fill_data->req, &b, ".", dir_fill_data->ino, 0);
         rfuse_add_dirbuf (dir_fill_data->req, &b, "..", dir_fill_data->ino, 0);
 
-        LOG_debug (DIR_TREE_LOG, INO_H"Entries in directory : %u", INO_T (dir_fill_data->ino), g_hash_table_size (en->h_dir_tree));
+        parent_en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
+        if (!parent_en) {
+            LOG_err (DIR_TREE_LOG, INO_H"Parent not found !", INO_T (dir_fill_data->ino));
+            dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, 
+                NULL, 0, dir_fill_data->ctx);
+            return;
+        }
+
+        LOG_debug (DIR_TREE_LOG, INO_H"Total entries in directory: %u", INO_T (dir_fill_data->ino), g_hash_table_size (en->h_dir_tree));
         
         // get all directory items
         g_hash_table_iter_init (&iter, en->h_dir_tree);
         while (g_hash_table_iter_next (&iter, NULL, &value)) {
             DirEntry *tmp_en = (DirEntry *) value;
-            // add only updated entries
-            if (tmp_en->age >= dir_fill_data->dtree->current_age) {
+
+            // Add only:
+            // 1) updated entries
+            // 2) which are not "removed"
+            if (tmp_en->age >= parent_en->age && !tmp_en->removed) {
                 rfuse_add_dirbuf (dir_fill_data->req, &b, tmp_en->basename, tmp_en->ino, tmp_en->size);
+                items++;
             } else {
                 LOG_debug (DIR_TREE_LOG, INO_H"Entry %s is removed from directory listing!", 
                     INO_T (tmp_en->ino), tmp_en->basename);
             }
         }
         
-        // done, save as cache
+        // 1. Update directory cache
         if (en->dir_cache)
             g_free (en->dir_cache);
-
         en->dir_cache_size = b.size;
         en->dir_cache = g_malloc0 (b.size);
-
         memcpy (en->dir_cache, b.p, b.size);
+        
+        // 2. Update request buffer
+        if (dir_fill_data->dop) {
+            if (dir_fill_data->dop->buf)
+                g_free (dir_fill_data->dop->buf);
+            dir_fill_data->dop->size = b.size;
+            dir_fill_data->dop->buf = g_malloc0 (b.size);
+            memcpy (dir_fill_data->dop->buf, b.p, b.size);
+        } else {
+            LOG_debug (DIR_TREE_LOG, INO_H"Dir data is not set ????", INO_T (dir_fill_data->ino));
+        }
+
         // send buffer to fuse
-        dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, dir_fill_data->size, dir_fill_data->off, 
-            b.p, b.size, dir_fill_data->ctx);
+        dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, 
+            dir_fill_data->size, dir_fill_data->off, 
+            en->dir_cache, en->dir_cache_size,
+            dir_fill_data->ctx);
 
         //free buffer
         g_free (b.p);
         
         en->dir_cache_created = time (NULL);
-        LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u", INO_T (dir_fill_data->ino), en->dir_cache_created);
+        LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u, items: %u", INO_T (dir_fill_data->ino), en->dir_cache_created, items);
     }
 
     g_free (dir_fill_data);
@@ -465,6 +519,15 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
         return;
     }
 
+    en = g_hash_table_lookup (dir_fill_data->dtree->h_inodes, GUINT_TO_POINTER (dir_fill_data->ino));
+    if (!en) {
+        LOG_err (DIR_TREE_LOG, INO_H"Entry not found!", INO_T (dir_fill_data->ino));
+        dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
+        return;
+    }
+    
+    // increase directory "age"
+    dir_tree_start_update (en, NULL);
     //send http request
     http_connection_get_directory_listing (con, 
         en->fullpath, dir_fill_data->ino,
@@ -472,17 +535,50 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
     );
 }
 
+gboolean dir_tree_opendir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    DirOpData *dop;
+
+    if (!g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino))) {
+        LOG_msg (DIR_TREE_LOG, INO_H"Directory not found !", INO_T (ino));
+        return FALSE;
+    }
+
+    dop = g_new0 (DirOpData, 1);
+    dop->buf = NULL;
+    dop->size = 0;
+
+    fi->fh = (uint64_t) dop;
+
+    return TRUE;
+}
+
+gboolean dir_tree_releasedir (G_GNUC_UNUSED DirTree *dtree, G_GNUC_UNUSED fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    DirOpData *dop;
+
+    dop = (DirOpData *) fi->fh;
+    if (dop) {
+        if (dop->buf)
+            g_free (dop->buf);
+        g_free (dop);
+    }
+
+    return TRUE;
+}
+
 // return directory buffer from the cache
 // or regenerate directory cache
 void dir_tree_fill_dir_buf (DirTree *dtree, 
         fuse_ino_t ino, size_t size, off_t off,
         dir_tree_readdir_cb readdir_cb, fuse_req_t req,
-        gpointer ctx)
+        gpointer ctx, struct fuse_file_info *fi)
 {
     DirEntry *en;
     DirTreeFillDirData *dir_fill_data;
+    DirOpData *dop = NULL;
     
-    LOG_debug (DIR_TREE_LOG, INO_H"Requesting directory buffer: [%zd: %"OFF_FMT"]", INO_T (ino), size, off);
+    LOG_debug (DIR_TREE_LOG, INO_H"Requesting directory buffer: [%zu: %"OFF_FMT"]", INO_T (ino), size, off);
     
     en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
 
@@ -494,19 +590,46 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         return;
     }
     
+    // get request structure
+    if (fi && fi->fh) {
+        dop = (DirOpData *) fi->fh;
+    }
+
+    // if request buffer is set - return it right away
+    if (dop && dop->buf) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Returning request cache ..", INO_T (ino));
+        readdir_cb (req, TRUE, size, off, dop->buf, dop->size, ctx);
+        return;
+    }
+
     // already have directory buffer in the cache
     if (!dir_tree_is_cache_expired (dtree, en)) {
         LOG_debug (DIR_TREE_LOG, INO_H"Sending directory buffer from cache !", INO_T (ino));
-        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
+        
+        // Fuse request 
+        if (dop) {
+            // cache is empty
+            if (!dop->buf) {
+                dop->buf = g_malloc0 (en->dir_cache_size);
+                dop->size = en->dir_cache_size;
+                memcpy (dop->buf, en->dir_cache, en->dir_cache_size);
+            }
+            readdir_cb (req, TRUE, size, off, dop->buf, dop->size, ctx);
+        } else 
+            readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
         return;
     }
 
     // make sure that subsequent requests return the same directory structure
     if (off > 0) {
-        // update timer, if subsequent requests has the same "req" as the one which updated dir cache
-        //XXX: dir_fill_data->en->dir_cache_created = time (NULL);
+        // must be set !
+        if (!dop || !dop->buf) {
+            LOG_err (DIR_TREE_LOG, INO_H"Dir cache is not set !", INO_T (ino));
+            readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
+            return;
+        }
         LOG_debug (DIR_TREE_LOG, INO_H"Sending directory buffer from cache !", INO_T (ino));
-        readdir_cb (req, TRUE, size, off, en->dir_cache, en->dir_cache_size, ctx);
+        readdir_cb (req, TRUE, size, off, dop->buf, dop->size, ctx);
         return;
     }
 
@@ -515,7 +638,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
         g_free (en->dir_cache);
     en->dir_cache = NULL;
     en->dir_cache_size = 0;
-    en->dir_cache_created = 0;
+    //en->dir_cache_created = 0;
 
     dir_fill_data = g_new0 (DirTreeFillDirData, 1);
     dir_fill_data->dtree = dtree;
@@ -525,11 +648,29 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
     dir_fill_data->readdir_cb = readdir_cb;
     dir_fill_data->req = req;
     dir_fill_data->ctx = ctx;
+    dir_fill_data->dop = dop;
+    
+#warning "XXXX"
+    // if no request is being sent
+    // and it's new or expired
+    if (!en->dir_cache_updating && 
+        (!en->dir_cache_created || 
+        time (NULL) - en->dir_cache_created > 
+        (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.dir_cache_max_time")))
+    {
+        LOG_debug (DIR_TREE_LOG, INO_H"Directory cache is expired, getting a fresh list from the server !", INO_T (en->ino));
+        
+        en->dir_cache_updating = TRUE;
 
-    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
-        LOG_err (DIR_TREE_LOG, "Failed to get http client !");
-        readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
-        g_free (dir_fill_data);
+        if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_fill_dir_on_http_ready, dir_fill_data)) {
+            LOG_err (DIR_TREE_LOG, "Failed to get http client !");
+            readdir_cb (req, FALSE, size, off, NULL, 0, ctx);
+            en->dir_cache_updating = FALSE;
+            g_free (dir_fill_data);
+        }
+    } else {
+        LOG_debug (DIR_TREE_LOG, INO_H"Returning directory cache from local tree !", INO_T (en->ino));
+        dir_tree_fill_on_dir_buf_cb (dir_fill_data, TRUE);
     }
 }
 /*}}}*/
@@ -605,7 +746,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
             g_free (en->dir_cache);
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
-        en->dir_cache_created = 0;
+        //en->dir_cache_created = 0;
         
         LOG_debug (DIR_TREE_LOG, INO_H"Converting to directory: %s", INO_T (en->ino), en->fullpath);
     }
@@ -845,8 +986,8 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         op_data->parent_ino = parent_ino;
         op_data->name = g_strdup (name);
 
-        LOG_debug (DIR_TREE_LOG, INO_H"Getting directory listing ..", INO_T (dir_en->ino));
-        dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data);
+        LOG_debug (DIR_TREE_LOG, INO_H"Getting directory listing for lookup op ..", INO_T (dir_en->ino));
+        dir_tree_fill_dir_buf (dtree, dir_en->ino, 1024*1024*1, 0, dir_tree_on_lookup_read, req, op_data, NULL);
 
         return;
     }    
@@ -1172,6 +1313,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
         // update
         en->removed = FALSE;
         en->access_time = time (NULL);
+        en->age = dir_en->age;
 
         // inform the parent that his dir cache is no longer up-to-dated
         dir_tree_entry_modified (dtree, dir_en);
@@ -1289,7 +1431,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     
     fop = (FileIO *)fi->fh;
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fop, size, off);
     
     op_data = g_new0 (FileReadOpData, 1);
     op_data->file_read_cb = file_read_cb;
@@ -1373,7 +1515,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
     // set updated time for write op
     en->updated_time = time (NULL);
     
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zd, off: %"OFF_FMT, INO_T (ino), fop, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fop, size, off);
 
     op_data = g_new0 (FileWriteOpData, 1);
     op_data->dtree = dtree;
@@ -1535,201 +1677,43 @@ void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *na
 
 /*{{{ dir_tree_dir_remove */
 
-typedef struct {
-    DirTree *dtree;
-    fuse_ino_t ino;
-    DirTree_dir_remove_cb dir_remove_cb;
-    fuse_req_t req;
-    GQueue *q_objects_to_remove;
-} DirRemoveData;
-
-static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRemoveData *data);
-
-// object is removed, call remove function again
-static void dir_tree_dir_remove_on_object_removed_cb (HttpConnection *con, gpointer ctx, 
-    G_GNUC_UNUSED gboolean success,
-    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
-    G_GNUC_UNUSED struct evkeyvalq *headers)
+gboolean dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *name, G_GNUC_UNUSED fuse_req_t req)
 {
-    DirRemoveData *data = (DirRemoveData *) ctx;
-
-    dir_tree_dir_remove_try_to_remove_object (con, data);
-}
-
-// check if there is any object left in the queue and remove it
-static void dir_tree_dir_remove_try_to_remove_object (HttpConnection *con, DirRemoveData *data)
-{
-    gchar *line;
-    gchar *req_path;
-    gboolean res;
-
-    // check if all objects are removed
-    if (g_queue_is_empty (data->q_objects_to_remove)) {
-        DirEntry *en;
-        
-        http_connection_release (con);
-
-        LOG_debug (DIR_TREE_LOG, INO_H"All objects are removed !", INO_T (data->ino));
-
-        en = g_hash_table_lookup (data->dtree->h_inodes, GUINT_TO_POINTER (data->ino));
-        if (!en) {
-            LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
-            if (data->dir_remove_cb)
-                data->dir_remove_cb (data->req, FALSE);
-        } else {
-            // hide from the dir list
-            en->age = 0;
-            if (data->dir_remove_cb)
-                data->dir_remove_cb (data->req, TRUE);
-        }
-
-        _queue_free_full (data->q_objects_to_remove, g_free);
-        g_free (data);
-        return;
-    }
-
-    line = g_queue_pop_tail (data->q_objects_to_remove);
-
-    req_path = g_strdup_printf ("/%s", line);
-    g_free (line);
-
-    res = http_connection_make_request (con, 
-        req_path, "DELETE", 
-        NULL,
-        dir_tree_dir_remove_on_object_removed_cb,
-        data
-    );
-
-    g_free (req_path);
-
-    if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
-        http_connection_release (con);
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-
-        _queue_free_full (data->q_objects_to_remove, g_free);
-        g_free (data);
-    }
-
-}
-
-// got the list of all objects in the directory
-// create list to-remove
-static void dir_tree_dir_remove_on_con_objects_cb (HttpConnection *con, gpointer ctx, gboolean success,
-        const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
-{
-    DirRemoveData *data = (DirRemoveData *) ctx;
-    struct evbuffer *evb;
-    char *line;
-
-    if (!success) {
-        LOG_err (DIR_TREE_LOG, "Failed to get directory's content !");
-        http_connection_release (con);
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-        g_free (data);
-        return;
-    }
-
-    evb = evbuffer_new ();
-    evbuffer_add (evb, buf, buf_len);
-
-    data->q_objects_to_remove = g_queue_new ();
-    while ((line = evbuffer_readln (evb, NULL, EVBUFFER_EOL_CRLF))) {
-        LOG_debug (DIR_TREE_LOG, "Removing %s", line);
-        g_queue_push_head (data->q_objects_to_remove, line);
-    }
-
-    evbuffer_free (evb);
-
-    dir_tree_dir_remove_try_to_remove_object (con, data);
-
-}
-
-// http Connection is ready
-static void dir_tree_dir_remove_on_con_cb (gpointer client, gpointer ctx)
-{
-    HttpConnection *con = (HttpConnection *) client;
-    DirRemoveData *data = (DirRemoveData *) ctx;
-    gchar *req_path;
-    gboolean res;
     DirEntry *en;
-    
-    en = g_hash_table_lookup (data->dtree->h_inodes, GUINT_TO_POINTER (data->ino));
-    if (!en) {
-        LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-
-        g_free (data);
-        return;
-    }
-
-    // XXX: max keys
-    req_path = g_strdup_printf ("?prefix=%s/", en->fullpath);
-
-    http_connection_acquire (con);
-    res = http_connection_make_request (con, 
-        req_path, "GET", 
-        NULL,
-        dir_tree_dir_remove_on_con_objects_cb,
-        data
-    );
-
-    g_free (req_path);
-
-    if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
-        if (data->dir_remove_cb)
-            data->dir_remove_cb (data->req, FALSE);
-        
-        http_connection_release (con);
-        g_free (data);
-    }
-}
-
-// try to get directory entry
-void dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *name, 
-    DirTree_dir_remove_cb dir_remove_cb, fuse_req_t req)
-{
-    DirRemoveData *data;
     DirEntry *parent_en;
-    DirEntry *en;
-
+    
     LOG_debug (DIR_TREE_LOG, "Removing dir: %s parent_ino: %"INO_FMT, name, INO parent_ino);
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en || parent_en->type != DET_dir) {
         LOG_err (DIR_TREE_LOG, "Entry not found, parent_ino: %"INO_FMT, INO parent_ino);
-        if (dir_remove_cb)
-            dir_remove_cb (req, FALSE);
-        return;
+        return FALSE;
     }
 
     en = g_hash_table_lookup (parent_en->h_dir_tree, name);
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, name, INO parent_ino);
-        if (dir_remove_cb)
-            dir_remove_cb (req, FALSE);
-        return;
+        LOG_err (DIR_TREE_LOG, "Entry not found: %s", name);
+        return FALSE;
     }
-    
-    // ok, directory is found, get HttpConnection
-    data = g_new0 (DirRemoveData, 1);
-    data->dtree = dtree;
-    data->dir_remove_cb = dir_remove_cb;
-    data->req = req;
-    data->ino = en->ino;
 
-    if (!client_pool_get_client (application_get_ops_client_pool (dtree->app),
-        dir_tree_dir_remove_on_con_cb, data)) {
-        LOG_debug (DIR_TREE_LOG, "Failed to get HTTPPool !");
-        if (dir_remove_cb)
-            dir_remove_cb (req, FALSE);
-        g_free (data);
-        return;
+    if (en->type != DET_dir || !en->h_dir_tree) {
+        LOG_err (DIR_TREE_LOG, INO_H"Entry is not a directory !", INO_T (en->ino));
+        return FALSE;
     }
+
+    if (g_hash_table_size (en->h_dir_tree) > 2) {
+        LOG_debug (DIR_TREE_LOG, INO_H"Directory is not empty !", INO_T (en->ino));
+        return FALSE;
+    }
+
+    en->removed = TRUE;
+    en->age = 0;
+
+    dir_tree_entry_modified (dtree, parent_en);
+
+    LOG_debug (DIR_TREE_LOG, INO_H"Directory is removed: %s", INO_T (en->ino), name);
+
+    return TRUE;
 }
 /*}}}*/
 
@@ -1770,14 +1754,20 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
             g_free (en->dir_cache);
         en->dir_cache = NULL;
         en->dir_cache_size = 0;
-        en->dir_cache_created = 0;
+        //en->dir_cache_created = 0;
     }
+
+    // inform parent that directory listing is no longer valid
+    dir_en->is_modified = TRUE;
 
     //XXX: set as new 
     en->is_modified = FALSE;
+    
     // do not delete it
-    en->age = G_MAXUINT32;
+    // en->age = G_MAXUINT32;
+    en->removed = FALSE;
     en->mode = DIR_DEFAULT_MODE;
+    en->age = dir_en->age;
 
     mkdir_cb (req, TRUE, en->ino, en->mode, en->size, en->ctime);
 }

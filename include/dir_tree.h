@@ -36,8 +36,12 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType
 void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
 
 // mark that DirTree is being updated
-void dir_tree_start_update (DirTree *dtree, const gchar *dir_path);
+
+void dir_tree_start_update (DirEntry *en, G_GNUC_UNUSED const gchar *dir_path);
 void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino);
+
+gboolean dir_tree_opendir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
+gboolean dir_tree_releasedir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
 
 typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, 
     const char *buf, size_t buf_size,
@@ -45,7 +49,7 @@ typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t ma
 void dir_tree_fill_dir_buf (DirTree *dtree, 
     fuse_ino_t ino, size_t size, off_t off,
     dir_tree_readdir_cb readdir_cb, fuse_req_t req,
-    gpointer ctx);
+    gpointer ctx, struct fuse_file_info *fi);
 
 typedef void (*dir_tree_lookup_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime);
 void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
@@ -87,9 +91,7 @@ typedef void (*DirTree_file_remove_cb) (fuse_req_t req, gboolean success);
 void dir_tree_file_remove (DirTree *dtree, fuse_ino_t ino, DirTree_file_remove_cb file_remove_cb, fuse_req_t req);
 void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *name, DirTree_file_remove_cb file_remove_cb, fuse_req_t req);
 
-typedef void (*DirTree_dir_remove_cb) (fuse_req_t req, gboolean success);
-void dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *name, 
-    DirTree_dir_remove_cb dir_remove_cb, fuse_req_t req);
+gboolean dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char *name, fuse_req_t req);
 
 typedef void (*dir_tree_mkdir_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime);
 void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *name, mode_t mode,

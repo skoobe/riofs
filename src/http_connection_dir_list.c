@@ -367,10 +367,6 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
     // acquire HTTP client
     http_connection_acquire (con);
     
-    // inform that we started to update the directory
-    dir_tree_start_update (dir_req->dir_tree, dir_path);
-
-    
     //XXX: fix dir_path
     if (!strlen (dir_path)) {
         dir_req->dir_path = g_strdup ("");

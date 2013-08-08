@@ -265,7 +265,7 @@ gboolean conf_parse_file (ConfData *conf, const gchar *filename)
 gboolean conf_check_keys (ConfData *conf, const gchar *conf_keys[], guint conf_keys_len)
 {
     ConfNode *conf_node;
-    gchar *key_str;
+    const gchar *key_str;
     guint i;
 
     for (i = 0; i < conf_keys_len; i++) {

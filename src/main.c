@@ -23,6 +23,7 @@
 #include "client_pool.h"
 #include "cache_mng.h"
 #include "stat_srv.h"
+#include "conf_keys.h"
 
 /*{{{ struct */
 struct _Application {
@@ -705,6 +706,12 @@ int main (int argc, char *argv[])
         conf_set_uint (app->conf, "filesystem.dir_cache_max_time", 5);
         conf_set_boolean (app->conf, "filesystem.cache_enabled", TRUE);
         conf_set_string (app->conf, "filesystem.cache_dir", "/tmp/");
+    }
+
+    if (!conf_check_keys (app->conf, conf_keys_str, conf_keys_len)) {
+        LOG_err (APP_LOG, "Configuration file is missing keys, please re-check your configuration file: %s", app->conf_path);
+        application_destroy (app);
+        return -1;
     }
 
     if (disable_syslog) {

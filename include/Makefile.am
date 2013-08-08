@@ -10,3 +10,4 @@ include_HEADERS += cache_mng.h
 include_HEADERS += stat_srv.h
 include_HEADERS += range.h
 include_HEADERS += utils.h
+include_HEADERS += conf_keys.h

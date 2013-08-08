@@ -24,6 +24,7 @@ ConfData *conf_create ();
 void conf_destroy ();
 
 gboolean conf_parse_file (ConfData *conf, const gchar *filename);
+gboolean conf_check_keys (ConfData *conf, const gchar *conf_keys[], guint conf_keys_len);
 
 const gchar *conf_get_string (ConfData *conf, const gchar *path);
 void conf_set_string (ConfData *conf, const gchar *full_path, const gchar *val);

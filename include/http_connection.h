@@ -87,6 +87,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
+    gboolean enable_retry,
     HttpConnection_responce_cb responce_cb,
     gpointer ctx);
 

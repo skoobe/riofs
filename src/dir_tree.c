@@ -779,7 +779,7 @@ static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
 
     res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL,
+        req_path, "HEAD", NULL, FALSE,
         dir_tree_on_lookup_cb,
         op_data
     );
@@ -913,7 +913,7 @@ static void dir_tree_on_lookup_not_found_con_cb (gpointer client, gpointer ctx)
     g_free (fullpath);
 
     res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL,
+        req_path, "HEAD", NULL, FALSE,
         dir_tree_on_lookup_not_found_cb,
         op_data
     );
@@ -1130,83 +1130,6 @@ typedef struct {
     fuse_req_t req;
     fuse_ino_t ino;
 } GetAttrOpData;
-/*
-static void dir_tree_getattr_on_attr_cb (HttpConnection *con, void *ctx, gboolean success,
-    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
-    G_GNUC_UNUSED struct evkeyvalq *headers)
-{
-    GetAttrOpData *op_data = (GetAttrOpData *) ctx;
-    DirEntry  *en;
-
-    // release HttpConnection
-    http_connection_release (con);
-
-    en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
-    
-    // entry not found
-    if (!en) {
-        LOG_err (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
-        op_data->getattr_cb (op_data->req, FALSE, 0, 0, 0, 0);
-        g_free (op_data);
-        return;
-    }
-
-    if (!success) {
-        LOG_err (DIR_TREE_LOG, "Failed to get entry (%"INO_FMT") attributes !", INO op_data->ino);
-        op_data->getattr_cb (op_data->req, FALSE, 0, 0, 0, 0);
-        en->is_updating = FALSE;
-        g_free (op_data);
-        return;
-    }
-
-    LOG_debug (DIR_TREE_LOG, "Got attributes for ino: %"INO_FMT" size: %zu", INO op_data->ino, en->size);
-    
-    en->is_updating = FALSE;
-    op_data->getattr_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
-    g_free (op_data);
-}
-
-//send http HEAD request
-static void dir_tree_getattr_on_con_cb (gpointer client, gpointer ctx)
-{
-    HttpConnection *con = (HttpConnection *) client;
-    GetAttrOpData *op_data = (GetAttrOpData *) ctx;
-    gchar *req_path = NULL;
-    gboolean res;
-    DirEntry  *en;
-
-    en = g_hash_table_lookup (op_data->dtree->h_inodes, GUINT_TO_POINTER (op_data->ino));
-    
-    // entry not found
-    if (!en) {
-        LOG_err (DIR_TREE_LOG, "Entry (%"INO_FMT") not found !", INO op_data->ino);
-        op_data->getattr_cb (op_data->req, FALSE, 0, 0, 0, 0);
-        g_free (op_data);
-        return;
-    }
-
-    http_connection_acquire (con);
-
-    req_path = g_strdup_printf ("/%s", en->fullpath);
-
-    res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL,
-        dir_tree_getattr_on_attr_cb,
-        op_data
-    );
-
-    g_free (req_path);
-
-    if (!res) {
-        LOG_err (DIR_TREE_LOG, "Failed to create http request !");
-        http_connection_release (con);
-        op_data->getattr_cb (op_data->req, FALSE, 0, 0, 0, 0);
-        en->is_updating = FALSE;
-        g_free (op_data);
-        return;
-    }
-}
-*/
 
 // return entry attributes
 void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino, 
@@ -1591,7 +1514,7 @@ static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
     res = http_connection_make_request (con, 
         req_path, "DELETE", 
-        NULL,
+        NULL, TRUE,
         dir_tree_file_remove_on_con_data_cb,
         data
     );
@@ -1897,7 +1820,7 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
     res = http_connection_make_request (con, 
         req_path, "DELETE", 
-        NULL,
+        NULL, TRUE,
         dir_tree_on_rename_delete_cb,
         rdata
     );
@@ -2025,7 +1948,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
 
     res = http_connection_make_request (con, 
         dst_path, "PUT", 
-        NULL,
+        NULL, TRUE,
         dir_tree_on_rename_copy_cb,
         rdata
     );
@@ -2249,7 +2172,7 @@ static void dir_tree_on_getxattr_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
 
     res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL,
+        req_path, "HEAD", NULL, FALSE,
         dir_tree_on_getxattr_cb,
         xattr_data
     );

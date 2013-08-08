@@ -145,7 +145,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
 
     path = g_strdup_printf ("%s", fop->fname);
     res = http_connection_make_request (con, 
-        path, "PUT", NULL,
+        path, "PUT", NULL, TRUE,
         fileio_release_on_update_header_cb,
         fop
     );
@@ -233,7 +233,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     path = g_strdup_printf ("%s?uploadId=%s", 
         fop->fname, fop->uploadid);
     res = http_connection_make_request (con, 
-        path, "POST", xml_buf,
+        path, "POST", xml_buf, TRUE,
         fileio_release_on_complete_cb,
         fop
     );
@@ -348,7 +348,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
 
     res = http_connection_make_request (con, 
-        path, "PUT", fop->write_buf,
+        path, "PUT", fop->write_buf, TRUE,
         fileio_release_on_part_sent_cb,
         fop
     );
@@ -466,7 +466,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
     
     res = http_connection_make_request (con, 
-        path, "PUT", wdata->fop->write_buf,
+        path, "PUT", wdata->fop->write_buf, TRUE,
         fileio_write_on_send_cb,
         wdata
     );
@@ -588,7 +588,7 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
 
     path = g_strdup_printf ("%s?uploads", wdata->fop->fname);
     res = http_connection_make_request (con, 
-        path, "POST", NULL,
+        path, "POST", NULL, TRUE,
         fileio_write_on_multipart_init_cb,
         wdata
     );
@@ -745,7 +745,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
     }
     
     res = http_connection_make_request (con, 
-        rdata->fop->fname, "GET", NULL,
+        rdata->fop->fname, "GET", NULL, TRUE,
         fileio_read_on_get_cb,
         rdata
     );
@@ -924,7 +924,7 @@ static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
     http_connection_acquire (con);
 
     res = http_connection_make_request (con, 
-        rdata->fop->fname, "HEAD", NULL,
+        rdata->fop->fname, "HEAD", NULL, FALSE,
         fileio_read_on_head_cb,
         rdata
     );

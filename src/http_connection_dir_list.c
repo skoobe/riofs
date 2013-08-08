@@ -332,7 +332,7 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
 
     res = http_connection_make_request (dir_req->con, 
         req_path, "GET",
-        NULL,
+        NULL, TRUE,
         http_connection_on_directory_listing_data,
         dir_req
     );
@@ -378,7 +378,7 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
 
     res = http_connection_make_request (con, 
         req_path, "GET",
-        NULL,
+        NULL, TRUE,
         http_connection_on_directory_listing_data,
         dir_req
     );

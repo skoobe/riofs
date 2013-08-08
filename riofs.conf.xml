@@ -56,6 +56,8 @@
     <retries type="int">-1</retries>
     <!-- maximum redirects per HTTP request -->
     <max_redirects type="int">20</max_redirects>
+    <!-- maximum retries per HTTP request -->
+    <max_retries type="int">20</max_retries>
 </connection>
 
 <filesystem>

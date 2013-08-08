@@ -325,6 +325,9 @@ typedef struct {
     size_t out_size;
 
     struct timeval start_tv;
+
+    gint retry_id; // the number of retries
+    gboolean enable_retry;
 } RequestData;
 
 static void request_data_free (RequestData *data)
@@ -485,7 +488,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         }
 
         // re-send request
-        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer,
+        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry,
             data->responce_cb, data->ctx)) {
             LOG_err (CON_LOG, CON_H"Failed to send request !", con);
             if (data->responce_cb)
@@ -516,10 +519,31 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             LOG_debug (CON_LOG, CON_H"Error msg: =====\n%s\n=====", con, tmp);
             g_free (tmp);
         }
-        
+
         con->errors_nr++;
-        if (data->responce_cb)
-            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        
+        if (data->enable_retry) {
+            data->retry_id++;
+            LOG_err (CON_LOG, CON_H"Server returned HTTP error: %d (%s)! Retry ID: %d of %d", 
+                con, evhttp_request_get_response_code (req), req->response_code_line, data->retry_id,
+                conf_get_int (application_get_conf (data->con->app), "connection.max_retries"));
+
+            if (data->retry_id >= conf_get_int (application_get_conf (data->con->app), "connection.max_retries")) {
+                LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", con);
+                if (data->responce_cb)
+                    data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            } else {
+                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry,
+                    data->responce_cb, data->ctx)) {
+                    LOG_err (CON_LOG, CON_H"Failed to send request !", con);
+                    if (data->responce_cb)
+                        data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                }
+            }
+        } else {
+            if (data->responce_cb)
+                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        }
         goto done;
     }
 
@@ -566,6 +590,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
+    gboolean enable_retry,
     HttpConnection_responce_cb responce_cb,
     gpointer ctx)
 {
@@ -600,6 +625,8 @@ gboolean http_connection_make_request (HttpConnection *con,
         data->out_size = evbuffer_get_length (out_buffer);
     else
         data->out_size = 0;
+    data->retry_id = 0;
+    data->enable_retry = enable_retry;
     
     if (!strcasecmp (http_cmd, "GET")) {
         cmd_type = EVHTTP_REQ_GET;

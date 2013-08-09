@@ -131,6 +131,7 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
     http_connection_acquire (con);
     
     http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
+    http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
     
     MD5_Final (digest, &fop->md5);
     md5str = g_malloc (33);
@@ -346,6 +347,10 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
 
     // add output headers
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
+    
+    // if this is the full file
+    if (!fop->multipart_initiated)
+        http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
 
     res = http_connection_make_request (con, 
         path, "PUT", fop->write_buf, TRUE,
@@ -587,6 +592,10 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
     http_connection_acquire (con);
 
     path = g_strdup_printf ("%s?uploads", wdata->fop->fname);
+    
+    // send storage class with the init request
+    http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
+
     res = http_connection_make_request (con, 
         path, "POST", NULL, TRUE,
         fileio_write_on_multipart_init_cb,

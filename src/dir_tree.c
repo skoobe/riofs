@@ -1939,6 +1939,8 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
     http_connection_add_output_header (con, "x-amz-copy-source", src_path);
     g_free (src_path);
 
+    http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (rdata->dtree->app), "s3.storage_type"));
+    
     if (rdata->newparent_ino == FUSE_ROOT_ID)
         dst_path = g_strdup_printf ("%s/%s", newparent_en->fullpath, rdata->newname);
     else

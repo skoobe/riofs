@@ -488,6 +488,8 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         } else {
             LOG_debug (DIR_TREE_LOG, INO_H"Dir data is not set (lookup request).", INO_T (dir_fill_data->ino));
         }
+        
+        en->dir_cache_created = time (NULL);
 
         // send buffer to fuse
         dir_fill_data->readdir_cb (dir_fill_data->req, TRUE, 
@@ -498,7 +500,6 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         //free buffer
         g_free (b.p);
         
-        en->dir_cache_created = time (NULL);
         LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u, items: %u", INO_T (dir_fill_data->ino), en->dir_cache_created, items);
     }
 

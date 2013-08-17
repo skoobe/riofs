@@ -4,4 +4,5 @@ import time
 f = open (sys.argv[1], 'w')
 while True:
     f.write ("test")
-#    time.sleep (1)
+    f.flush ()
+    time.sleep (0.01)

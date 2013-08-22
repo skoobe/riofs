@@ -449,6 +449,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
             LOG_err (DIR_TREE_LOG, INO_H"Parent not found !", INO_T (dir_fill_data->ino));
             dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, 
                 NULL, 0, dir_fill_data->ctx);
+            g_free (dir_fill_data);
             return;
         }
 
@@ -524,6 +525,7 @@ static void dir_tree_fill_dir_on_http_ready (gpointer client, gpointer ctx)
     if (!en) {
         LOG_err (DIR_TREE_LOG, INO_H"Entry not found!", INO_T (dir_fill_data->ino));
         dir_fill_data->readdir_cb (dir_fill_data->req, FALSE, dir_fill_data->size, dir_fill_data->off, NULL, 0, dir_fill_data->ctx);
+        g_free (dir_fill_data);
         return;
     }
     
@@ -751,9 +753,9 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
         LOG_debug (DIR_TREE_LOG, INO_H"Converting to directory: %s", INO_T (en->ino), en->fullpath);
     }
 
-    op_data->lookup_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
     en->is_updating = FALSE;
     en->updated_time = time (NULL);
+    op_data->lookup_cb (op_data->req, TRUE, en->ino, en->mode, en->size, en->ctime);
     g_free (op_data);
 }
 
@@ -790,8 +792,8 @@ static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
     if (!res) {
         LOG_err (DIR_TREE_LOG, INO_H"Failed to create http request !", INO_T (op_data->ino));
         http_connection_release (con);
-        op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         en->is_updating = FALSE;
+        op_data->lookup_cb (op_data->req, FALSE, 0, 0, 0, 0);
         g_free (op_data);
         return;
     }
@@ -1076,11 +1078,10 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
         LOG_debug (DIR_TREE_LOG, INO_H"Entry '%s' is modified !", INO_T (en->ino), name);
         
-        
         if (!client_pool_get_client (application_get_ops_client_pool (dtree->app), dir_tree_on_lookup_con_cb, op_data)) {
             LOG_err (DIR_TREE_LOG, "Failed to get http client !");
-            lookup_cb (req, FALSE, 0, 0, 0, 0);
             en->is_updating = FALSE;
+            lookup_cb (req, FALSE, 0, 0, 0, 0);
             g_free (op_data);
         }
         

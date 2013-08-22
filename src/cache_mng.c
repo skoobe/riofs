@@ -137,8 +137,10 @@ static struct _CacheContext* cache_context_create (guint64 size, void *user_ctx)
 
 static void cache_context_destroy (struct _CacheContext* context)
 {
-    event_free (context->ev);
-    g_free (context->buf);
+    if (context->ev)
+        event_free (context->ev);
+    if (context->buf)
+        g_free (context->buf);
     g_free (context);
 }
 /*}}}*/

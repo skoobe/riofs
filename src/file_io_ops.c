@@ -748,7 +748,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
 
         rdata->request_offset = rdata->off;
         range_hdr = g_strdup_printf ("bytes=%"G_GUINT64_FORMAT"-%"G_GUINT64_FORMAT, 
-            rdata->request_offset, rdata->request_offset + part_size);
+            (gint64)rdata->request_offset, (gint64)(rdata->request_offset + part_size));
         http_connection_add_output_header (con, "Range", range_hdr);
         g_free (range_hdr);
     }

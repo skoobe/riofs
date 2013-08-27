@@ -51,3 +51,5 @@ tests/write.log
 .ycm_extra_conf.py
 src/run_w.sh
 src/test_w.sh
+.DS_Store
+xcuserdata/

@@ -8,12 +8,12 @@ Requirements
 ------------
 
 * glib-2.0 >= 2.22
-* fuse >= 2.8.3
+* fuse >= 2.7.3
 * libevent >= 2.0
 * libxml-2.0 >= 2.6
 * libcrypto >= 0.9
 
-All libraries and versions are compatible with Ubuntu 12.04 LTS.
+All libraries and versions are compatible with Ubuntu 12.04 LTS and OS X 10.8.
 
 This is a command line to install all requirements to build this project on Ubuntu:
 
@@ -34,6 +34,18 @@ sudo echo "/usr/local/lib/" > /etc/ld.so.conf.d/riofs.conf
 sudo ldconfig
 export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 cd ..
+```
+
+Please follow the following steps to install the requirements on OS X (tested on OS X 10.8):
+
+* Download and install the Xcode Command Line Tools package. The package can be downloaded from https://developer.apple.com/downloads/ (free Apple Developer ID required).
+
+* Download and install the latest version of FUSE for OS X (http://osxfuse.github.io)
+
+* Install the required build tools (automake autoconf libtool pkgconfig) and libraries (glib2 libevent libxml2). Tools and libraries can be installed using MacPorts (http://www.macports.org) by running the following command:
+
+```
+sudo port install automake autoconf libtool pkgconfig glib2 libevent libxml2
 ```
 
 How to build RioFS

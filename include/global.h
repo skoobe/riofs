@@ -27,6 +27,10 @@
 #define _GNU_SOURCE
 #endif
 
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+
 #include "config.h" 
 
 #include <stdlib.h>
@@ -38,9 +42,16 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#if __APPLE__
+#include <machine/endian.h>
+#else
 #include <endian.h>
 #include <gnu/libc-version.h>
+#endif
 #include <execinfo.h>
+#if __APPLE__
+#include <ucontext.h>
+#endif
 #include <signal.h>
 #include <sys/queue.h>
 #include <ctype.h>
@@ -48,7 +59,9 @@
 #include <pwd.h>
 #include <sys/resource.h>
 #include <errno.h>
+#if !__APPLE__
 #include <sys/prctl.h>
+#endif
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -86,7 +99,11 @@
 #include <libxml/tree.h>
 
 //#define FUSE_USE_VERSION 26
+#if __APPLE__
+#include <fuse_lowlevel.h>
+#else
 #include <fuse/fuse_lowlevel.h>
+#endif
 
 typedef struct _Application Application;
 typedef struct _HttpConnection HttpConnection;

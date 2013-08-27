@@ -172,6 +172,13 @@ gboolean application_set_url (Application *app, const gchar *url)
 /*}}}*/
 
 /*{{{ signal handlers */
+
+#ifdef __APPLE__
+
+typedef ucontext_t sig_ucontext_t;
+
+#else /* !__APPLE__ */ 
+
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
 typedef struct _sig_ucontext {
     unsigned long     uc_flags;
@@ -180,6 +187,8 @@ typedef struct _sig_ucontext {
     struct sigcontext uc_mcontext;
     sigset_t          uc_sigmask;
 } sig_ucontext_t;
+
+#endif /* !__APPLE__ */
 
 static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 {
@@ -195,12 +204,20 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     uc = (sig_ucontext_t *)ucontext;
 
     /* Get the address at the time the signal was raised from the EIP (x86) */
+#if __APPLE__
+#ifdef __i368__
+    caller_address = (void *) uc->uc_mcontext->__ss.__eip;
+#else
+    caller_address = (void *) uc->uc_mcontext->__ss.__rip;
+#endif
+#else /* !__APPLE__ */
 #ifdef __i386__
-    caller_address = (void *) uc->uc_mcontext.eip;   
+    caller_address = (void *) uc->uc_mcontext.eip;
 #else
     caller_address = (void *) uc->uc_mcontext.rip;   
 #endif
-
+#endif /* !__APPLE__ */
+    
     f = stderr;
 
     fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
@@ -736,12 +753,16 @@ int main (int argc, char *argv[])
             g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
             g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
             g_fprintf (stdout, "Libraries:\n");
-            g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d  glibc: %s\n", 
+            g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d", 
                     GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION, 
                     LIBEVENT_VERSION,
-                    FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION,
-                    gnu_get_libc_version ()
+                    FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
             );
+#ifdef __APPLE__
+            g_fprintf (stdout, "\n");
+#else
+            g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());
+#endif
             g_fprintf (stdout, "Features:\n");
             g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
         return 0;

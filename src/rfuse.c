@@ -74,7 +74,11 @@ static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 //static void rfuse_on_timer (evutil_socket_t fd, short what, void *arg);
 static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
+#if __APPLE__
+static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t position);
+#else
 static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
+#endif
 static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
@@ -790,7 +794,11 @@ static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
     }
 }
 
+#if __APPLE__
+static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t __unused position)
+#else
 static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
+#endif
 {
     RFuse *rfuse = fuse_req_userdata (req);
     

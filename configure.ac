@@ -13,7 +13,7 @@ AC_PROG_RANLIB
 PKG_PROG_PKG_CONFIG
 AC_CHECK_SIZEOF(long int)
 
-PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.8.3 libevent >= 2.0 libxml-2.0 >= 2.6 libcrypto >= 0.9])
+PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libevent >= 2.0 libxml-2.0 >= 2.6 libcrypto >= 0.9])
 
 # check if we should link against libevent_openssl
 AC_ARG_ENABLE(openssl,

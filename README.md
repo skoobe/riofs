@@ -60,6 +60,12 @@ make
 sudo make install
 ```
 
+Please add the directory /usr/local/lib/pkgconfig to the PKG_CONFIG_PATH environmanet variable on OS X. Otherweise pkg-config might not find FUSE for OS X.
+
+```
+export PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+${PKG_CONFIG_PATH}:}/usr/local/lib/pkgconfig
+```
+
 Provide configure script with --enable-debug-mode flag if you want to get a debug build.
 
 

@@ -177,7 +177,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 
 typedef ucontext_t sig_ucontext_t;
 
-#else /* !__APPLE__ */ 
+#else /* !__APPLE__ */
 
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
 typedef struct _sig_ucontext {
@@ -214,10 +214,10 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 #ifdef __i386__
     caller_address = (void *) uc->uc_mcontext.eip;
 #else
-    caller_address = (void *) uc->uc_mcontext.rip;   
+    caller_address = (void *) uc->uc_mcontext.rip;
 #endif
 #endif /* !__APPLE__ */
-    
+
     f = stderr;
 
     fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
@@ -606,6 +606,8 @@ int main (int argc, char *argv[])
     gboolean disable_syslog = FALSE;
     gboolean disable_stats = FALSE;
 
+    struct event_config *ev_config;
+    
     app = g_new0 (Application, 1);
     app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf.xml", NULL);
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", app->conf_path);
@@ -643,8 +645,17 @@ int main (int argc, char *argv[])
     g_random_set_seed (time (NULL));
 
     // init main app structure
-    app->evbase = event_base_new ();
-
+    ev_config = event_config_new ();
+    
+#if __APPLE__
+    // method select is the preferred method on OS X. kqueue and poll are not supported.
+    event_config_avoid_method (ev_config, "kqueue");
+    event_config_avoid_method (ev_config, "poll");
+#endif
+    
+    app->evbase = event_base_new_with_config (ev_config);
+    event_config_free (ev_config);
+    
     if (!app->evbase) {
         LOG_err (APP_LOG, "Failed to create event base !");
         application_destroy (app);
@@ -749,25 +760,39 @@ int main (int argc, char *argv[])
     
     // check if --version is specified
     if (version) {
-            g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
-            g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
-            g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
-            g_fprintf (stdout, "Libraries:\n");
-            g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d", 
-                    GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION, 
-                    LIBEVENT_VERSION,
-                    FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
-            );
+        g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
+        g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
+        g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
+        g_fprintf (stdout, "Libraries:\n");
+        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d",
+                GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,
+                LIBEVENT_VERSION,
+                FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
+        );
 #ifdef __APPLE__
-            g_fprintf (stdout, "\n");
+        g_fprintf (stdout, "\n");
 #else
-            g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());
+        g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());
 #endif
-            g_fprintf (stdout, "Features:\n");
-            g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
+        g_fprintf (stdout, "Features:\n");
+        g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
+        g_fprintf (stdout, " libevent backend method: %s\n", event_base_get_method(app->evbase));
+
+        /*
+        {
+            int i;
+            const char **methods = event_get_supported_methods ();
+
+            g_fprintf (stdout, " Available libevent backend methods:\n");
+            for (i = 0; methods[i] != NULL; ++i) {
+                g_fprintf (stdout, "  %s\n", methods[i]);
+            }
+        }
+        */
+
         return 0;
     }
-    
+
     // try to get access parameters from the environment
     if (getenv ("AWSACCESSKEYID")) {
         conf_set_string (app->conf, "s3.access_key_id", getenv ("AWSACCESSKEYID"));

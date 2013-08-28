@@ -127,6 +127,27 @@ SSL_CTX *application_get_ssl_ctx (Application *app)
 
 /*}}}*/
 
+/*{{{ application_exit*/
+void application_exit (Application *app)
+{
+#if __APPLE__
+    if (app->rfuse && !rfuse_get_destroyed(app->rfuse))
+        /*
+         * Unmount the volume before exiting the event loop. Unmounting the
+         * volume flushes the kernel's unified buffer cache, which results in
+         * file system requests, that need to be handled by the event loop.
+         * Exiting the event loop without unmounting the volume first can cause
+         * data loss or corruption.
+         */
+        rfuse_unmount (app->rfuse);
+    else
+        event_base_loopexit (app->evbase, NULL);
+#else
+    event_base_loopexit (app->evbase, NULL);
+#endif
+}
+/*}}}*/
+
 /*{{{ application_set_url*/
 gboolean application_set_url (Application *app, const gchar *url)
 {
@@ -148,7 +169,7 @@ gboolean application_set_url (Application *app, const gchar *url)
     if (!app->uri) {
         LOG_err (APP_LOG, " URL (%s) is not valid!", url);
 
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return FALSE;
     }
 
@@ -311,9 +332,9 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
     Application *app = (Application *) user_data;
 
     LOG_err (APP_LOG, "Got SIGINT");
-
-    // terminate after running all active events 
-    event_base_loopexit (app->evbase, NULL);
+    
+    // terminate after running all active events
+    application_exit (app);
 }
 // same as SIGINT
 static void sigterm_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, void *user_data)
@@ -323,7 +344,7 @@ static void sigterm_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
     LOG_err (APP_LOG, "Got SIGTERM");
 
     // terminate after running all active events 
-    event_base_loopexit (app->evbase, NULL);
+    application_exit (app);
 }
 
 /*}}}*/
@@ -345,7 +366,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->read_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 
@@ -360,7 +381,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->write_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 
@@ -375,7 +396,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->ops_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -384,7 +405,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->cmng = cache_mng_create (app);
     if (!app->cmng) {
         LOG_err (APP_LOG, "Failed to create CacheMng !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -393,7 +414,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->dir_tree = dir_tree_create (app);
     if (!app->dir_tree) {
         LOG_err (APP_LOG, "Failed to create DirTree !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -402,7 +423,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->rfuse = rfuse_new (app, conf_get_string (app->conf, "app.mountpoint"), app->fuse_opts);
     if (!app->rfuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs ! Mount point: %s", conf_get_string (app->conf, "app.mountpoint"));
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -420,7 +441,12 @@ static gint application_finish_initialization_and_run (Application *app)
     sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGSEGV, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
-        event_base_loopexit (app->evbase, NULL);
+//TODO unmount
+        // destroy Fuse
+        if (app->rfuse)
+            rfuse_unmount (app->rfuse);
+        
+        application_exit (app);
         return 1;
     }
     // SIGTERM
@@ -432,7 +458,12 @@ static gint application_finish_initialization_and_run (Application *app)
     sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGABRT, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGABRT, strsignal(SIGABRT));
-        event_base_loopexit (app->evbase, NULL);
+//TODO unmount
+        // destroy Fuse
+        if (app->rfuse)
+            rfuse_unmount (app->rfuse);
+        
+        application_exit (app);
         return 1;
     }
     // SIGPIPE
@@ -466,7 +497,7 @@ static void application_on_bucket_versioning_cb (gpointer ctx, gboolean success,
     
     if (!success) {
         LOG_err (APP_LOG, "Failed to get bucket versioning!");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return;
     }
 
@@ -498,7 +529,7 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     
     if (!success) {
         LOG_err (APP_LOG, "Failed to get bucket ACL! Most likely you provided wrong AWS keys or bucket name !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return;
     }
     
@@ -887,7 +918,7 @@ int main (int argc, char *argv[])
     app->ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
     if (!app->ssl_ctx) {
         LOG_err (APP_LOG, "Failed to initialize SSL engine !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
     SSL_CTX_set_options (app->ssl_ctx, SSL_OP_ALL);
@@ -895,7 +926,7 @@ int main (int argc, char *argv[])
 #endif
     app->stat_srv = stat_srv_create (app);
     if (!app->stat_srv) {
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
   

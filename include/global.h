@@ -68,6 +68,9 @@
 #include <math.h>
 #include <ftw.h>
 #include <sys/xattr.h>
+#if __APPLE__
+#include <pthread.h>
+#endif
 
 #include <glib.h>
 #include <glib/gprintf.h>
@@ -130,6 +133,9 @@ RFuse *application_get_rfuse (Application *app);
 #ifdef SSL_ENABLED
 SSL_CTX *application_get_ssl_ctx (Application *app);
 #endif
+
+// exits the event loop
+void application_exit (Application *app);
 
 // sets new S3 URL in case of redirect
 gboolean application_set_url (Application *app, const gchar *url);

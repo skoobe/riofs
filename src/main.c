@@ -441,11 +441,6 @@ static gint application_finish_initialization_and_run (Application *app)
     sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGSEGV, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
-//TODO unmount
-        // destroy Fuse
-        if (app->rfuse)
-            rfuse_unmount (app->rfuse);
-        
         application_exit (app);
         return 1;
     }
@@ -458,11 +453,6 @@ static gint application_finish_initialization_and_run (Application *app)
     sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGABRT, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGABRT, strsignal(SIGABRT));
-//TODO unmount
-        // destroy Fuse
-        if (app->rfuse)
-            rfuse_unmount (app->rfuse);
-        
         application_exit (app);
         return 1;
     }

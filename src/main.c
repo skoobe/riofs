@@ -130,21 +130,19 @@ SSL_CTX *application_get_ssl_ctx (Application *app)
 /*{{{ application_exit*/
 void application_exit (Application *app)
 {
-#if __APPLE__
-    if (app->rfuse && !rfuse_get_destroyed(app->rfuse))
+    if (app->rfuse && rfuse_get_mounted(app->rfuse)) {
         /*
-         * Unmount the volume before exiting the event loop. Unmounting the
-         * volume flushes the kernel's unified buffer cache, which results in
-         * file system requests, that need to be handled by the event loop.
+         * Unmount the volume before exiting the event loop. On OS X unmounting
+         * the volume flushes the kernel's unified buffer cache, which results
+         * in file system requests, that need to be handled by the event loop.
          * Exiting the event loop without unmounting the volume first can cause
-         * data loss or corruption.
+         * data loss or corruption on OS X.
+         *
+         * application_exit () is called again after the unmount has finished.
          */
         rfuse_unmount (app->rfuse);
-    else
+    } else
         event_base_loopexit (app->evbase, NULL);
-#else
-    event_base_loopexit (app->evbase, NULL);
-#endif
 }
 /*}}}*/
 

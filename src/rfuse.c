@@ -42,7 +42,10 @@ struct _RFuse {
     char *recv_buf;
 #endif
 
+    // did we receive the destroy message?
     gboolean destroyed;
+    // is the volume mounted?
+    gboolean mounted;
 
 #if __APPLE__
     pthread_t *unmount_thread;
@@ -126,7 +129,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->app = app;
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
-    rfuse->destroyed = FALSE;
+    rfuse->mounted = FALSE;
 #if __APPLE__
     rfuse->unmount_thread = NULL;
 #endif
@@ -153,6 +156,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
         LOG_err (FUSE_LOG, "Failed to mount FUSE partition !");
         return NULL;
     }
+    rfuse->mounted = TRUE;
     fuse_opt_free_args (&args);
 
 #if FUSE_USE_VERSION >= 30
@@ -212,12 +216,10 @@ void rfuse_destroy (RFuse *rfuse)
 {
 #if __APPLE__
     if (rfuse->unmount_thread) {
-        // Wait for unmount thread to termintate
+        // wait for unmount thread to termintate
         pthread_join (*rfuse->unmount_thread, NULL);
         g_free (rfuse->unmount_thread);
     }
-#else
-    rfuse_unmount (rfuse);
 #endif
 
     g_free (rfuse->mountpoint);
@@ -232,9 +234,9 @@ void rfuse_destroy (RFuse *rfuse)
     g_free (rfuse);
 }
 
-gboolean rfuse_get_destroyed (RFuse *rfuse)
+gboolean rfuse_get_mounted (RFuse *rfuse)
 {
-    return rfuse->destroyed;
+    return rfuse->mounted;
 }
 
 static void *rfuse_unmount_internal (void *arg)
@@ -248,17 +250,27 @@ static void *rfuse_unmount_internal (void *arg)
 // unmounts the volume
 void rfuse_unmount (RFuse *rfuse)
 {
+    gboolean destroyed = rfuse->destroyed;
+    
+    if (rfuse->mounted) {
 #if __APPLE__
-    // fuse_unmount is synchronous on OS X
-    rfuse->unmount_thread = g_new (pthread_t, 1);
-    if (!rfuse->unmount_thread ||
-        pthread_create (rfuse->unmount_thread, NULL, &rfuse_unmount_internal, rfuse) != 0) {
-        // ignore error
-        LOG_err (FUSE_LOG, "failed to unmount volume");
-    }
+        // fuse_unmount is synchronous on OS X
+        rfuse->unmount_thread = g_new (pthread_t, 1);
+        if (!rfuse->unmount_thread ||
+            pthread_create (rfuse->unmount_thread, NULL, &rfuse_unmount_internal, rfuse) != 0) {
+            // ignore error
+            LOG_err (FUSE_LOG, "failed to unmount volume");
+        }
 #else
-    rfuse_unmount_internal (rfuse);
+        rfuse_unmount_internal (rfuse);
 #endif
+    }
+    rfuse->mounted = FALSE;
+    
+    if (destroyed) {
+        // we won't get a destroy message
+        application_exit (rfuse->app);
+    }
 }
 
 /*
@@ -295,13 +307,7 @@ static void rfuse_dest (void *userdata)
     RFuse *rfuse = (RFuse *)userdata;
 
     rfuse->destroyed = TRUE;
-
-#if __APPLE__
-    if (rfuse->app) {
-        // unmount completed
-        application_exit (rfuse->app);
-    }
-#endif
+    application_exit (rfuse->app);
 }
 
 // low level fuse reading operations

@@ -28,7 +28,7 @@ struct dirbuf {
 RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_opts);
 void rfuse_destroy (RFuse *rfuse);
 
-gboolean rfuse_get_destroyed (RFuse *rfuse);
+gboolean rfuse_get_mounted (RFuse *rfuse);
 
 void rfuse_unmount (RFuse *rfuse);
 

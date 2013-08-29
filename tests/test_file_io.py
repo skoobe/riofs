@@ -9,6 +9,7 @@ import hashlib
 import string
 import signal
 import collections
+import platform
 
 class App ():
     def __init__(self, bucket, base_dir = "/tmp/riofs_test", nr_tests = 10):
@@ -47,7 +48,11 @@ class App ():
             bin_path = os.path.join(base_path, "src")
             cache = "--cache-dir=" + cache_dir
             conf = "--config=../riofs.conf.xml"
-            args = [os.path.join(bin_path, "riofs"), self.verbose, "--disable-stats", "-f", conf, "-l", log_file, cache, "http://s3.amazonaws.com", self.bucket, mnt_dir]
+            args = [os.path.join(bin_path, "riofs"), self.verbose, "--disable-stats", "-f", conf, "-l", log_file, cache]
+            if platform.system() == "Darwin":
+                # disable all local caching
+                args.extend(["-o", "direct_io"])
+            args.extend(["http://s3.amazonaws.com", self.bucket, mnt_dir])
             print "Starting RioFS: " + " ".join (args)
             try:
                 os.execv(args[0], args)
@@ -60,7 +65,11 @@ class App ():
     def unmount (self, mnt_dir):
         pid = os.fork()
         if pid == 0:
-            args = ["fusermount", "-u", mnt_dir, " 2> /dev/null"]
+            if platform.system() == "Darwin":
+                args = ["umount", mnt_dir, " 2> /dev/null"]
+            else:
+                args = ["fusermount", "-u", mnt_dir, " 2> /dev/null"]
+
             os.execv(args[0], args)
         else:
             sleep (1)

@@ -111,6 +111,7 @@ In order to allow other users to access mounted directory:
 1. make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
 2. launch RioFS with  ```-o "allow_other"```  parameter.
 
+On OS X it is recommended to run RioFS with the ```-o "direct_io"``` parameter.
 
 Configuration file
 ------------------

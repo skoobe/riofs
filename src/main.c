@@ -696,7 +696,7 @@ int main (int argc, char *argv[])
     // parse command line options
     context = g_option_context_new ("[http://s3.amazonaws.com] [bucketname] [mountpoint]");
     g_option_context_add_main_entries (context, entries, NULL);
-    g_option_context_set_description (context, "Please set both AWSACCESSKEYID and AWSSECRETACCESSKEY environment variables!");
+    g_option_context_set_description (context, "Please set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables!");
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
         g_fprintf (stderr, "Failed to parse command line options: %s\n", error->message);
         application_destroy (app);
@@ -813,8 +813,8 @@ int main (int argc, char *argv[])
     }
 
     // try to get access parameters from the environment
-    if (getenv ("AWSACCESSKEYID")) {
-        conf_set_string (app->conf, "s3.access_key_id", getenv ("AWSACCESSKEYID"));
+    if (getenv ("AWS_ACCESS_KEY_ID")) {
+        conf_set_string (app->conf, "s3.access_key_id", getenv ("AWS_ACCESS_KEY_ID"));
     // else check if it's set it the config file
     } else {
         if (!conf_node_exists (app->conf, "s3.access_key_id")) {
@@ -823,8 +823,8 @@ int main (int argc, char *argv[])
             return -1;
         }
     }
-    if (getenv ("AWSSECRETACCESSKEY")) {
-        conf_set_string (app->conf, "s3.secret_access_key", getenv ("AWSSECRETACCESSKEY"));
+    if (getenv ("AWS_SECRET_ACCESS_KEY")) {
+        conf_set_string (app->conf, "s3.secret_access_key", getenv ("AWS_SECRET_ACCESS_KEY"));
     } else {
         if (!conf_node_exists (app->conf, "s3.secret_access_key")) {
             LOG_err (APP_LOG, "Environment variables are not set!\nTry `%s --help' for more information.", argv[0]);

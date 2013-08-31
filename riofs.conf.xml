@@ -41,7 +41,7 @@
 	-->
     <storage_type type="string">STANDARD</storage_type>
 
-    <!-- Use either environment variables AWSACCESSKEYID and AWSSECRETACCESSKEY or configuration file.
+    <!-- Use either environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY or configuration file.
          Uncomment these 2 lines and replace ### strings with your data: -->
     <!--
     <access_key_id type="string">### AWS Access Key ID ###</access_key_id>

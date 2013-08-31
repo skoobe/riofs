@@ -69,8 +69,8 @@ sudo make install
 ### Using RioFS
 
 ```
-export AWSACCESSKEYID="your AWS access key"
-export AWSSECRETACCESSKEY="your AWS secret access key"
+export AWS_ACCESS_KEY_ID="your AWS access key"
+export AWS_SECRET_ACCESS_KEY="your AWS secret access key"
 riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 ```
 

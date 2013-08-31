@@ -192,7 +192,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 
 /*{{{ signal handlers */
 
-#ifdef __APPLE__
+#if __APPLE__
 
 typedef ucontext_t sig_ucontext_t;
 
@@ -788,7 +788,7 @@ int main (int argc, char *argv[])
                 LIBEVENT_VERSION,
                 FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
         );
-#ifdef __APPLE__
+#if __APPLE__
         g_fprintf (stdout, "\n");
 #else
         g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());

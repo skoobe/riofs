@@ -31,6 +31,10 @@
 #define _DARWIN_C_SOURCE
 #endif
 
+#ifndef __APPLE__
+#define __APPLE__ 0
+#endif
+
 #include "config.h" 
 
 #include <stdlib.h>

@@ -263,6 +263,8 @@ void rfuse_unmount (RFuse *rfuse)
         }
 #else
         rfuse_unmount_internal (rfuse);
+        // mark as destroyed, as on Linux Fuse destroy function is called later.
+        destroyed = TRUE;
 #endif
     }
     rfuse->mounted = FALSE;

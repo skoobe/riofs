@@ -2,10 +2,9 @@
 
 [![Build Status](https://secure.travis-ci.org/skoobe/riofs.png)](https://travis-ci.org/skoobe/riofs)
 
-RioFS is a userspace filesystem to mount Amazon S3 buckets
+RioFS is a userspace filesystem for Amazon S3 buckets that runs on Linux and MacOSX. It supports versioned and non-versioned buckets in all AWS regions. RioFS development started at [Skoobe](https://www.skoobe.de) as a storage backend for legacy daemons which cannot talk natively to S3. It is licensed under GPL.
 
-Requirements
-------------
+### Requirements
 
 * glib-2.0 >= 2.22
 * fuse >= 2.7.3
@@ -13,15 +12,15 @@ Requirements
 * libxml-2.0 >= 2.6
 * libcrypto >= 0.9
 
-All libraries and versions are compatible with Ubuntu 12.04 LTS and OS X 10.8.
-
-This is a command line to install all requirements to build this project on Ubuntu:
+#### Ubuntu 12.04 LTS
 
 ```
-sudo apt-get install build-essential gcc make automake autoconf libtool pkg-config intltool libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
+sudo apt-get install build-essential gcc make automake autoconf libtool pkg-config intltool\
+                     libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
 ```
 
-Please follow the following steps to install the requirements on Centos (tested on Centos 6.2 32bit):
+#### Centos 6.2
+
 ```
 sudo yum groupinstall "Development Tools"
 sudo yum install glib2-devel fuse-devel libevent-devel libxml2-devel openssl-devel
@@ -36,20 +35,25 @@ export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 cd ..
 ```
 
-Please follow the following steps to install the requirements on OS X (tested on OS X 10.8):
+#### MacOSX 10.8
 
 * Download and install the Xcode Command Line Tools package. The package can be downloaded from https://developer.apple.com/downloads/ (free Apple Developer ID required).
 
 * Download and install the latest version of FUSE for OS X (http://osxfuse.github.io)
 
-* Install the required build tools (automake autoconf libtool pkgconfig) and libraries (glib2 libevent libxml2). Tools and libraries can be installed using MacPorts (http://www.macports.org) by running the following command:
+* Add `/usr/local/lib/pkgconfig` to the `PKG_CONFIG_PATH` environment variable.
+
+```
+export PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+${PKG_CONFIG_PATH}:}/usr/local/lib/pkgconfig
+```
+
+* Tools and libraries can be installed using MacPorts (http://www.macports.org) by running the following command:
 
 ```
 sudo port install automake autoconf libtool pkgconfig glib2 libevent libxml2
 ```
 
-How to build RioFS
-------------------
+### Building RioFS
 
 ```
 git clone https://github.com/skoobe/riofs.git
@@ -60,21 +64,9 @@ make
 sudo make install
 ```
 
-Please add the directory /usr/local/lib/pkgconfig to the PKG_CONFIG_PATH environmanet variable on OS X. Otherweise pkg-config might not find FUSE for OS X.
+* Provide configure script with `--enable-debug-mode` flag if you want to get a debug build.
 
-```
-export PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+${PKG_CONFIG_PATH}:}/usr/local/lib/pkgconfig
-```
-
-Provide configure script with --enable-debug-mode flag if you want to get a debug build.
-
-
-How to start using RioFS
-------------------------
-
-Edit ```riofs.conf.xml``` configuration file, by the default it's placed in ```/usr/local/etc/riofs/riofs.conf.xml```.
-
-Launch RioFS:
+### Using RioFS
 
 ```
 export AWSACCESSKEYID="your AWS access key"
@@ -82,7 +74,7 @@ export AWSSECRETACCESSKEY="your AWS secret access key"
 riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 ```
 
-Where possible options are:
+#### Options
 
 ```
 -v: Verbose output
@@ -94,53 +86,51 @@ Where possible options are:
 --help: Display help
 ```
 
-Please note, that you can specify default S3 service URL (http://s3.amazonaws.com).
+* You can send USR1 signal to RioFS to re-read the configuration file:
 
-You can send USR1 signal to RioFS to re-read the configuration file:
 ```
 killall -s USR1 riofs
 ```
 
-Send USR2 signal to tell RioFS to reopen log file (useful for logrotate):
+* Send USR2 signal to tell RioFS to reopen log file (useful for logrotate):
+
 ```
 killall -s USR2 riofs
 ```
 
-In order to allow other users to access mounted directory:
+* In order to allow other users to access mounted directory:
 
-1. make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
-2. launch RioFS with  ```-o "allow_other"```  parameter.
+1. make sure `/etc/fuse.conf` contains `user_allow_other` option.
+2. launch RioFS with  `-o "allow_other"`  parameter.
 
-On OS X it is recommended to run RioFS with the ```-o "direct_io"``` parameter.
+* On OS X it is recommended to run RioFS with the `-o "direct_io"` parameter.
 
-Configuration file
-------------------
-    
-Configuration file (riofs.conf.xml) is located in $(prefix)/etc directory, or specified by "-c" command line parameter.
-Please read comments in configuration file to understand the meanings of values.
+#### Configuration file
 
+The configuration file's default location is `$(prefix)/etc/riofs.conf.xml` or can be specified by "-c" command line parameter.
 
-Statistics information
-------------------
+#### Statistics server
 
-You can enable statistics HTTP server in the configuration file. 
-Use the following URL to access statistics page:
+You can enable a statistics HTTP server in the configuration file.  Use the following URL to access statistics page:
+
 ```
 http://host:port/stats?access_key=key
 ```
-replace ```host```, ```port``` and ```key``` with the actual values from the configuration file.
+
+replace ```host```, ```port``` and ```key``` with the values from the configuration file.
+
 Add ```&refresh=1``` at the end of URL to refresh this page every second.
 
 
-Known limitations
-------------------
+### Known limitations
+
 * Appending data to an existing file is not supported.
 
+* A file system for the S3 API is a [leaky abstraction](http://en.wikipedia.org/wiki/Leaky_abstraction). Don't expect POSIX file system semantics.
 
-Bug reporting
--------------
-    
-Please include the version of RioFS and libraries by running:
+### Contributing
+
+When you send us a bug report please include the version of RioFS and libraries by running:
 
 ```
 riofs --version

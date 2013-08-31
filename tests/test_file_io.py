@@ -63,7 +63,7 @@ class App ():
             args = ["fusermount", "-u", mnt_dir, " 2> /dev/null"]
             os.execv(args[0], args)
         else:
-            sleep (1)
+            time.sleep (1)
 
     # check if both RioFS are still running
     def check_running (self):

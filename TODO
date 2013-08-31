@@ -1,3 +1,0 @@
-Required test:
-* create directory tree (directories don't contain any files), wait N seconds, check if all directories exist
-* "touch file", wait N seconds, make sure file still exist

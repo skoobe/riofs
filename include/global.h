@@ -27,6 +27,10 @@
 #define _GNU_SOURCE
 #endif
 
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+
 #include "config.h" 
 
 #include <stdlib.h>
@@ -38,9 +42,16 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#if __APPLE__
+#include <machine/endian.h>
+#else
 #include <endian.h>
 #include <gnu/libc-version.h>
+#endif
 #include <execinfo.h>
+#if __APPLE__
+#include <ucontext.h>
+#endif
 #include <signal.h>
 #include <sys/queue.h>
 #include <ctype.h>
@@ -48,13 +59,18 @@
 #include <pwd.h>
 #include <sys/resource.h>
 #include <errno.h>
+#if !__APPLE__
 #include <sys/prctl.h>
+#endif
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <math.h>
 #include <ftw.h>
 #include <sys/xattr.h>
+#if __APPLE__
+#include <pthread.h>
+#endif
 
 #include <glib.h>
 #include <glib/gprintf.h>
@@ -86,7 +102,11 @@
 #include <libxml/tree.h>
 
 //#define FUSE_USE_VERSION 26
+#if __APPLE__
+#include <fuse_lowlevel.h>
+#else
 #include <fuse/fuse_lowlevel.h>
+#endif
 
 typedef struct _Application Application;
 typedef struct _HttpConnection HttpConnection;
@@ -113,6 +133,9 @@ RFuse *application_get_rfuse (Application *app);
 #ifdef SSL_ENABLED
 SSL_CTX *application_get_ssl_ctx (Application *app);
 #endif
+
+// exits the event loop
+void application_exit (Application *app);
 
 // sets new S3 URL in case of redirect
 gboolean application_set_url (Application *app, const gchar *url);

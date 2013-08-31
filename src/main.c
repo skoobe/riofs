@@ -127,6 +127,25 @@ SSL_CTX *application_get_ssl_ctx (Application *app)
 
 /*}}}*/
 
+/*{{{ application_exit*/
+void application_exit (Application *app)
+{
+    if (app->rfuse && rfuse_get_mounted(app->rfuse)) {
+        /*
+         * Unmount the volume before exiting the event loop. On OS X unmounting
+         * the volume flushes the kernel's unified buffer cache, which results
+         * in file system requests, that need to be handled by the event loop.
+         * Exiting the event loop without unmounting the volume first can cause
+         * data loss or corruption on OS X.
+         *
+         * application_exit () is called again after the unmount has finished.
+         */
+        rfuse_unmount (app->rfuse);
+    } else
+        event_base_loopexit (app->evbase, NULL);
+}
+/*}}}*/
+
 /*{{{ application_set_url*/
 gboolean application_set_url (Application *app, const gchar *url)
 {
@@ -148,7 +167,7 @@ gboolean application_set_url (Application *app, const gchar *url)
     if (!app->uri) {
         LOG_err (APP_LOG, " URL (%s) is not valid!", url);
 
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return FALSE;
     }
 
@@ -172,6 +191,13 @@ gboolean application_set_url (Application *app, const gchar *url)
 /*}}}*/
 
 /*{{{ signal handlers */
+
+#ifdef __APPLE__
+
+typedef ucontext_t sig_ucontext_t;
+
+#else /* !__APPLE__ */
+
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
 typedef struct _sig_ucontext {
     unsigned long     uc_flags;
@@ -180,6 +206,8 @@ typedef struct _sig_ucontext {
     struct sigcontext uc_mcontext;
     sigset_t          uc_sigmask;
 } sig_ucontext_t;
+
+#endif /* !__APPLE__ */
 
 static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 {
@@ -195,11 +223,19 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     uc = (sig_ucontext_t *)ucontext;
 
     /* Get the address at the time the signal was raised from the EIP (x86) */
-#ifdef __i386__
-    caller_address = (void *) uc->uc_mcontext.eip;   
+#if __APPLE__
+#ifdef __i368__
+    caller_address = (void *) uc->uc_mcontext->__ss.__eip;
 #else
-    caller_address = (void *) uc->uc_mcontext.rip;   
+    caller_address = (void *) uc->uc_mcontext->__ss.__rip;
 #endif
+#else /* !__APPLE__ */
+#ifdef __i386__
+    caller_address = (void *) uc->uc_mcontext.eip;
+#else
+    caller_address = (void *) uc->uc_mcontext.rip;
+#endif
+#endif /* !__APPLE__ */
 
     f = stderr;
 
@@ -294,9 +330,9 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
     Application *app = (Application *) user_data;
 
     LOG_err (APP_LOG, "Got SIGINT");
-
-    // terminate after running all active events 
-    event_base_loopexit (app->evbase, NULL);
+    
+    // terminate after running all active events
+    application_exit (app);
 }
 // same as SIGINT
 static void sigterm_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short events, void *user_data)
@@ -306,7 +342,7 @@ static void sigterm_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
     LOG_err (APP_LOG, "Got SIGTERM");
 
     // terminate after running all active events 
-    event_base_loopexit (app->evbase, NULL);
+    application_exit (app);
 }
 
 /*}}}*/
@@ -328,7 +364,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->read_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 
@@ -343,7 +379,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->write_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 
@@ -358,7 +394,7 @@ static gint application_finish_initialization_and_run (Application *app)
         );
     if (!app->ops_client_pool) {
         LOG_err (APP_LOG, "Failed to create ClientPool !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -367,7 +403,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->cmng = cache_mng_create (app);
     if (!app->cmng) {
         LOG_err (APP_LOG, "Failed to create CacheMng !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -376,7 +412,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->dir_tree = dir_tree_create (app);
     if (!app->dir_tree) {
         LOG_err (APP_LOG, "Failed to create DirTree !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -385,7 +421,7 @@ static gint application_finish_initialization_and_run (Application *app)
     app->rfuse = rfuse_new (app, conf_get_string (app->conf, "app.mountpoint"), app->fuse_opts);
     if (!app->rfuse) {
         LOG_err (APP_LOG, "Failed to create FUSE fs ! Mount point: %s", conf_get_string (app->conf, "app.mountpoint"));
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
 /*}}}*/
@@ -403,7 +439,7 @@ static gint application_finish_initialization_and_run (Application *app)
     sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGSEGV, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return 1;
     }
     // SIGTERM
@@ -415,7 +451,7 @@ static gint application_finish_initialization_and_run (Application *app)
     sigemptyset (&sigact.sa_mask);
     if (sigaction (SIGABRT, &sigact, (struct sigaction *) NULL) != 0) {
         LOG_err (APP_LOG, "error setting signal handler for %d (%s)\n", SIGABRT, strsignal(SIGABRT));
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return 1;
     }
     // SIGPIPE
@@ -449,7 +485,7 @@ static void application_on_bucket_versioning_cb (gpointer ctx, gboolean success,
     
     if (!success) {
         LOG_err (APP_LOG, "Failed to get bucket versioning!");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return;
     }
 
@@ -481,7 +517,7 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     
     if (!success) {
         LOG_err (APP_LOG, "Failed to get bucket ACL! Most likely you provided wrong AWS keys or bucket name !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return;
     }
     
@@ -589,6 +625,8 @@ int main (int argc, char *argv[])
     gboolean disable_syslog = FALSE;
     gboolean disable_stats = FALSE;
 
+    struct event_config *ev_config;
+    
     app = g_new0 (Application, 1);
     app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf.xml", NULL);
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", app->conf_path);
@@ -626,8 +664,17 @@ int main (int argc, char *argv[])
     g_random_set_seed (time (NULL));
 
     // init main app structure
-    app->evbase = event_base_new ();
-
+    ev_config = event_config_new ();
+    
+#if __APPLE__
+    // method select is the preferred method on OS X. kqueue and poll are not supported.
+    event_config_avoid_method (ev_config, "kqueue");
+    event_config_avoid_method (ev_config, "poll");
+#endif
+    
+    app->evbase = event_base_new_with_config (ev_config);
+    event_config_free (ev_config);
+    
     if (!app->evbase) {
         LOG_err (APP_LOG, "Failed to create event base !");
         application_destroy (app);
@@ -732,21 +779,39 @@ int main (int argc, char *argv[])
     
     // check if --version is specified
     if (version) {
-            g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
-            g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
-            g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
-            g_fprintf (stdout, "Libraries:\n");
-            g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d  glibc: %s\n", 
-                    GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION, 
-                    LIBEVENT_VERSION,
-                    FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION,
-                    gnu_get_libc_version ()
-            );
-            g_fprintf (stdout, "Features:\n");
-            g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
+        g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
+        g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
+        g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
+        g_fprintf (stdout, "Libraries:\n");
+        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d",
+                GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,
+                LIBEVENT_VERSION,
+                FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
+        );
+#ifdef __APPLE__
+        g_fprintf (stdout, "\n");
+#else
+        g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());
+#endif
+        g_fprintf (stdout, "Features:\n");
+        g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
+        g_fprintf (stdout, " libevent backend method: %s\n", event_base_get_method(app->evbase));
+
+        /*
+        {
+            int i;
+            const char **methods = event_get_supported_methods ();
+
+            g_fprintf (stdout, " Available libevent backend methods:\n");
+            for (i = 0; methods[i] != NULL; ++i) {
+                g_fprintf (stdout, "  %s\n", methods[i]);
+            }
+        }
+        */
+
         return 0;
     }
-    
+
     // try to get access parameters from the environment
     if (getenv ("AWSACCESSKEYID")) {
         conf_set_string (app->conf, "s3.access_key_id", getenv ("AWSACCESSKEYID"));
@@ -841,7 +906,7 @@ int main (int argc, char *argv[])
     app->ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
     if (!app->ssl_ctx) {
         LOG_err (APP_LOG, "Failed to initialize SSL engine !");
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
     SSL_CTX_set_options (app->ssl_ctx, SSL_OP_ALL);
@@ -849,7 +914,7 @@ int main (int argc, char *argv[])
 #endif
     app->stat_srv = stat_srv_create (app);
     if (!app->stat_srv) {
-        event_base_loopexit (app->evbase, NULL);
+        application_exit (app);
         return -1;
     }
   

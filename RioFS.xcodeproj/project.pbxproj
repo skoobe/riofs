@@ -1,0 +1,310 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXFileReference section */
+		435F77BB17CD2409000CE487 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		435F77BD17CD2409000CE487 /* cache_mng.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cache_mng.h; sourceTree = "<group>"; };
+		435F77BE17CD2409000CE487 /* client_pool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = client_pool.h; sourceTree = "<group>"; };
+		435F77BF17CD2409000CE487 /* conf.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = conf.h; sourceTree = "<group>"; };
+		435F77C017CD2409000CE487 /* conf_keys.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = conf_keys.h; sourceTree = "<group>"; };
+		435F77C117CD2409000CE487 /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
+		435F77C317CD2409000CE487 /* dir_tree.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dir_tree.h; sourceTree = "<group>"; };
+		435F77C417CD2409000CE487 /* file_io_ops.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = file_io_ops.h; sourceTree = "<group>"; };
+		435F77C517CD2409000CE487 /* global.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = global.h; sourceTree = "<group>"; };
+		435F77C617CD2409000CE487 /* http_connection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = http_connection.h; sourceTree = "<group>"; };
+		435F77C717CD2409000CE487 /* log.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
+		435F77C817CD2409000CE487 /* range.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = range.h; sourceTree = "<group>"; };
+		435F77C917CD2409000CE487 /* rfuse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rfuse.h; sourceTree = "<group>"; };
+		435F77CB17CD2409000CE487 /* stat_srv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = stat_srv.h; sourceTree = "<group>"; };
+		435F77CC17CD2409000CE487 /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
+		435F77DE17CD241E000CE487 /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		435F77E017CD241E000CE487 /* bucket_client.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bucket_client.c; sourceTree = "<group>"; };
+		435F77E117CD241E000CE487 /* cache_mng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cache_mng.c; sourceTree = "<group>"; };
+		435F77E217CD241E000CE487 /* client_pool.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = client_pool.c; sourceTree = "<group>"; };
+		435F77E317CD241E000CE487 /* conf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = conf.c; sourceTree = "<group>"; };
+		435F77E417CD241E000CE487 /* dir_tree.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dir_tree.c; sourceTree = "<group>"; };
+		435F77E517CD241E000CE487 /* file_io_ops.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = file_io_ops.c; sourceTree = "<group>"; };
+		435F77E617CD241E000CE487 /* http_connection.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = http_connection.c; sourceTree = "<group>"; };
+		435F77E717CD241E000CE487 /* http_connection_dir_list.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = http_connection_dir_list.c; sourceTree = "<group>"; };
+		435F77E817CD241E000CE487 /* log.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = log.c; sourceTree = "<group>"; };
+		435F77E917CD241E000CE487 /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		435F77EA17CD241E000CE487 /* range.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = range.c; sourceTree = "<group>"; };
+		435F77EB17CD241E000CE487 /* rfuse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rfuse.c; sourceTree = "<group>"; };
+		435F77FB17CD241E000CE487 /* stat_srv.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = stat_srv.c; sourceTree = "<group>"; };
+		435F77FC17CD241E000CE487 /* utils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = utils.c; sourceTree = "<group>"; };
+		435F783117CD2435000CE487 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		435F783317CD2435000CE487 /* cache_mng_test.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = cache_mng_test.c; sourceTree = "<group>"; };
+		435F783417CD2435000CE487 /* client_pool_test.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = client_pool_test.c; sourceTree = "<group>"; };
+		435F783517CD2435000CE487 /* conf_test.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = conf_test.c; sourceTree = "<group>"; };
+		435F783617CD2435000CE487 /* create_1000_files.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = create_1000_files.sh; sourceTree = "<group>"; };
+		435F783717CD2435000CE487 /* create_files_by_size.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = create_files_by_size.py; sourceTree = "<group>"; };
+		435F783817CD2435000CE487 /* file_read_c.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = file_read_c.sh; sourceTree = "<group>"; };
+		435F783917CD2435000CE487 /* file_read_parallel.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = file_read_parallel.py; sourceTree = "<group>"; };
+		435F783A17CD2435000CE487 /* long_write.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = long_write.py; sourceTree = "<group>"; };
+		435F783B17CD2435000CE487 /* lorem.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = lorem.txt; sourceTree = "<group>"; };
+		435F783C17CD2435000CE487 /* range_test.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = range_test.c; sourceTree = "<group>"; };
+		435F783D17CD2435000CE487 /* riofs_server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = riofs_server.py; sourceTree = "<group>"; };
+		435F783E17CD2435000CE487 /* test.conf.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = test.conf.xml; sourceTree = "<group>"; };
+		435F783F17CD2435000CE487 /* test_amazon.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_amazon.py; sourceTree = "<group>"; };
+		435F784017CD2435000CE487 /* test_application.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = test_application.c; sourceTree = "<group>"; };
+		435F784117CD2435000CE487 /* test_application.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = test_application.h; sourceTree = "<group>"; };
+		435F784217CD2435000CE487 /* test_dir_list.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_dir_list.py; sourceTree = "<group>"; };
+		435F784317CD2435000CE487 /* test_dir_list_many.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_dir_list_many.py; sourceTree = "<group>"; };
+		435F784417CD2435000CE487 /* test_dir_list_parallel.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_dir_list_parallel.py; sourceTree = "<group>"; };
+		435F784517CD2435000CE487 /* test_dir_list_random.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_dir_list_random.py; sourceTree = "<group>"; };
+		435F784617CD2435000CE487 /* test_dir_list_single.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_dir_list_single.py; sourceTree = "<group>"; };
+		435F784717CD2435000CE487 /* test_file_io.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_file_io.py; sourceTree = "<group>"; };
+		435F784817CD2435000CE487 /* test_io.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_io.py; sourceTree = "<group>"; };
+		435F784917CD2435000CE487 /* test_multiple_mounts.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_multiple_mounts.py; sourceTree = "<group>"; };
+		435F784A17CD2435000CE487 /* test_read_offset.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_read_offset.py; sourceTree = "<group>"; };
+		435F784B17CD2435000CE487 /* test_setup.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_setup.py; sourceTree = "<group>"; };
+		435F785017CD2B99000CE487 /* configure.ac */ = {isa = PBXFileReference; lastKnownFileType = text; path = configure.ac; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		435F778417CD2387000CE487 = {
+			isa = PBXGroup;
+			children = (
+				435F785017CD2B99000CE487 /* configure.ac */,
+				435F77B917CD2409000CE487 /* include */,
+				435F77CD17CD241E000CE487 /* src */,
+				435F781A17CD2435000CE487 /* tests */,
+				435F778E17CD2387000CE487 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		435F778E17CD2387000CE487 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		435F77B917CD2409000CE487 /* include */ = {
+			isa = PBXGroup;
+			children = (
+				435F77BB17CD2409000CE487 /* Makefile.am */,
+				435F77BD17CD2409000CE487 /* cache_mng.h */,
+				435F77BE17CD2409000CE487 /* client_pool.h */,
+				435F77BF17CD2409000CE487 /* conf.h */,
+				435F77C017CD2409000CE487 /* conf_keys.h */,
+				435F77C117CD2409000CE487 /* config.h */,
+				435F77C317CD2409000CE487 /* dir_tree.h */,
+				435F77C417CD2409000CE487 /* file_io_ops.h */,
+				435F77C517CD2409000CE487 /* global.h */,
+				435F77C617CD2409000CE487 /* http_connection.h */,
+				435F77C717CD2409000CE487 /* log.h */,
+				435F77C817CD2409000CE487 /* range.h */,
+				435F77C917CD2409000CE487 /* rfuse.h */,
+				435F77CB17CD2409000CE487 /* stat_srv.h */,
+				435F77CC17CD2409000CE487 /* utils.h */,
+			);
+			path = include;
+			sourceTree = "<group>";
+		};
+		435F77CD17CD241E000CE487 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				435F77DE17CD241E000CE487 /* Makefile.am */,
+				435F77E017CD241E000CE487 /* bucket_client.c */,
+				435F77E117CD241E000CE487 /* cache_mng.c */,
+				435F77E217CD241E000CE487 /* client_pool.c */,
+				435F77E317CD241E000CE487 /* conf.c */,
+				435F77E417CD241E000CE487 /* dir_tree.c */,
+				435F77E517CD241E000CE487 /* file_io_ops.c */,
+				435F77E617CD241E000CE487 /* http_connection.c */,
+				435F77E717CD241E000CE487 /* http_connection_dir_list.c */,
+				435F77E817CD241E000CE487 /* log.c */,
+				435F77E917CD241E000CE487 /* main.c */,
+				435F77EA17CD241E000CE487 /* range.c */,
+				435F77EB17CD241E000CE487 /* rfuse.c */,
+				435F77FB17CD241E000CE487 /* stat_srv.c */,
+				435F77FC17CD241E000CE487 /* utils.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		435F781A17CD2435000CE487 /* tests */ = {
+			isa = PBXGroup;
+			children = (
+				435F783117CD2435000CE487 /* Makefile.am */,
+				435F783317CD2435000CE487 /* cache_mng_test.c */,
+				435F783417CD2435000CE487 /* client_pool_test.c */,
+				435F783517CD2435000CE487 /* conf_test.c */,
+				435F783617CD2435000CE487 /* create_1000_files.sh */,
+				435F783717CD2435000CE487 /* create_files_by_size.py */,
+				435F783817CD2435000CE487 /* file_read_c.sh */,
+				435F783917CD2435000CE487 /* file_read_parallel.py */,
+				435F783A17CD2435000CE487 /* long_write.py */,
+				435F783B17CD2435000CE487 /* lorem.txt */,
+				435F783C17CD2435000CE487 /* range_test.c */,
+				435F783D17CD2435000CE487 /* riofs_server.py */,
+				435F783E17CD2435000CE487 /* test.conf.xml */,
+				435F783F17CD2435000CE487 /* test_amazon.py */,
+				435F784017CD2435000CE487 /* test_application.c */,
+				435F784117CD2435000CE487 /* test_application.h */,
+				435F784217CD2435000CE487 /* test_dir_list.py */,
+				435F784317CD2435000CE487 /* test_dir_list_many.py */,
+				435F784417CD2435000CE487 /* test_dir_list_parallel.py */,
+				435F784517CD2435000CE487 /* test_dir_list_random.py */,
+				435F784617CD2435000CE487 /* test_dir_list_single.py */,
+				435F784717CD2435000CE487 /* test_file_io.py */,
+				435F784817CD2435000CE487 /* test_io.py */,
+				435F784917CD2435000CE487 /* test_multiple_mounts.py */,
+				435F784A17CD2435000CE487 /* test_read_offset.py */,
+				435F784B17CD2435000CE487 /* test_setup.py */,
+			);
+			path = tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXLegacyTarget section */
+		435F784C17CD249D000CE487 /* RioFS */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(ACTION)";
+			buildConfigurationList = 435F784D17CD249D000CE487 /* Build configuration list for PBXLegacyTarget "RioFS" */;
+			buildPhases = (
+			);
+			buildToolPath = /usr/bin/make;
+			buildWorkingDirectory = "$(SRCROOT)";
+			dependencies = (
+			);
+			name = RioFS;
+			passBuildSettingsInEnvironment = 1;
+			productName = RioFS;
+		};
+/* End PBXLegacyTarget section */
+
+/* Begin PBXProject section */
+		435F778517CD2387000CE487 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0460;
+				ORGANIZATIONNAME = "Skoobe GmbH";
+			};
+			buildConfigurationList = 435F778817CD2387000CE487 /* Build configuration list for PBXProject "RioFS" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 435F778417CD2387000CE487;
+			productRefGroup = 435F778E17CD2387000CE487 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				435F784C17CD249D000CE487 /* RioFS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		435F779417CD2387000CE487 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		435F779517CD2387000CE487 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		435F784E17CD249D000CE487 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEBUGGING_SYMBOLS = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		435F784F17CD249D000CE487 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		435F778817CD2387000CE487 /* Build configuration list for PBXProject "RioFS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				435F779417CD2387000CE487 /* Debug */,
+				435F779517CD2387000CE487 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		435F784D17CD249D000CE487 /* Build configuration list for PBXLegacyTarget "RioFS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				435F784E17CD249D000CE487 /* Debug */,
+				435F784F17CD249D000CE487 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 435F778517CD2387000CE487 /* Project object */;
+}

@@ -41,6 +41,15 @@ struct _RFuse {
     // the buffer that we use to receive events
     char *recv_buf;
 #endif
+
+    // did we receive the destroy message?
+    gboolean destroyed;
+    // is the volume mounted?
+    gboolean mounted;
+
+#if __APPLE__
+    pthread_t *unmount_thread;
+#endif
     
     // statistics
     guint64 read_ops;
@@ -56,6 +65,7 @@ struct _RFuse {
 
 /*{{{ func declarations */
 static void rfuse_init (void *userdata, struct fuse_conn_info *conn);
+static void rfuse_dest (void *userdata);
 static void rfuse_on_read (evutil_socket_t fd, short what, void *arg);
 static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 static void rfuse_opendir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
@@ -74,11 +84,16 @@ static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 //static void rfuse_on_timer (evutil_socket_t fd, short what, void *arg);
 static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
+#if __APPLE__
+static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t position);
+#else
 static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
+#endif
 static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
+    .destroy    = rfuse_dest,
     .opendir    = rfuse_opendir,
     .readdir    = rfuse_readdir,
     .releasedir = rfuse_releasedir,
@@ -114,6 +129,10 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->app = app;
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
+    rfuse->mounted = FALSE;
+#if __APPLE__
+    rfuse->unmount_thread = NULL;
+#endif
     rfuse->read_ops = rfuse->write_ops = rfuse->readdir_ops = rfuse->lookup_ops = 0;
 
     if (fuse_opts) {
@@ -137,6 +156,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
         LOG_err (FUSE_LOG, "Failed to mount FUSE partition !");
         return NULL;
     }
+    rfuse->mounted = TRUE;
     fuse_opt_free_args (&args);
 
 #if FUSE_USE_VERSION >= 30
@@ -194,7 +214,14 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
 
 void rfuse_destroy (RFuse *rfuse)
 {
-    fuse_unmount (rfuse->mountpoint, rfuse->chan);
+#if __APPLE__
+    if (rfuse->unmount_thread) {
+        // wait for unmount thread to termintate
+        pthread_join (*rfuse->unmount_thread, NULL);
+        g_free (rfuse->unmount_thread);
+    }
+#endif
+
     g_free (rfuse->mountpoint);
 
 #if FUSE_USE_VERSION >= 30
@@ -205,6 +232,45 @@ void rfuse_destroy (RFuse *rfuse)
     event_free (rfuse->ev);
     fuse_session_destroy (rfuse->session);
     g_free (rfuse);
+}
+
+gboolean rfuse_get_mounted (RFuse *rfuse)
+{
+    return rfuse->mounted;
+}
+
+static void *rfuse_unmount_internal (void *arg)
+{
+    RFuse *rfuse = (RFuse *)arg;
+
+    fuse_unmount (rfuse->mountpoint, rfuse->chan);
+    return NULL;
+}
+
+// unmounts the volume
+void rfuse_unmount (RFuse *rfuse)
+{
+    gboolean destroyed = rfuse->destroyed;
+    
+    if (rfuse->mounted) {
+#if __APPLE__
+        // fuse_unmount is synchronous on OS X
+        rfuse->unmount_thread = g_new (pthread_t, 1);
+        if (!rfuse->unmount_thread ||
+            pthread_create (rfuse->unmount_thread, NULL, &rfuse_unmount_internal, rfuse) != 0) {
+            // ignore error
+            LOG_err (FUSE_LOG, "failed to unmount volume");
+        }
+#else
+        rfuse_unmount_internal (rfuse);
+#endif
+    }
+    rfuse->mounted = FALSE;
+    
+    if (destroyed) {
+        // we won't get a destroy message
+        application_exit (rfuse->app);
+    }
 }
 
 /*
@@ -234,6 +300,14 @@ static void rfuse_on_timer (evutil_socket_t fd, short what, void *arg)
 static void rfuse_init (G_GNUC_UNUSED void *userdata, struct fuse_conn_info *conn)
 {
     conn->async_read = 0;
+}
+
+static void rfuse_dest (void *userdata)
+{
+    RFuse *rfuse = (RFuse *)userdata;
+
+    rfuse->destroyed = TRUE;
+    application_exit (rfuse->app);
 }
 
 // low level fuse reading operations
@@ -790,7 +864,11 @@ static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
     }
 }
 
+#if __APPLE__
+static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t G_GNUC_UNUSED position)
+#else
 static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
+#endif
 {
     RFuse *rfuse = fuse_req_userdata (req);
     

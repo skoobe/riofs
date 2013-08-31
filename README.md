@@ -8,12 +8,12 @@ Requirements
 ------------
 
 * glib-2.0 >= 2.22
-* fuse >= 2.8.3
+* fuse >= 2.7.3
 * libevent >= 2.0
 * libxml-2.0 >= 2.6
 * libcrypto >= 0.9
 
-All libraries and versions are compatible with Ubuntu 12.04 LTS.
+All libraries and versions are compatible with Ubuntu 12.04 LTS and OS X 10.8.
 
 This is a command line to install all requirements to build this project on Ubuntu:
 
@@ -36,6 +36,18 @@ export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 cd ..
 ```
 
+Please follow the following steps to install the requirements on OS X (tested on OS X 10.8):
+
+* Download and install the Xcode Command Line Tools package. The package can be downloaded from https://developer.apple.com/downloads/ (free Apple Developer ID required).
+
+* Download and install the latest version of FUSE for OS X (http://osxfuse.github.io)
+
+* Install the required build tools (automake autoconf libtool pkgconfig) and libraries (glib2 libevent libxml2). Tools and libraries can be installed using MacPorts (http://www.macports.org) by running the following command:
+
+```
+sudo port install automake autoconf libtool pkgconfig glib2 libevent libxml2
+```
+
 How to build RioFS
 ------------------
 
@@ -46,6 +58,12 @@ cd riofs
 ./configure
 make
 sudo make install
+```
+
+Please add the directory /usr/local/lib/pkgconfig to the PKG_CONFIG_PATH environmanet variable on OS X. Otherweise pkg-config might not find FUSE for OS X.
+
+```
+export PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+${PKG_CONFIG_PATH}:}/usr/local/lib/pkgconfig
 ```
 
 Provide configure script with --enable-debug-mode flag if you want to get a debug build.
@@ -93,6 +111,7 @@ In order to allow other users to access mounted directory:
 1. make sure ```/etc/fuse.conf``` contains ```user_allow_other``` option.
 2. launch RioFS with  ```-o "allow_other"```  parameter.
 
+On OS X it is recommended to run RioFS with the ```-o "direct_io"``` parameter.
 
 Configuration file
 ------------------

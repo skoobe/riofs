@@ -469,7 +469,8 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     }
 
     // handle redirect
-    if (evhttp_request_get_response_code (req) == 301) {
+    if (evhttp_request_get_response_code (req) == 301 ||
+        evhttp_request_get_response_code (req) == 307) {
         const gchar *loc;
         struct evkeyvalq *headers;
 

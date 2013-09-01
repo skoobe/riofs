@@ -774,8 +774,10 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     if (out_buffer) {
         con->total_bytes_out += evbuffer_get_length (out_buffer);
-//        evbuffer_add_buffer (req->output_buffer, out_buffer);
-        evbuffer_add_buffer_reference (req->output_buffer, out_buffer);
+        // we don't want to destruct the original buffer
+        evbuffer_add (req->output_buffer, evbuffer_pullup (out_buffer, -1), evbuffer_get_length (out_buffer));
+        // a better approach, but requires "beta" libevent version
+        // evbuffer_add_buffer_reference (req->output_buffer, out_buffer);
     }
 
     if (conf_get_boolean (application_get_conf (con->app), "s3.path_style")) {

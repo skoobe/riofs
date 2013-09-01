@@ -782,7 +782,7 @@ static void dir_tree_on_lookup_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
 
     res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL, FALSE,
+        req_path, "HEAD", NULL, FALSE, 0,
         dir_tree_on_lookup_cb,
         op_data
     );
@@ -916,7 +916,7 @@ static void dir_tree_on_lookup_not_found_con_cb (gpointer client, gpointer ctx)
     g_free (fullpath);
 
     res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL, FALSE,
+        req_path, "HEAD", NULL, FALSE, 0,
         dir_tree_on_lookup_not_found_cb,
         op_data
     );
@@ -1516,7 +1516,7 @@ static void dir_tree_file_remove_on_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
     res = http_connection_make_request (con, 
         req_path, "DELETE", 
-        NULL, TRUE,
+        NULL, TRUE, 0,
         dir_tree_file_remove_on_con_data_cb,
         data
     );
@@ -1822,7 +1822,7 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
     res = http_connection_make_request (con, 
         req_path, "DELETE", 
-        NULL, TRUE,
+        NULL, TRUE, 0,
         dir_tree_on_rename_delete_cb,
         rdata
     );
@@ -1952,7 +1952,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
 
     res = http_connection_make_request (con, 
         dst_path, "PUT", 
-        NULL, TRUE,
+        NULL, TRUE, 0,
         dir_tree_on_rename_copy_cb,
         rdata
     );
@@ -2176,7 +2176,7 @@ static void dir_tree_on_getxattr_con_cb (gpointer client, gpointer ctx)
     req_path = g_strdup_printf ("/%s", en->fullpath);
 
     res = http_connection_make_request (con, 
-        req_path, "HEAD", NULL, FALSE,
+        req_path, "HEAD", NULL, FALSE, 0,
         dir_tree_on_getxattr_cb,
         xattr_data
     );

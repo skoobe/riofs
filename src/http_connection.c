@@ -444,13 +444,15 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
-                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry,
+                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data->retry_id,
                     data->responce_cb, data->ctx)) {
                     LOG_err (CON_LOG, CON_H"Failed to send request !", con);
                     if (data->responce_cb)
                         data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
-                } else 
+                } else {
+                    request_data_free (data);
                     return;
+                }
             }
         } else {
             if (data->responce_cb)
@@ -511,13 +513,15 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         }
 
         // re-send request
-        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry,
+        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data->retry_id,
             data->responce_cb, data->ctx)) {
             LOG_err (CON_LOG, CON_H"Failed to send request !", con);
             if (data->responce_cb)
                 data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
-        } else
+        } else {
+            request_data_free (data);
             return;
+        }
         goto done;
     }
     
@@ -557,13 +561,15 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
-                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry,
+                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data->retry_id,
                     data->responce_cb, data->ctx)) {
                     LOG_err (CON_LOG, CON_H"Failed to send request !", con);
                     if (data->responce_cb)
                         data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
-                } else
+                } else {
+                    request_data_free (data);
                     return;
+                }
             }
         } else {
             if (data->responce_cb)
@@ -615,7 +621,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
-    gboolean enable_retry,
+    gboolean enable_retry, gint retry_count,
     HttpConnection_responce_cb responce_cb,
     gpointer ctx)
 {
@@ -650,7 +656,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         data->out_size = evbuffer_get_length (out_buffer);
     else
         data->out_size = 0;
-    data->retry_id = 0;
+    data->retry_id = retry_count;
     data->enable_retry = enable_retry;
     
     if (!strcasecmp (http_cmd, "GET")) {

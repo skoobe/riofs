@@ -32,6 +32,7 @@ typedef struct {
 
 static void http_connection_on_close (struct evhttp_connection *evcon, void *ctx);
 static gboolean http_connection_init (HttpConnection *con);
+static void http_connection_free_headers (GList *l_headers);
 
 /*}}}*/
 
@@ -310,6 +311,38 @@ static gchar *get_endpoint (const char *xml, size_t xml_len) {
     return endpoint;
 }
 
+static gchar *parse_aws_error (const char *xml, size_t xml_len) {
+    xmlDocPtr doc;
+    xmlXPathContextPtr ctx;
+    xmlXPathObjectPtr msg_xp;
+    xmlNodeSetPtr nodes;
+    gchar *msg;
+
+    if (!xml_len || !xml)
+        return NULL;
+
+    doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
+    if (!doc)
+        return NULL;
+
+    ctx = xmlXPathNewContext (doc);
+    msg_xp = xmlXPathEvalExpression ((xmlChar *) "/Error/Message", ctx);
+    nodes = msg_xp->nodesetval;
+
+    if (!nodes || nodes->nodeNr < 1) {
+        msg = NULL;
+    } else {
+        msg = (char *) xmlNodeListGetString (doc, nodes->nodeTab[0]->xmlChildrenNode, 1);
+    }
+
+    xmlXPathFreeObject (msg_xp);
+    xmlXPathFreeContext (ctx);
+    xmlFreeDoc (doc);
+
+    return msg;
+}
+
+
 typedef struct {
     HttpConnection *con;
     HttpConnection_responce_cb responce_cb;
@@ -328,10 +361,13 @@ typedef struct {
 
     gint retry_id; // the number of retries
     gboolean enable_retry;
+
+    GList *l_output_headers;
 } RequestData;
 
 static void request_data_free (RequestData *data)
 {
+    http_connection_free_headers (data->l_output_headers);
     g_free (data->resource_path);
     g_free (data->http_cmd);
     g_free (data);
@@ -444,13 +480,12 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
-                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data->retry_id,
+                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
                     data->responce_cb, data->ctx)) {
                     LOG_err (CON_LOG, CON_H"Failed to send request !", con);
                     if (data->responce_cb)
                         data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 } else {
-                    request_data_free (data);
                     return;
                 }
             }
@@ -475,6 +510,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         evhttp_request_get_response_code (req) == 307) {
         const gchar *loc;
         struct evkeyvalq *headers;
+        gboolean free_loc = FALSE;
 
         data->redirects++;
         headers = evhttp_request_get_input_headers (req);
@@ -487,6 +523,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
             // let's parse XML
             loc = get_endpoint (buf, buf_len);
+            free_loc = TRUE;
             
             if (!loc) {
                 LOG_err (CON_LOG, CON_H"Redirect URL not found !", con);
@@ -503,8 +540,10 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
                 data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             goto done;
         }
-        //XXX: free loc if it's parsed from xml
-        // xmlFree (loc)
+
+        // free loc if it's parsed from xml
+        if (free_loc)
+            xmlFree ((char *)loc);
 
         if (!http_connection_init (data->con)) {
             if (data->responce_cb)
@@ -513,13 +552,12 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         }
 
         // re-send request
-        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data->retry_id,
+        if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
             data->responce_cb, data->ctx)) {
             LOG_err (CON_LOG, CON_H"Failed to send request !", con);
             if (data->responce_cb)
                 data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         } else {
-            request_data_free (data);
             return;
         }
         goto done;
@@ -536,18 +574,17 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     if (evhttp_request_get_response_code (req) != 200 && 
         evhttp_request_get_response_code (req) != 204 && 
         evhttp_request_get_response_code (req) != 206) {
-        LOG_debug (CON_LOG, CON_H"Server returned HTTP error: %d (%s) !", 
-            con, evhttp_request_get_response_code (req), req->response_code_line);
+        gchar *msg;
         
         // if it contains any readable information
-        if (buf_len > 1) {
-            gchar *tmp;
-            tmp = g_new0 (gchar, buf_len + 1);
-            strncpy (tmp, buf, buf_len);
-            LOG_debug (CON_LOG, CON_H"Error msg: =====\n%s\n=====", con, tmp);
-            g_free (tmp);
-        }
+        msg = parse_aws_error (buf, buf_len);
 
+        LOG_debug (CON_LOG, CON_H"Server returned HTTP error: %d (%s). AWS message: %s", 
+            con, evhttp_request_get_response_code (req), req->response_code_line, msg);
+
+        if (msg)
+            xmlFree (msg);
+        
         con->errors_nr++;
         
         if (data->enable_retry) {
@@ -561,13 +598,12 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
-                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data->retry_id,
+                if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
                     data->responce_cb, data->ctx)) {
                     LOG_err (CON_LOG, CON_H"Failed to send request !", con);
                     if (data->responce_cb)
                         data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 } else {
-                    request_data_free (data);
                     return;
                 }
             }
@@ -621,7 +657,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
-    gboolean enable_retry, gint retry_count,
+    gboolean enable_retry, gpointer parent_request_data,
     HttpConnection_responce_cb responce_cb,
     gpointer ctx)
 {
@@ -644,20 +680,43 @@ gboolean http_connection_make_request (HttpConnection *con,
             return FALSE;
         }
 
-    data = g_new0 (RequestData, 1);
+    // if this is the first request
+    if (!parent_request_data) {
+        data = g_new0 (RequestData, 1);
+        data->redirects = 0;
+        data->resource_path = url_escape (resource_path);
+        data->http_cmd = g_strdup (http_cmd);
+        data->out_buffer = out_buffer;
+        if (out_buffer)
+            data->out_size = evbuffer_get_length (out_buffer);
+        else
+            data->out_size = 0;
+        data->retry_id = 0;
+        data->enable_retry = enable_retry;
+        
+        data->l_output_headers = NULL;
+
+        // save headers
+        if (con->l_output_headers) {
+            for (l = g_list_first (con->l_output_headers); l; l = g_list_next (l)) {
+                HttpConnectionHeader *in_header = (HttpConnectionHeader *) l->data;
+                HttpConnectionHeader *out_header = g_new0 (HttpConnectionHeader, 1);
+
+                out_header->key = g_strdup (in_header->key);
+                out_header->value = g_strdup (in_header->value);
+
+                data->l_output_headers = g_list_append (data->l_output_headers, out_header);
+            }
+
+            http_connection_free_headers (con->l_output_headers);
+            con->l_output_headers = NULL;
+        }
+    } else
+        data = (RequestData *) parent_request_data;
+
     data->responce_cb = responce_cb;
     data->ctx = ctx;
     data->con = con;
-    data->redirects = 0;
-    data->resource_path = url_escape (resource_path);
-    data->http_cmd = g_strdup (http_cmd);
-    data->out_buffer = out_buffer;
-    if (out_buffer)
-        data->out_size = evbuffer_get_length (out_buffer);
-    else
-        data->out_size = 0;
-    data->retry_id = retry_count;
-    data->enable_retry = enable_retry;
     
     if (!strcasecmp (http_cmd, "GET")) {
         cmd_type = EVHTTP_REQ_GET;
@@ -686,7 +745,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         return FALSE;
     }
     
-    auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, con->l_output_headers);
+    auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, data->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     g_free (auth_str);
 
@@ -706,20 +765,17 @@ gboolean http_connection_make_request (HttpConnection *con,
     evhttp_add_header (req->output_headers, "Connection", "keep-alive");
     evhttp_add_header (req->output_headers, "Accept-Encoding", "identify");
 
-    // add headers
-    for (l = g_list_first (con->l_output_headers); l; l = g_list_next (l)) {
+    for (l = g_list_first (data->l_output_headers); l; l = g_list_next (l)) {
         HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
         evhttp_add_header (req->output_headers, 
             header->key, header->value
         );
     }
 
-    http_connection_free_headers (con->l_output_headers);
-    con->l_output_headers = NULL;
-
     if (out_buffer) {
         con->total_bytes_out += evbuffer_get_length (out_buffer);
-        evbuffer_add_buffer (req->output_buffer, out_buffer);
+//        evbuffer_add_buffer (req->output_buffer, out_buffer);
+        evbuffer_add_buffer_reference (req->output_buffer, out_buffer);
     }
 
     if (conf_get_boolean (application_get_conf (con->app), "s3.path_style")) {

@@ -46,7 +46,7 @@ void bucket_client_get (HttpConnection *con, const gchar *req_str,
 
     res = http_connection_make_request (con, 
         req_str, "GET", 
-        NULL, TRUE, 0,
+        NULL, TRUE, NULL,
         bucket_client_on_cb,
         bclient
     );

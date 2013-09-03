@@ -45,9 +45,9 @@ riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 
 *   In order to allow other users to access mounted directory:
 
-    make sure `/etc/fuse.conf` contains `user_allow_other` option
+    - make sure `/etc/fuse.conf` contains `user_allow_other` option
   
-    launch RioFS with  `-o "allow_other"`  parameter
+    - launch RioFS with  `-o "allow_other"`  parameter
 
 * On OS X it is recommended to run RioFS with the `-o "direct_io"` parameter
  

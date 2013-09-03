@@ -43,7 +43,7 @@ riofs [options] [http://s3.amazonaws.com] [bucketname] [mountpoint]
 
 #### Hints
 
-*   In order to allow other users to access mounted directory:
+*   In order to allow other users to access a mounted directory:
 
     - make sure `/etc/fuse.conf` contains `user_allow_other` option
   

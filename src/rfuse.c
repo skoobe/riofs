@@ -47,7 +47,7 @@ struct _RFuse {
     // is the volume mounted?
     gboolean mounted;
 
-#if __APPLE__
+#if defined(__APPLE__)
     pthread_t *unmount_thread;
 #endif
     
@@ -84,10 +84,10 @@ static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name);
 //static void rfuse_on_timer (evutil_socket_t fd, short what, void *arg);
 static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
-#if __APPLE__
-static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t position);
+#if defined(__APPLE__)
+    static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t position);
 #else
-static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
+    static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
 #endif
 static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 
@@ -130,7 +130,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->dir_tree = application_get_dir_tree (app);
     rfuse->mountpoint = g_strdup (mountpoint);
     rfuse->mounted = FALSE;
-#if __APPLE__
+#if defined(__APPLE__)
     rfuse->unmount_thread = NULL;
 #endif
     rfuse->read_ops = rfuse->write_ops = rfuse->readdir_ops = rfuse->lookup_ops = 0;
@@ -214,7 +214,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
 
 void rfuse_destroy (RFuse *rfuse)
 {
-#if __APPLE__
+#if defined(__APPLE__)
     if (rfuse->unmount_thread) {
         // wait for unmount thread to termintate
         pthread_join (*rfuse->unmount_thread, NULL);
@@ -253,7 +253,7 @@ void rfuse_unmount (RFuse *rfuse)
     gboolean destroyed = rfuse->destroyed;
     
     if (rfuse->mounted) {
-#if __APPLE__
+#if defined(__APPLE__)
         // fuse_unmount is synchronous on OS X
         rfuse->unmount_thread = g_new (pthread_t, 1);
         if (!rfuse->unmount_thread ||
@@ -866,10 +866,10 @@ static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
     }
 }
 
-#if __APPLE__
-static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t G_GNUC_UNUSED position)
+#if defined(__APPLE__)
+    static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size, uint32_t G_GNUC_UNUSED position)
 #else
-static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
+    static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
 #endif
 {
     RFuse *rfuse = fuse_req_userdata (req);

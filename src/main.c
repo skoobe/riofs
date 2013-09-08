@@ -192,7 +192,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 
 /*{{{ signal handlers */
 
-#if __APPLE__
+#if defined(__APPLE__)
 
 typedef ucontext_t sig_ucontext_t;
 
@@ -223,7 +223,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     uc = (sig_ucontext_t *)ucontext;
 
     /* Get the address at the time the signal was raised from the EIP (x86) */
-#if __APPLE__
+#if defined(__APPLE__)
 #ifdef __i368__
     caller_address = (void *) uc->uc_mcontext->__ss.__eip;
 #else
@@ -666,7 +666,7 @@ int main (int argc, char *argv[])
     // init main app structure
     ev_config = event_config_new ();
     
-#if __APPLE__
+#if defined(__APPLE__)
     // method select is the preferred method on OS X. kqueue and poll are not supported.
     event_config_avoid_method (ev_config, "kqueue");
     event_config_avoid_method (ev_config, "poll");
@@ -788,7 +788,7 @@ int main (int argc, char *argv[])
                 LIBEVENT_VERSION,
                 FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
         );
-#if __APPLE__
+#if defined(__APPLE__)
         g_fprintf (stdout, "\n");
 #else
         g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());

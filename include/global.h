@@ -31,10 +31,6 @@
 #define _DARWIN_C_SOURCE
 #endif
 
-#ifndef __APPLE__
-#define __APPLE__ 0
-#endif
-
 #include "config.h" 
 
 #include <stdlib.h>
@@ -46,16 +42,20 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <ctype.h>
-#if __APPLE__
-#include <machine/endian.h>
+#if defined(__APPLE__)
+    #include <machine/endian.h>
+#elif defined(__FreeBSD__)
+    #include <sys/endian.h>
 #else
-#include <endian.h>
-#include <gnu/libc-version.h>
+    #include <endian.h>
+    #include <gnu/libc-version.h>
 #endif
+
 #include <execinfo.h>
-#if __APPLE__
-#include <ucontext.h>
+#if defined(__APPLE__)
+    #include <ucontext.h>
 #endif
+
 #include <signal.h>
 #include <sys/queue.h>
 #include <ctype.h>
@@ -63,17 +63,19 @@
 #include <pwd.h>
 #include <sys/resource.h>
 #include <errno.h>
-#if !__APPLE__
-#include <sys/prctl.h>
+
+#if !defined(__APPLE__) || !defined(__FreeBSD__)
+    #include <sys/prctl.h>
 #endif
+
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <math.h>
 #include <ftw.h>
-#include <sys/xattr.h>
-#if __APPLE__
-#include <pthread.h>
+//#include <sys/xattr.h>
+#if defined(__APPLE__)
+    #include <pthread.h>
 #endif
 
 #include <glib.h>
@@ -106,10 +108,10 @@
 #include <libxml/tree.h>
 
 //#define FUSE_USE_VERSION 26
-#if __APPLE__
-#include <fuse_lowlevel.h>
+#if defined(__APPLE__)
+    #include <fuse_lowlevel.h>
 #else
-#include <fuse/fuse_lowlevel.h>
+    #include <fuse/fuse_lowlevel.h>
 #endif
 
 typedef struct _Application Application;

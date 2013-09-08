@@ -52,7 +52,7 @@
 #endif
 
 #include <execinfo.h>
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__FreeBSD__)
     #include <ucontext.h>
 #endif
 
@@ -64,7 +64,7 @@
 #include <sys/resource.h>
 #include <errno.h>
 
-#if !defined(__APPLE__) || !defined(__FreeBSD__)
+#if !defined(__APPLE__) && !defined(__FreeBSD__)
     #include <sys/prctl.h>
 #endif
 

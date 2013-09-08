@@ -192,7 +192,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 
 /*{{{ signal handlers */
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__FreeBSD__)
 
 typedef ucontext_t sig_ucontext_t;
 
@@ -220,21 +220,23 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     
     g_fprintf (stderr, "Got segmentation fault !\n");
 
+// haven't found the way to get caller addr on FreeBSD, and we need to link with -lexecinfo
+#if !defined(__FreeBSD__)
     uc = (sig_ucontext_t *)ucontext;
 
     /* Get the address at the time the signal was raised from the EIP (x86) */
 #if defined(__APPLE__)
-#ifdef __i368__
-    caller_address = (void *) uc->uc_mcontext->__ss.__eip;
-#else
-    caller_address = (void *) uc->uc_mcontext->__ss.__rip;
-#endif
+    #ifdef __i368__
+        caller_address = (void *) uc->uc_mcontext->__ss.__eip;
+    #else
+        caller_address = (void *) uc->uc_mcontext->__ss.__rip;
+    #endif
 #else /* !__APPLE__ */
-#ifdef __i386__
-    caller_address = (void *) uc->uc_mcontext.eip;
-#else
-    caller_address = (void *) uc->uc_mcontext.rip;
-#endif
+    #ifdef __i386__
+        caller_address = (void *) uc->uc_mcontext.eip;
+    #else
+        caller_address = (void *) uc->uc_mcontext.rip;
+    #endif
 #endif /* !__APPLE__ */
 
     f = stderr;
@@ -258,6 +260,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     free (messages);
 
     LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
+#endif // __FreeBSD__
 
     // try to unmount FUSE mountpoint
     if (_app && _app->rfuse)
@@ -788,7 +791,7 @@ int main (int argc, char *argv[])
                 LIBEVENT_VERSION,
                 FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
         );
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__FreeBSD__)
         g_fprintf (stdout, "\n");
 #else
         g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());

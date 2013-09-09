@@ -175,12 +175,9 @@ gboolean application_set_url (Application *app, const gchar *url)
         conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
     } else {
         // add bucket name to s3.amazonaws.com
-        if (!strcmp (evhttp_uri_get_host (app->uri), "s3.amazonaws.com")) {
-            gchar *tmp = g_strdup_printf ("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
-            conf_set_string (app->conf, "s3.host", tmp);
-            g_free (tmp);
-        } else
-            conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
+        gchar *tmp = g_strdup_printf ("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
+        conf_set_string (app->conf, "s3.host", tmp);
+        g_free (tmp);
     }
 
     conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
@@ -697,7 +694,7 @@ int main (int argc, char *argv[])
 /*{{{ cmd line args */
 
     // parse command line options
-    context = g_option_context_new ("[http://s3.amazonaws.com] [bucketname] [mountpoint]");
+    context = g_option_context_new ("[bucketname] [mountpoint]");
     g_option_context_add_main_entries (context, entries, NULL);
     g_option_context_set_description (context, "Please set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables!");
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
@@ -843,7 +840,7 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    if (!s_params || g_strv_length (s_params) != 3) {
+    if (!s_params || g_strv_length (s_params) != 2) {
         LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
         application_destroy (app);
         return -1;
@@ -862,8 +859,8 @@ int main (int argc, char *argv[])
     if (disable_stats)
         conf_set_boolean (app->conf, "statistics.enabled", FALSE);
 
-    conf_set_string (app->conf, "s3.bucket_name", s_params[1]);
-    if (!application_set_url (app, s_params[0])) {
+    conf_set_string (app->conf, "s3.bucket_name", s_params[0]);
+    if (!application_set_url (app, conf_get_string (app->conf, "s3.endpoint"))) {
         application_destroy (app);
         return -1;
     }
@@ -887,7 +884,7 @@ int main (int argc, char *argv[])
         g_strfreev (s_log_file);
     }
 
-    conf_set_string (app->conf, "app.mountpoint", s_params[2]);
+    conf_set_string (app->conf, "app.mountpoint", s_params[1]);
 
     // check if directory exists
     if (stat (conf_get_string (app->conf, "app.mountpoint"), &st) == -1) {

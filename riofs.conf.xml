@@ -24,6 +24,11 @@
 <s3>
     <!-- Set True to use old-style S3 path -->
     <path_style type="boolean">False</path_style>
+
+    <!-- S3 endpoint, must be set to the correct bucket region (only used for path-style access)
+         See http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region for options. -->
+    <endpoint type="string">http://s3.amazonaws.com</endpoint>
+
     <!-- The maximum number of keys returned in the response body. -->
     <keys_per_request type="uint">1000</keys_per_request>
     

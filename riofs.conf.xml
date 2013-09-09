@@ -87,7 +87,4 @@
     <!-- URI path -->
     <stats_path type="string">/stats</stats_path>
     <history_size type="uint">1000</history_size>
-
-    <!-- Replace this access_key string with your own random string !! -->
-    <access_key type="string">iddqd</access_key>
 </statistics>

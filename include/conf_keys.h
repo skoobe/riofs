@@ -48,8 +48,7 @@ const gchar *conf_keys_str[] = {
     "statistics.host",
     "statistics.port",
     "statistics.stats_path",
-    "statistics.history_size",
-    "statistics.access_key"
+    "statistics.history_size"
 };
 
 guint conf_keys_len = sizeof (conf_keys_str) / sizeof (conf_keys_str[0]);

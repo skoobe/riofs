@@ -125,7 +125,6 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     guint64 read_ops, write_ops, readdir_ops, lookup_ops;
     guint32 cache_entries;
     guint64 total_cache_size, cache_hits, cache_miss;
-    gboolean permitted = FALSE;
     struct tm *cur_p;
     struct tm cur;
     time_t now;
@@ -140,7 +139,6 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
         
         query = evhttp_uri_get_query (uri);
         if (query) {
-            const gchar *access_key = NULL;
             const gchar *refresh = NULL;
             struct evkeyvalq q_params;
             
@@ -149,18 +147,10 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
             refresh = http_find_header (&q_params, "refresh");
             if (refresh)
                 ref = atoi (refresh);
-            access_key = http_find_header (&q_params, "access_key");
-            if (access_key && !strcmp (access_key, conf_get_string (application_get_conf (stat_srv->app), "statistics.access_key")))
-                permitted = TRUE;
 
             evhttp_clear_headers (&q_params);
         }
         evhttp_uri_free (uri);
-    }
-
-    if (!permitted) {
-        evhttp_send_reply (req, HTTP_NOTFOUND, "Not found", NULL);
-        return;
     }
 
     str = g_string_new (NULL);

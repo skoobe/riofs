@@ -139,7 +139,7 @@ static gboolean http_connection_init (HttpConnection *con)
     return TRUE;
 }
 
-// destory HttpConnection)
+// destroy HttpConnection)
 void http_connection_destroy (gpointer data)
 {
     HttpConnection *con = (HttpConnection *) data;

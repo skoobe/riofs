@@ -44,8 +44,8 @@
     <check_empty_files type="boolean">True</check_empty_files>
 
     <!-- Storage class to use for storing the object. 
-		 Valid Values: STANDARD | REDUCED_REDUNDANCY 
-		 Please read S3 documentation before changing this value ! -->
+         Valid Values: STANDARD | REDUCED_REDUNDANCY 
+         Please read S3 documentation before changing this value ! -->
     <storage_type type="string">STANDARD</storage_type>
 
     <!-- Use either environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY or configuration file.

@@ -81,7 +81,7 @@
     <enabled type="boolean">False</enabled>
 
     <!-- set host to bind server to, or 0.0.0.0 to bind on all available interfaces -->
-    <host type="string">0.0.0.0</host>
+    <host type="string">127.0.0.1</host>
     <port type="int">8011</port>
 
     <!-- URI path -->

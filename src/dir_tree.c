@@ -359,7 +359,7 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
             type, parent_ino, size, last_modified);
     }
 
-    LOG_debug (DIR_TREE_LOG, INO_H"Updating %s, size: %ld", INO_T (en->ino), entry_name, size);
+    LOG_debug (DIR_TREE_LOG, INO_H"Updating %s, size: %lld", INO_T (en->ino), entry_name, size);
 
     return en;
 }
@@ -501,7 +501,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
         //free buffer
         g_free (b.p);
         
-        LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u, items: %u", INO_T (dir_fill_data->ino), en->dir_cache_created, items);
+        LOG_debug (DIR_TREE_LOG, INO_H"Dir cache updated: %u, items: %u", INO_T (dir_fill_data->ino), (guint)en->dir_cache_created, items);
     }
 
     g_free (dir_fill_data);
@@ -1578,7 +1578,7 @@ void dir_tree_file_unlink (DirTree *dtree, fuse_ino_t parent_ino, const char *na
 {
     DirEntry *en, *parent_en;
     
-    LOG_debug (DIR_TREE_LOG, "Unlinking %s, parent_ino: %"INO_FMT, name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Unlinking %s, parent_ino: %"INO_FMT, name, INO parent_ino);
 
     parent_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     if (!parent_en) {
@@ -1640,7 +1640,7 @@ gboolean dir_tree_dir_remove (DirTree *dtree, fuse_ino_t parent_ino, const char 
     }
 
     if (!entries_removed) {
-        LOG_debug (DIR_TREE_LOG, INO_H"Directory is not empty, items: %zu !", INO_T (en->ino), g_hash_table_size (en->h_dir_tree));
+        LOG_debug (DIR_TREE_LOG, INO_H"Directory is not empty, items: %u !", INO_T (en->ino), g_hash_table_size (en->h_dir_tree));
         return FALSE;
     }
 
@@ -1661,7 +1661,7 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
 {
     DirEntry *dir_en, *en;
     
-    LOG_debug (DIR_TREE_LOG, "Creating dir: %s, parent_ino: %"INO_FMT, name, parent_ino);
+    LOG_debug (DIR_TREE_LOG, "Creating dir: %s, parent_ino: %"INO_FMT, name, INO parent_ino);
     
     dir_en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (parent_ino));
     
@@ -1677,7 +1677,7 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
         // create a new entry
         en = dir_tree_add_entry (dtree, name, mode, DET_dir, parent_ino, 10, time (NULL));
         if (!en) {
-            LOG_err (DIR_TREE_LOG, "Failed to create dir: %s, parent_ino: %"INO_FMT, name, parent_ino);
+            LOG_err (DIR_TREE_LOG, "Failed to create dir: %s, parent_ino: %"INO_FMT, name, INO parent_ino);
             mkdir_cb (req, FALSE, 0, 0, 0, 0);
             return;
         }
@@ -1811,7 +1811,7 @@ static void dir_tree_on_rename_delete_con_cb (gpointer client, gpointer ctx)
    
     en = g_hash_table_lookup (parent_en->h_dir_tree, rdata->name);
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, rdata->name, rdata->parent_ino);
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, rdata->name, INO rdata->parent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1872,7 +1872,7 @@ static void dir_tree_on_rename_copy_cb (HttpConnection *con, gpointer ctx, gbool
 
     en = g_hash_table_lookup (newparent_en->h_dir_tree, rdata->newname);
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, rdata->newname, rdata->newparent_ino);
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, rdata->newname, INO rdata->newparent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);
@@ -1918,7 +1918,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
    
     en = g_hash_table_lookup (parent_en->h_dir_tree, rdata->name);
     if (!en) {
-        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, rdata->name, rdata->parent_ino);
+        LOG_debug (DIR_TREE_LOG, "Entry '%s' not found, parent_ino: %"INO_FMT, rdata->name, INO rdata->parent_ino);
         if (rdata->rename_cb)
             rdata->rename_cb (rdata->req, FALSE);
         rename_data_destroy (rdata);

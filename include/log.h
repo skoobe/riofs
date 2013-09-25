@@ -28,7 +28,7 @@ enum _LogLevel {
 
 void logger_log_msg (const gchar *file, gint line, const gchar *func,
         LogLevel level, const gchar *subsystem,
-        const gchar *format, ...);
+        const gchar *format, ...) __attribute__((format(printf, 6, 7)));
 
 void logger_set_syslog (gboolean use);
 void logger_set_color (gboolean use);

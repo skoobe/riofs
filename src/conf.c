@@ -239,7 +239,7 @@ gboolean conf_parse_file (ConfData *conf, const gchar *filename)
 
     error = NULL;
     if (!g_file_get_contents (filename, &contents, &length, &error)) {
-        LOG_err (CONF, error->message);
+        LOG_err (CONF, "%s", error->message);
         g_error_free (error);
         return FALSE;
     }

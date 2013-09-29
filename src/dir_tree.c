@@ -103,6 +103,8 @@ DirTree *dir_tree_create (Application *app)
     dtree->fmode = conf_get_int (application_get_conf (app), "filesystem.file_mode");
     if (dtree->fmode < 0)
         dtree->fmode = FILE_DEFAULT_MODE;
+    else
+        dtree->fmode = dtree->fmode | S_IFREG;
 
     dtree->dmode = conf_get_int (application_get_conf (app), "filesystem.dir_mode");
     if (dtree->dmode < 0)

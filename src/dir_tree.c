@@ -69,6 +69,10 @@ struct _DirTree {
     fuse_ino_t max_ino; // value for the new DirEntry->ino
 
     gint64 current_write_ops; // the number of current write operations
+
+    // files and directories mode, -1 to use the default value
+    gint fmode;
+    gint dmode;
 };
 
 #define DIR_TREE_LOG "dir_tree"
@@ -96,7 +100,17 @@ DirTree *dir_tree_create (Application *app)
     dtree->max_ino = FUSE_ROOT_ID;
     dtree->current_write_ops = 0;
 
-    dtree->root = dir_tree_add_entry (dtree, "/", DIR_DEFAULT_MODE, DET_dir, 0, 0, time (NULL));
+    dtree->fmode = conf_get_int (application_get_conf (app), "filesystem.file_mode");
+    if (dtree->fmode < 0)
+        dtree->fmode = FILE_DEFAULT_MODE;
+
+    dtree->dmode = conf_get_int (application_get_conf (app), "filesystem.dir_mode");
+    if (dtree->dmode < 0)
+        dtree->dmode = DIR_DEFAULT_MODE;
+    else
+        dtree->dmode = dtree->dmode | S_IFDIR;
+
+    dtree->root = dir_tree_add_entry (dtree, "/", dtree->dmode, DET_dir, 0, 0, time (NULL));
 
     LOG_debug (DIR_TREE_LOG, "DirTree created");
 
@@ -351,9 +365,9 @@ DirEntry *dir_tree_update_entry (DirTree *dtree, G_GNUC_UNUSED const gchar *path
         mode_t mode;
 
         if (type == DET_file)
-            mode = FILE_DEFAULT_MODE;
+            mode = dtree->fmode;
         else
-            mode = DIR_DEFAULT_MODE;
+            mode = dtree->dmode;
             
         en = dir_tree_add_entry (dtree, entry_name, mode,
             type, parent_ino, size, last_modified);
@@ -739,7 +753,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     content_type = http_find_header (headers, "Content-Type");
     if (content_type && !strncmp ((const char *)content_type, "application/x-directory", strlen ("application/x-directory"))) {
         en->type = DET_dir;
-        en->mode = DIR_DEFAULT_MODE;
+        en->mode = op_data->dtree->dmode;
         
         if (!en->h_dir_tree)
             en->h_dir_tree = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, dir_entry_destroy);
@@ -832,7 +846,7 @@ static void dir_tree_on_lookup_not_found_cb (HttpConnection *con, void *ctx, gbo
 
         // create a temporary entry to hold this object
         // this is required to avoid further HEAD requests
-        en = dir_tree_add_entry (op_data->dtree, op_data->name, FILE_DEFAULT_MODE, DET_file, op_data->parent_ino, 0, time (NULL));
+        en = dir_tree_add_entry (op_data->dtree, op_data->name, op_data->dtree->fmode, DET_file, op_data->parent_ino, 0, time (NULL));
         if (!en) {
             LOG_err (DIR_TREE_LOG, INO_H"Failed to create file: %s !", INO_T (op_data->ino), op_data->name);
         } else {
@@ -1704,7 +1718,7 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
     // do not delete it
     // en->age = G_MAXUINT32;
     en->removed = FALSE;
-    en->mode = DIR_DEFAULT_MODE;
+    en->mode = dtree->dmode;
     en->age = dir_en->age;
 
     mkdir_cb (req, TRUE, en->ino, en->mode, en->size, en->ctime);

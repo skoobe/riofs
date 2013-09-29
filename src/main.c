@@ -624,6 +624,10 @@ int main (int argc, char *argv[])
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
     gboolean disable_stats = FALSE;
+    gint uid = -1;
+    gint gid = -1;
+    gint fmode = -1;
+    gint dmode = -1;
 
     struct event_config *ev_config;
     
@@ -634,6 +638,12 @@ int main (int argc, char *argv[])
     GOptionEntry entries[] = {
         { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &s_params, NULL, NULL },
         { "config", 'c', 0, G_OPTION_ARG_FILENAME_ARRAY, &s_config, conf_str, NULL},
+
+        { "uid", 0, 0, G_OPTION_ARG_INT, &uid, "Set UID of filesystem owner.", NULL },
+        { "gid", 0, 0, G_OPTION_ARG_INT, &gid, "Set GID of filesystem owner.", NULL },
+        { "fmode", 0, 0, G_OPTION_ARG_INT, &fmode, "Set mode for all files.", NULL },
+        { "dmode", 0, 0, G_OPTION_ARG_INT, &dmode, "Set mode for all directories.", NULL },
+
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
         { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
         { "fuse-options", 'o', 0, G_OPTION_ARG_STRING_ARRAY, &s_fuse_opts, "Fuse options.", "\"opt[,opt...]\"" },
@@ -775,6 +785,19 @@ int main (int argc, char *argv[])
 
     if (!verbose)
         log_level = conf_get_int (app->conf, "log.level");
+
+    if (uid >= 0)
+        conf_set_int (app->conf, "filesystem.uid", uid);
+  
+    if (gid >= 0)
+        conf_set_int (app->conf, "filesystem.gid", gid);
+
+    if (fmode >= 0)
+        conf_set_int (app->conf, "filesystem.file_mode", fmode);
+    
+    if (dmode >= 0)
+        conf_set_int (app->conf, "filesystem.dir_mode", dmode);
+
 /*}}}*/
     
     // check if --version is specified

@@ -71,6 +71,13 @@
 </connection>
 
 <filesystem>
+    <!-- set uid / gid of the owners of filesystem, -1 to use the default value -->
+    <uid type="int">-1</uid>
+    <gid type="int">-1</gid>
+    <!-- set default mode for all files and directories, -1 to use the default value -->
+    <dir_mode type="int">-1</dir_mode>
+    <file_mode type="int">-1</file_mode>
+
     <!-- time to keep directory cache (seconds) -->
     <dir_cache_max_time type="uint">300</dir_cache_max_time>
 

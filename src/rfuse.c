@@ -56,6 +56,10 @@ struct _RFuse {
     guint64 write_ops;
     guint64 readdir_ops;
     guint64 lookup_ops;
+
+    // owner of filesystem, -1 to use the default value
+    gint uid;
+    gint gid;
 };
 
 #define FUSE_LOG "fuse"
@@ -124,6 +128,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     RFuse *rfuse;
     //struct timeval tv;
     struct fuse_args args = FUSE_ARGS_INIT (0, NULL);
+    gchar *opts;
 
     rfuse = g_new0 (RFuse, 1);
     rfuse->app = app;
@@ -135,22 +140,30 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
 #endif
     rfuse->read_ops = rfuse->write_ops = rfuse->readdir_ops = rfuse->lookup_ops = 0;
 
-    if (fuse_opts) {
-        if (fuse_opt_add_arg (&args, "riofs") == -1) {
-            LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
-            return NULL;
-        }
+    rfuse->uid = conf_get_int (application_get_conf (app), "filesystem.uid");
+    rfuse->gid = conf_get_int (application_get_conf (app), "filesystem.gid");
 
-        if (fuse_opt_add_arg (&args, "-o") == -1) {
-            LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
-            return NULL;
-        }
+    if (fuse_opts)
+        opts = g_strdup_printf ("default_permissions,%s", fuse_opts);
+    else
+        opts = g_strdup ("default_permissions");
 
-        if (fuse_opt_add_arg (&args, fuse_opts) == -1) {
-            LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
-            return NULL;
-        }
+    if (fuse_opt_add_arg (&args, "riofs") == -1) {
+        LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
+        return NULL;
     }
+
+    if (fuse_opt_add_arg (&args, "-o") == -1) {
+        LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
+        return NULL;
+    }
+
+    if (fuse_opt_add_arg (&args, opts) == -1) {
+        LOG_err (FUSE_LOG, "Failed to parse FUSE parameter !");
+        return NULL;
+    }
+
+    g_free (opts);
 
     if ((rfuse->chan = fuse_mount (rfuse->mountpoint, &args)) == NULL) {
         LOG_err (FUSE_LOG, "Failed to mount FUSE partition !");
@@ -457,13 +470,14 @@ static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 static void rfuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
     struct stat stbuf;
+    RFuse *rfuse = fuse_req_userdata (req);
 
     LOG_debug (FUSE_LOG, INO_H"getattr_cb, success: %s", INO_T (ino), success?"YES":"NO");
     if (!success) {
         fuse_reply_err (req, ENOENT);
         return;
     }
-    memset (&stbuf, 0, sizeof(stbuf));
+    memset (&stbuf, 0, sizeof (stbuf));
     stbuf.st_ino = ino;
     stbuf.st_mode = mode;
     stbuf.st_nlink = 1;
@@ -471,7 +485,11 @@ static void rfuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
     stbuf.st_ctime = ctime;
     stbuf.st_atime = ctime;
     stbuf.st_mtime = ctime;
-    
+    if (rfuse->uid >= 0)
+        stbuf.st_uid = rfuse->uid;
+    if (rfuse->gid >= 0)
+        stbuf.st_gid = rfuse->gid;
+   
     fuse_reply_attr (req, &stbuf, 1.0);
 }
 
@@ -492,6 +510,7 @@ static void rfuse_getattr (fuse_req_t req, fuse_ino_t ino, G_GNUC_UNUSED struct 
 static void rfuse_setattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size)
 {
     struct stat stbuf;
+    RFuse *rfuse = fuse_req_userdata (req);
 
     LOG_debug (FUSE_LOG, "setattr_cb  success: %s", success?"YES":"NO");
     if (!success) {
@@ -503,7 +522,11 @@ static void rfuse_setattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
     stbuf.st_mode = mode;
     stbuf.st_nlink = 1;
     stbuf.st_size = file_size;
-    
+    if (rfuse->uid >= 0)
+        stbuf.st_uid = rfuse->uid;
+    if (rfuse->gid >= 0)
+        stbuf.st_gid = rfuse->gid;
+
     fuse_reply_attr (req, &stbuf, 1.0);
 }
 
@@ -523,6 +546,7 @@ static void rfuse_setattr (fuse_req_t req, fuse_ino_t ino, struct stat *attr, in
 static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
     struct fuse_entry_param e;
+    RFuse *rfuse = fuse_req_userdata (req);
 
     LOG_debug (FUSE_LOG, INO_H"lookup_cb, file size: %"OFF_FMT" success: %s", INO_T (ino), file_size, success?"YES":"NO");
     if (!success) {
@@ -542,6 +566,10 @@ static void rfuse_lookup_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, i
     e.attr.st_ctime = ctime;
     e.attr.st_atime = ctime;
     e.attr.st_mtime = ctime;
+    if (rfuse->uid >= 0)
+        e.attr.st_uid = rfuse->uid;
+    if (rfuse->gid >= 0)
+        e.attr.st_gid = rfuse->gid;
 
     fuse_reply_entry (req, &e);
 }
@@ -587,6 +615,7 @@ static void rfuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *f
 void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, struct fuse_file_info *fi)
 {
     struct fuse_entry_param e;
+    RFuse *rfuse = fuse_req_userdata (req);
 
     LOG_debug (FUSE_LOG, INO_FI_H"add_file_cb  success: %s", INO_T (ino), fi, success?"YES":"NO");
     if (!success) {
@@ -603,6 +632,10 @@ void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode
     e.attr.st_mode = mode;
     e.attr.st_nlink = 1;
     e.attr.st_size = file_size;
+    if (rfuse->uid >= 0)
+        e.attr.st_uid = rfuse->uid;
+    if (rfuse->gid >= 0)
+        e.attr.st_gid = rfuse->gid;
 
     fuse_reply_create (req, &e, fi);
 }
@@ -749,6 +782,7 @@ static void rfuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name)
 static void rfuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
 {
     struct fuse_entry_param e;
+    RFuse *rfuse = fuse_req_userdata (req);
 
     LOG_debug (FUSE_LOG, "mkdir_cb  success: %s, ino: %"INO_FMT, success?"YES":"NO", INO ino);
     if (!success) {
@@ -760,12 +794,15 @@ static void rfuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, in
     e.ino = ino;
     e.attr_timeout = ATTR_TIMEOUT;
     e.entry_timeout = ENTRY_TIMEOUT;
-    //e.attr.st_mode = S_IFDIR | 0755;
     e.attr.st_mode = mode;
     e.attr.st_nlink = 1;
     e.attr.st_ctime = ctime;
     e.attr.st_atime = ctime;
     e.attr.st_mtime = ctime;
+    if (rfuse->uid >= 0)
+        e.attr.st_uid = rfuse->uid;
+    if (rfuse->gid >= 0)
+        e.attr.st_gid = rfuse->gid;
     
     e.attr.st_ino = ino;
     e.attr.st_size = file_size;

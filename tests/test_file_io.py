@@ -52,7 +52,7 @@ class App ():
             if platform.system() == "Darwin":
                 # disable all local caching
                 args.extend(["-o", "direct_io"])
-            args.extend(["http://s3.amazonaws.com", self.bucket, mnt_dir])
+            args.extend([self.bucket, mnt_dir])
             print "Starting RioFS: " + " ".join (args)
             try:
                 os.execv(args[0], args)

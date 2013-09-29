@@ -36,9 +36,8 @@ def pid_exists(pid):
 
 class s3ffsServer(object):
 
-    def __init__(self, bucket, mountpoint, endpoint="http://localhost:9010"):
+    def __init__(self, bucket, mountpoint):
         self.bucket = bucket
-        self.endpoint = endpoint
         self.mountpoint = mountpoint
         self.pid = None
 
@@ -52,7 +51,7 @@ class s3ffsServer(object):
         if self.pid == 0:
             base_path = os.path.join(os.path.dirname(__file__), '..')
             bin_path = os.path.join(base_path, "src")
-            args = [os.path.join(bin_path, "s3ffs"), self.endpoint, self.bucket, "-f", self.mountpoint, "--path-style", "--part-size=2147483647"]
+            args = [os.path.join(bin_path, "s3ffs"), self.bucket, "-f", self.mountpoint, "--path-style", "--part-size=2147483647"]
             env = {"AWSACCESSKEYID": os.getenv("AWSACCESSKEYID") or "X",
                    "AWSSECRETACCESSKEY": os.getenv("AWSSECRETACCESSKEY") or "X"}
             os.execve(args[0], args, env)

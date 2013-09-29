@@ -21,8 +21,7 @@ class AmazonTestCase(unittest.TestCase):
         # doesn't call tearDown(), hence we need to make sure we don't
         # leave any server processes running.
         try:
-            self.s3ffs = s3ffsServer("s3ffs-us", mountpoint=self.local,
-                                     endpoint="http://s3.amazonaws.com").start()
+            self.s3ffs = s3ffsServer("s3ffs-us", mountpoint=self.local).start()
         except Exception:
             self.tearDown()
             raise

@@ -109,4 +109,6 @@ void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
 
 void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_num, guint32 *dir_num);
 
+guint dir_tree_get_inode_count (DirTree *dtree);
+
 #endif

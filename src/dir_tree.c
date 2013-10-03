@@ -125,6 +125,7 @@ void dir_tree_destroy (DirTree *dtree)
     dir_entry_destroy (dtree->root);
     g_free (dtree);
 }
+
 /*}}}*/
 
 /*{{{ dir_entry operations */
@@ -2299,4 +2300,10 @@ void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_nu
         }
     }
 }
+
+guint dir_tree_get_inode_count (DirTree *dtree)
+{
+    return g_hash_table_size (dtree->h_inodes);
+}
+
 /*}}}*/

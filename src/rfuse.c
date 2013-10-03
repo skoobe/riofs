@@ -94,6 +94,7 @@ static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, f
     static void rfuse_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size);
 #endif
 static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
+static void rfuse_statfs (fuse_req_t req, fuse_ino_t ino);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
@@ -116,6 +117,7 @@ static struct fuse_lowlevel_ops rfuse_opers = {
     .rename     = rfuse_rename,
     .getxattr   = rfuse_getxattr,
     .listxattr  = rfuse_listxattr,
+    .statfs     = rfuse_statfs,
 };
 /*}}}*/
 
@@ -927,5 +929,24 @@ void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops, guint
     *write_ops = rfuse->write_ops;
     *readdir_ops = rfuse->readdir_ops;
     *lookup_ops = rfuse->lookup_ops;
+}
+/*}}}*/
+
+/*{{{ statfs*/
+static void rfuse_statfs (fuse_req_t req, fuse_ino_t ino)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+    struct statvfs st;
+
+    LOG_debug (FUSE_LOG, INO_H"statfs", INO_T (ino));
+    
+    memset (&st, sizeof (struct statvfs), 0);
+    
+    st.f_bsize  = 0X1000000;
+    st.f_blocks = 0X1000000;
+    st.f_bfree  = 0x1000000;
+    st.f_bavail = 0x1000000;
+    st.f_namemax = NAME_MAX;
+    fuse_reply_statfs (req, &st);
 }
 /*}}}*/

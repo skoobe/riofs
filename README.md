@@ -63,4 +63,6 @@ riofs [options] [bucketname] [mountpoint]
 
 * Appending data to an existing file is not supported.
 
+* Folder renaming is not supported.
+
 * A file system for the S3 API is a [leaky abstraction](http://en.wikipedia.org/wiki/Leaky_abstraction). Don't expect POSIX file system semantics.

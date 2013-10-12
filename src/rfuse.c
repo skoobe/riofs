@@ -145,6 +145,11 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
     rfuse->uid = conf_get_int (application_get_conf (app), "filesystem.uid");
     rfuse->gid = conf_get_int (application_get_conf (app), "filesystem.gid");
 
+    if (rfuse->uid < 0)
+        rfuse->uid = getuid ();
+    if (rfuse->gid < 0)
+        rfuse->gid = getgid ();
+
     if (fuse_opts)
         opts = g_strdup_printf ("default_permissions,%s", fuse_opts);
     else
@@ -935,12 +940,11 @@ void rfuse_get_stats (RFuse *rfuse, guint64 *read_ops, guint64 *write_ops, guint
 /*{{{ statfs*/
 static void rfuse_statfs (fuse_req_t req, fuse_ino_t ino)
 {
-    RFuse *rfuse = fuse_req_userdata (req);
     struct statvfs st;
 
     LOG_debug (FUSE_LOG, INO_H"statfs", INO_T (ino));
     
-    memset (&st, sizeof (struct statvfs), 0);
+    memset (&st, 0, sizeof (struct statvfs));
     
     st.f_bsize  = 0X1000000;
     st.f_blocks = 0X1000000;

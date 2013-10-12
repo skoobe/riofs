@@ -19,6 +19,7 @@
 #include "http_connection.h"
 #include "cache_mng.h"
 #include "utils.h"
+#include "dir_tree.h"
 
 /*{{{ struct */
 struct _FileIO {
@@ -428,6 +429,9 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
             wdata->ino, versioning_header);
     }
 
+    // empty part buffer
+    evbuffer_drain (wdata->fop->write_buf, -1);
+
     // done sending part
     wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, TRUE, wdata->buf_size);
     g_free (wdata);
@@ -642,6 +646,8 @@ void fileio_write_buffer (FileIO *fop,
     evbuffer_add (fop->write_buf, buf, buf_size);
     fop->current_size += buf_size;
 
+    LOG_debug (FIO_LOG, INO_H"Write buf size: %zd", INO_T (ino), evbuffer_get_length (fop->write_buf));
+
     // CacheMng
     cache_mng_store_file_buf (application_get_cache_mng (fop->app), 
         ino, buf_size, off, (unsigned char *) buf, 
@@ -831,6 +837,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 {   
     FileReadData *rdata = (FileReadData *) ctx;
     const char *content_len_header;
+    DirTree *dtree;
      
     // release HttpConnection
     http_connection_release (con);
@@ -843,6 +850,9 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     }
 
     rdata->fop->head_req_sent = TRUE;
+    // update DirTree
+    dtree = application_get_dir_tree (rdata->fop->app);
+    dir_tree_set_entry_exist (dtree, rdata->ino);
     
     // consistency checking:
 

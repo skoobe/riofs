@@ -40,6 +40,7 @@ const gchar *conf_keys_str[] = {
     "connection.max_redirects",
     "connection.max_retries",
     "filesystem.dir_cache_max_time",
+    "filesystem.file_cache_max_time",
     "filesystem.md5_enabled",
     "filesystem.cache_enabled",
     "filesystem.cache_dir",

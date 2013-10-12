@@ -786,9 +786,10 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_str = g_strdup_printf ("%s", data->resource_path);
     }
 
-    LOG_msg (CON_LOG, CON_H"%s %s  bucket: %s, host: %s", con,
+    LOG_msg (CON_LOG, CON_H"%s %s  bucket: %s, host: %s, out_len: %zd", con,
         http_cmd, request_str, 
-        conf_get_string (application_get_conf (con->app), "s3.bucket_name"), conf_get_string (application_get_conf (con->app), "s3.host"));
+        conf_get_string (application_get_conf (con->app), "s3.bucket_name"), conf_get_string (application_get_conf (con->app), "s3.host"),
+        out_buffer ? evbuffer_get_length (out_buffer) : 0);
     
     // update stats info
     con->cur_cmd_type = cmd_type;

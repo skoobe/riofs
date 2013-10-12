@@ -1,5 +1,5 @@
 AC_PREREQ(2.61)
-AC_INIT([riofs], [0.4], [paul.ionkin@gmail.com])
+AC_INIT([riofs], [0.5], [paul.ionkin@gmail.com])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE 

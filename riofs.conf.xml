@@ -4,7 +4,7 @@
 
 <log>
     <!-- use syslog for error messages -->
-    <use_syslog type="boolean">True</use_syslog>
+    <use_syslog type="boolean">False</use_syslog>
     <use_color type="boolean">False</use_color>
 
     <!-- log level - LOG_err = 0, LOG_msg = 1, LOG_debug = 2 -->
@@ -71,7 +71,7 @@
 </connection>
 
 <filesystem>
-    <!-- set uid / gid of the owners of filesystem, -1 to use the default value -->
+    <!-- set uid / gid of the owners of filesystem, -1 to use the current uid / gid of the calling process. -->
     <uid type="int">-1</uid>
     <gid type="int">-1</gid>
     <!-- set default mode for all files and directories, -1 to use the default value -->

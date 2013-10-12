@@ -653,7 +653,7 @@ int main (int argc, char *argv[])
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
         { "log-file", 'l', 0, G_OPTION_ARG_STRING_ARRAY, &s_log_file, "File to write output.", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
-        { "version", 0, 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
+        { "version", 'V', 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
         { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
     };
 
@@ -715,6 +715,40 @@ int main (int argc, char *argv[])
     }
     g_option_context_free (context);
 
+        // check if --version is specified
+    if (version) {
+        g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
+        g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
+        g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
+        g_fprintf (stdout, "Libraries:\n");
+        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d",
+                GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,
+                LIBEVENT_VERSION,
+                FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
+        );
+#if defined(__APPLE__) || defined(__FreeBSD__)
+        g_fprintf (stdout, "\n");
+#else
+        g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());
+#endif
+        g_fprintf (stdout, "Features:\n");
+        g_fprintf (stdout, " libevent backend method: %s\n", event_base_get_method(app->evbase));
+
+        /*
+        {
+            int i;
+            const char **methods = event_get_supported_methods ();
+
+            g_fprintf (stdout, " Available libevent backend methods:\n");
+            for (i = 0; methods[i] != NULL; ++i) {
+                g_fprintf (stdout, "  %s\n", methods[i]);
+            }
+        }
+        */
+
+        return 0;
+    }
+
     if (verbose)
         log_level = LOG_debug;
     else
@@ -742,27 +776,9 @@ int main (int argc, char *argv[])
         }
 
     } else {
-        LOG_debug (APP_LOG, "Configuration file does not exist, using predefined values.");
-        conf_set_boolean (app->conf, "log.use_syslog", FALSE);
-        conf_set_boolean (app->conf, "log.use_color", FALSE);
-        conf_set_int (app->conf, "log.level", LOG_msg);
-        
-        conf_set_int (app->conf, "pool.writers", 2);
-        conf_set_int (app->conf, "pool.readers", 2);
-        conf_set_int (app->conf, "pool.operations", 4);
-        conf_set_uint (app->conf, "pool.max_requests_per_pool", 100);
-
-        conf_set_int (app->conf, "connection.timeout", -1);
-        conf_set_int (app->conf, "connection.retries", -1);
-        conf_set_int (app->conf, "connection.max_redirects", 20);
-
-        conf_set_uint (app->conf, "s3.part_size", 1000);
-        conf_set_uint (app->conf, "s3.keys_per_request", 5242880);
-
-        conf_set_uint (app->conf, "filesystem.cache_dir_max_size", 1073741824);
-        conf_set_uint (app->conf, "filesystem.dir_cache_max_time", 5);
-        conf_set_boolean (app->conf, "filesystem.cache_enabled", TRUE);
-        conf_set_string (app->conf, "filesystem.cache_dir", "/tmp/");
+        LOG_err (APP_LOG, "Configuration file is not found !");
+        application_destroy (app);
+        return -1;
     }
 
     if (!conf_check_keys (app->conf, conf_keys_str, conf_keys_len)) {
@@ -800,41 +816,6 @@ int main (int argc, char *argv[])
 
 /*}}}*/
     
-    // check if --version is specified
-    if (version) {
-        g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
-        g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
-        g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
-        g_fprintf (stdout, "Libraries:\n");
-        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d",
-                GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,
-                LIBEVENT_VERSION,
-                FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
-        );
-#if defined(__APPLE__) || defined(__FreeBSD__)
-        g_fprintf (stdout, "\n");
-#else
-        g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());
-#endif
-        g_fprintf (stdout, "Features:\n");
-        g_fprintf (stdout, " Cache enabled: %s\n", conf_get_boolean (app->conf, "filesystem.cache_enabled") ? "True" : "False");
-        g_fprintf (stdout, " libevent backend method: %s\n", event_base_get_method(app->evbase));
-
-        /*
-        {
-            int i;
-            const char **methods = event_get_supported_methods ();
-
-            g_fprintf (stdout, " Available libevent backend methods:\n");
-            for (i = 0; methods[i] != NULL; ++i) {
-                g_fprintf (stdout, "  %s\n", methods[i]);
-            }
-        }
-        */
-
-        return 0;
-    }
-
     // try to get access parameters from the environment
     if (getenv ("AWS_ACCESS_KEY_ID")) {
         conf_set_string (app->conf, "s3.access_key_id", getenv ("AWS_ACCESS_KEY_ID"));

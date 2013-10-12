@@ -973,6 +973,20 @@ static void dir_tree_on_lookup_read (G_GNUC_UNUSED fuse_req_t req, gboolean succ
     g_free (op_data);
 }
 
+void dir_tree_set_entry_exist (DirTree *dtree, fuse_ino_t ino)
+{
+    DirEntry *en;
+
+    en = g_hash_table_lookup (dtree->h_inodes, GUINT_TO_POINTER (ino));
+    
+    if (!en || en->type != DET_file) {
+        LOG_msg (DIR_TREE_LOG, INO_H"File not found !", INO_T (ino));
+        return;
+    }
+
+    en->removed = FALSE;
+}
+
 // lookup entry and return attributes
 void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
     dir_tree_lookup_cb lookup_cb, fuse_req_t req)
@@ -1038,16 +1052,20 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         return;
     }
 
-    // update access time
-    en->access_time = time (NULL);
+
+    t = time (NULL);
 
     // file is removed
     // XXX: need to re-check if the file appeared on the server
-    if (en->removed) {
+    if (en->removed && (t - (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.file_cache_max_time") < en->access_time || 
+        t - en->access_time < (time_t)conf_get_uint (application_get_conf (dtree->app), "filesystem.file_cache_max_time"))) {
         LOG_debug (DIR_TREE_LOG, INO_H"Entry '%s' is removed !", INO_T (en->ino), name);
         lookup_cb (req, FALSE, 0, 0, 0, 0);
         return;
     }
+    
+    // update access time
+    en->access_time = time (NULL);
 
     // get extra info for file
     /*
@@ -1106,7 +1124,6 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         return;
     }
     
-    t = time (NULL);
 
     // compatibility with s3fs: send HEAD request to server if file size is 0 to check if it's a directory
     if (!en->is_updating && en->type == DET_file && en->size == 0 && t >= en->updated_time &&

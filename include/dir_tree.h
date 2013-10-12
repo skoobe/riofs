@@ -111,4 +111,6 @@ void dir_tree_get_stats (DirTree *dtree, guint32 *total_inodes, guint32 *file_nu
 
 guint dir_tree_get_inode_count (DirTree *dtree);
 
+void dir_tree_set_entry_exist (DirTree *dtree, fuse_ino_t ino);
+
 #endif

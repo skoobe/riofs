@@ -16,7 +16,7 @@
     <writers type="int">2</writers>
     <readers type="int">2</readers>
 
-    <!-- number of concurrent connections other operations, 
+    <!-- number of concurrent connections for "other" operations, 
          such as directory listing, object deleting, etc -->
     <operations type="int">4</operations>
 
@@ -36,7 +36,7 @@
     <!-- The maximum number of keys returned in the response body. -->
     <keys_per_request type="uint">1000</keys_per_request>
     
-    <!-- part size for upload / download files (5mb) -->
+    <!-- part size for upload / download files (5mb is the minimal value) -->
     <part_size type="uint">5242880</part_size>
     
     <!-- compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory 

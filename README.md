@@ -51,7 +51,7 @@ riofs [options] [bucketname] [mountpoint]
  
 * Default configuration is located at `$(prefix)/etc/riofs.conf.xml`
 
-* Use `./configure --enable-debug-mode` to create a debug build
+* Use `./configure --enable-debug` to create a debug build
 
 * RioFS comes with a statistics server, have a look at riofs.xml.conf for details
 

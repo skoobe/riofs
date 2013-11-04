@@ -32,11 +32,16 @@ riofs [options] [bucketname] [mountpoint]
 #### Options
 
 ```
--v: Verbose output
--f: Do not daemonize process
--c path:  Path to configuration file
+-v: Verbose output.
+-f: Do not daemonize process.
+-c path: Path to configuration file.
 -o "opt[,opt...]": fuse options
--l path: Log file to use
+-l path: Log file to use.
+-p: Use legacy path-style access syntax.
+--uid: Set UID of filesystem owner.
+--gid: Set GID of filesystem owner.
+--fmode: Set mode for files.
+--dmode: Set mode for directories.
 ```
 
 #### Hints

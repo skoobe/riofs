@@ -1,6 +1,6 @@
 # RioFS [![Build Status](https://secure.travis-ci.org/skoobe/riofs.png)](https://travis-ci.org/skoobe/riofs)
 
-RioFS is a userspace filesystem for Amazon S3 buckets that runs on Linux and MacOSX. It supports versioned and non-versioned buckets in all AWS regions. RioFS development started at [Skoobe](https://www.skoobe.de) as a storage backend for legacy daemons which cannot talk natively to S3. It is licensed under GPL.
+RioFS is an userspace filesystem for Amazon S3 buckets that runs on Linux and MacOSX. It supports versioned and non-versioned buckets in all AWS regions. RioFS development started at [Skoobe](https://www.skoobe.de) as a storage backend for legacy daemons which cannot talk natively to S3. It is licensed under GPL.
 
 ### Dependencies
 

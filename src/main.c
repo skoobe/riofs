@@ -749,6 +749,12 @@ int main (int argc, char *argv[])
         return 0;
     }
 
+    if (!s_params || g_strv_length (s_params) != 2) {
+        LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
+        application_destroy (app);
+        return -1;
+    }
+
     if (verbose)
         log_level = LOG_debug;
     else
@@ -844,11 +850,6 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    if (!s_params || g_strv_length (s_params) != 2) {
-        LOG_err (APP_LOG, "Wrong number of provided arguments!\nTry `%s --help' for more information.", argv[0]);
-        application_destroy (app);
-        return -1;
-    }
 
     // foreground is set
     if (foreground)

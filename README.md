@@ -1,6 +1,6 @@
 # RioFS [![Build Status](https://secure.travis-ci.org/skoobe/riofs.png)](https://travis-ci.org/skoobe/riofs)
 
-RioFS is a userspace filesystem for Amazon S3 buckets that runs on Linux and MacOSX. It supports versioned and non-versioned buckets in all AWS regions. RioFS development started at [Skoobe](https://www.skoobe.de) as a storage backend for legacy daemons which cannot talk natively to S3. It handles buckets with many thousands of keys and highly concurrent access gracefully.
+RioFS is a userspace filesystem for Amazon S3 buckets for servers that runs on Linux and MacOSX. It supports versioned and non-versioned buckets in all AWS regions. RioFS development started at [Skoobe](https://www.skoobe.de) as a storage backend for legacy daemons which cannot talk natively to S3. It handles buckets with many thousands of keys and highly concurrent access gracefully.
 
 ### Dependencies
 
@@ -71,3 +71,9 @@ riofs [options] [bucketname] [mountpoint]
 * Folder renaming is not supported.
 
 * A file system for the S3 API is a [leaky abstraction](http://en.wikipedia.org/wiki/Leaky_abstraction). Don't expect POSIX file system semantics.
+
+### Contribute
+
+* Any help is welcome, just open an issue if you find a bug
+
+* We also need better documentation, testing, tutorials and benchmarks

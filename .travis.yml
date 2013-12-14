@@ -1,5 +1,7 @@
 before_install:
-  - brew install https://raw.github.com/skoobe/riofs/master/riofs.rb
+ - brew update
+  - brew install glib libevent openssl libmagic osxfuse
+  - brew link --force openssl
 language: objective-c
 compiler:
   - gcc

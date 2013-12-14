@@ -1,8 +1,5 @@
 before_install:
- - git clone --recursive -b osxfuse-2 git://github.com/osxfuse/osxfuse.git osxfuse
- - cd osxfuse
- - ./build.sh -t dist
- - brew install glib libevent libxml2 openssl libmagic
+ - brew install glib libevent libxml2 openssl libmagic osxfuse
 language: objective-c
 compiler:
   - gcc

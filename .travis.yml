@@ -1,7 +1,6 @@
 before_install:
- - sudo apt-get update -qq
- - sudo apt-get install -qq libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
-language: c
+ - brew install automake autoconf libtool pkgconfig glib libevent libxml2 openssl libmagic
+language: objective-c
 compiler:
   - gcc
   - clang

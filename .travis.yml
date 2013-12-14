@@ -1,5 +1,5 @@
 before_install:
- - brew install glib libevent libxml2 openssl libmagic osxfuse
+ - brew install --force libevent openssl libmagic osxfuse
 language: objective-c
 compiler:
   - gcc

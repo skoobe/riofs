@@ -59,6 +59,10 @@ struct _Application {
 #ifdef SSL_ENABLED
     SSL_CTX *ssl_ctx;
 #endif
+
+#ifdef MAGIC_ENABLED
+    magic_t magic_ctx;
+#endif
 };
 
 // global variable, used by signals handlers
@@ -122,6 +126,13 @@ StatSrv *application_get_stat_srv (Application *app)
 SSL_CTX *application_get_ssl_ctx (Application *app)
 {
     return app->ssl_ctx;
+}
+#endif
+
+#ifdef MAGIC_ENABLED
+magic_t application_get_magic_ctx(Application *app)
+{
+    return app->magic_ctx;
 }
 #endif
 
@@ -585,6 +596,10 @@ static void application_destroy (Application *app)
     SSL_CTX_free (app->ssl_ctx);
 #endif
 
+#ifdef MAGIC_ENABLED
+    magic_close(app->magic_ctx);
+#endif
+
     logger_destroy ();
 
     if (app->f_log)
@@ -915,8 +930,21 @@ int main (int argc, char *argv[])
         return -1;
     }
     SSL_CTX_set_options (app->ssl_ctx, SSL_OP_ALL);
-
 #endif
+
+#ifdef MAGIC_ENABLED
+    app->magic_ctx = magic_open(MAGIC_MIME_TYPE);
+    if (!app->magic_ctx) {
+        LOG_err(APP_LOG, "Failed to initialize magic library\n");
+        return -1;
+    }
+    if (magic_load(app->magic_ctx, NULL)) {
+        LOG_err(APP_LOG, "Failed to load magic database: %s\n", magic_error(app->magic_ctx));
+        magic_close(app->magic_ctx);
+        return -1;
+    }
+#endif
+
     app->stat_srv = stat_srv_create (app);
     if (!app->stat_srv) {
         application_exit (app);

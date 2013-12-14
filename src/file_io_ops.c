@@ -25,6 +25,7 @@
 struct _FileIO {
     Application *app;
     gchar *fname;
+    gchar *content_type;
     fuse_ino_t ino;
     gboolean assume_new; // assume file does not exist yet
 
@@ -62,6 +63,7 @@ FileIO *fileio_create (Application *app, const gchar *fname, fuse_ino_t ino, gbo
     fop->current_size = 0;
     fop->write_buf = evbuffer_new ();
     fop->fname = g_strdup_printf ("/%s", fname);
+    fop->content_type = NULL;
     fop->file_size = 0;
     fop->head_req_sent = FALSE;
     fop->multipart_initiated = FALSE;
@@ -86,6 +88,8 @@ void fileio_destroy (FileIO *fop)
     }
     evbuffer_free (fop->write_buf);
     g_free (fop->fname);
+    if (fop->content_type)
+        g_free (fop->content_type);
     if (fop->uploadid)
         g_free (fop->uploadid);
     g_free (fop);
@@ -131,6 +135,8 @@ static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer c
 
     http_connection_acquire (con);
     
+    if (fop->content_type)
+        http_connection_add_output_header (con, "Content-Type", fop->content_type);
     http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
     http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
     
@@ -343,11 +349,24 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     } else {
         path = g_strdup (fop->fname);
     }
-    
+
+#ifdef MAGIC_ENABLED
+    // guess MIME type
+    gchar *mime_type = magic_buffer (application_get_magic_ctx (fop->app), buf, buf_len);
+    if (mime_type) {
+        LOG_debug (FIO_LOG, "Guessed MIME type of %s as %s", path, mime_type);
+        fop->content_type = g_strdup (mime_type);
+    } else {
+        LOG_err (FIO_LOG, "Failed to guess MIME type of %s !", path);
+    }
+#endif
+
     http_connection_acquire (con);
 
     // add output headers
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
+    if (fop->content_type)
+        http_connection_add_output_header (con, "Content-Type", fop->content_type);
     
     // if this is the full file
     if (!fop->multipart_initiated)

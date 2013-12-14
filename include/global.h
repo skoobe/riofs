@@ -100,6 +100,10 @@
 #include <event2/bufferevent_ssl.h>
 #endif
 
+#ifdef MAGIC_ENABLED
+#include <magic.h>
+#endif
+
 #define HTTP_DEFAULT_PORT 80
 
 #include <libxml/xpath.h>
@@ -138,6 +142,10 @@ RFuse *application_get_rfuse (Application *app);
 
 #ifdef SSL_ENABLED
 SSL_CTX *application_get_ssl_ctx (Application *app);
+#endif
+
+#ifdef MAGIC_ENABLED
+magic_t application_get_magic_ctx (Application *app);
 #endif
 
 // exits the event loop

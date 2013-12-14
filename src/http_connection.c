@@ -218,7 +218,7 @@ struct evhttp_connection *http_connection_get_evcon (HttpConnection *con)
 // create  auth string
 // http://docs.amazonwebservices.com/Amazon/2006-03-01/dev/RESTAuthentication.html
 static gchar *http_connection_get_auth_string (Application *app, 
-        const gchar *method, const gchar *content_type, const gchar *resource, const gchar *time_str,
+        const gchar *method, const gchar *resource, const gchar *time_str,
         GList *l_output_headers)
 {
     gchar *string_to_sign;
@@ -228,6 +228,7 @@ static gchar *http_connection_get_auth_string (Application *app,
     GList *l;
     GString *s_headers;
     gchar *content_md5 = NULL;
+    gchar *content_type = NULL;
 
     s_headers = g_string_new ("");
     for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
@@ -237,6 +238,10 @@ static gchar *http_connection_get_auth_string (Application *app,
             if (content_md5)
                 g_free (content_md5);
             content_md5 = g_strdup (header->value);
+        } else if (!strncmp ("Content-Type", header->key, strlen ("Content-Type"))) {
+            if (content_type)
+                g_free (content_type);
+            content_type = g_strdup (header->value);
         // select all HTTP request headers that start with 'x-amz-' (using a case-insensitive comparison)
         } else if (strcasestr (header->key, "x-amz-")) {
             g_string_append_printf (s_headers, "%s:%s\n", header->key, header->value);
@@ -245,6 +250,8 @@ static gchar *http_connection_get_auth_string (Application *app,
 
     if (!content_md5)
         content_md5 = g_strdup ("");
+    if (!content_type)
+        content_type = g_strdup ("");
 
     // The list of sub-resources that must be included when constructing the CanonicalizedResource 
     // Element are: acl, lifecycle, location, logging, notification, partNumber, policy, 
@@ -269,6 +276,7 @@ static gchar *http_connection_get_auth_string (Application *app,
     );
     g_string_free (s_headers, TRUE);
     g_free (content_md5);
+    g_free (content_type);
 
     g_free (tmp);
 
@@ -745,7 +753,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         return FALSE;
     }
     
-    auth_str = http_connection_get_auth_string (con->app, http_cmd, "", data->resource_path, time_str, data->l_output_headers);
+    auth_str = http_connection_get_auth_string (con->app, http_cmd, data->resource_path, time_str, data->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     g_free (auth_str);
 

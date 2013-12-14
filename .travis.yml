@@ -1,5 +1,8 @@
 before_install:
- - brew install automake autoconf libtool pkgconfig glib libevent libxml2 openssl libmagic
+ - git clone --recursive -b osxfuse-2 git://github.com/osxfuse/osxfuse.git osxfuse
+ - cd osxfuse
+ - ./build.sh -t dist
+ - brew install glib libevent libxml2 openssl libmagic
 language: objective-c
 compiler:
   - gcc

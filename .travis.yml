@@ -1,5 +1,5 @@
 before_install:
- - brew update
+  - brew update
   - brew install glib libevent openssl libmagic osxfuse
   - brew link --force openssl
 language: objective-c

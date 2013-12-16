@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -33,7 +33,7 @@ struct _Application {
     struct evdns_base *dns_base;
     FILE *f_log;
     gchar *log_file_name;
-    
+
     RFuse *rfuse;
     DirTree *dir_tree;
     CacheMng *cmng;
@@ -162,7 +162,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 {
     if (app->uri)
         evhttp_uri_free (app->uri);
-    
+
     // check if URL contains HTTP or HTTPS
     if (strlen (url) < 4 || !strcasestr (url, "http") || strcasestr (url, "http") != url) {
         // XXX: check config and decide HTTP or HTTPS ?
@@ -171,7 +171,7 @@ gboolean application_set_url (Application *app, const gchar *url)
         tmp = g_strdup_printf ("http://%s", url);
         app->uri = evhttp_uri_parse (tmp);
         g_free (tmp);
-    } else 
+    } else
         app->uri = evhttp_uri_parse (url);
 
 
@@ -193,7 +193,7 @@ gboolean application_set_url (Application *app, const gchar *url)
 
     conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
     conf_set_boolean (app->conf, "s3.ssl", uri_is_https (app->uri));
-    
+
     return TRUE;
 }
 /*}}}*/
@@ -225,7 +225,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     int size, i;
     sig_ucontext_t *uc;
     FILE *f;
-    
+
     g_fprintf (stderr, "Got segmentation fault !\n");
 
 // haven't found the way to get caller addr on FreeBSD, and we need to link with -lexecinfo
@@ -319,7 +319,7 @@ static void sigusr2_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
     }
 
     LOG_msg (APP_LOG, "Reopening log file: %s !", app->log_file_name);
-    
+
     fflush (app->f_log);
     fclose (app->f_log);
 
@@ -330,7 +330,7 @@ static void sigusr2_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
         logger_set_file (stdout);
         return;
     }
-    
+
     logger_set_file (app->f_log);
 
 }
@@ -341,7 +341,7 @@ static void sigint_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short ev
     Application *app = (Application *) user_data;
 
     LOG_err (APP_LOG, "Got SIGINT");
-    
+
     // terminate after running all active events
     application_exit (app);
 }
@@ -352,7 +352,7 @@ static void sigterm_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
 
     LOG_err (APP_LOG, "Got SIGTERM");
 
-    // terminate after running all active events 
+    // terminate after running all active events
     application_exit (app);
 }
 
@@ -478,7 +478,7 @@ static gint application_finish_initialization_and_run (Application *app)
     event_add (app->sigusr2_ev, NULL);
 
 /*}}}*/
-    
+
     if (!conf_get_boolean (app->conf, "app.foreground"))
         fuse_daemonize (0);
 
@@ -493,7 +493,7 @@ static void application_on_bucket_versioning_cb (gpointer ctx, gboolean success,
 {
     Application *app = (Application *)ctx;
     gchar *tmp;
-    
+
     if (!success) {
         LOG_err (APP_LOG, "Failed to get bucket versioning!");
         application_exit (app);
@@ -514,7 +514,7 @@ static void application_on_bucket_versioning_cb (gpointer ctx, gboolean success,
     } else {
         conf_set_boolean (app->conf, "s3.versioning", FALSE);
     }
-    
+
     application_finish_initialization_and_run (app);
 }
 /*}}}*/
@@ -525,15 +525,15 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len)
 {
     Application *app = (Application *)ctx;
-    
+
     if (!success) {
         LOG_err (APP_LOG, "Failed to get bucket ACL! Most likely you provided wrong AWS keys or bucket name !");
         application_exit (app);
         return;
     }
-    
+
     // XXX: check ACL permissions
-    
+
     bucket_client_get (app->service_con, "/?versioning", application_on_bucket_versioning_cb, app);
 }
 /*}}}*/
@@ -567,7 +567,7 @@ static void application_destroy (Application *app)
         event_free (app->sigusr1_ev);
      if (app->sigusr2_ev)
         event_free (app->sigusr2_ev);
-   
+
     if (app->service_con)
         http_connection_destroy (app->service_con);
 
@@ -591,7 +591,7 @@ static void application_destroy (Application *app)
 
     if (app->fuse_opts)
         g_free (app->fuse_opts);
-    
+
 #ifdef SSL_ENABLED
     SSL_CTX_free (app->ssl_ctx);
 #endif
@@ -604,12 +604,12 @@ static void application_destroy (Application *app)
 
     if (app->f_log)
         fclose (app->f_log);
-    
+
     if (app->log_file_name)
         g_free (app->log_file_name);
 
     g_free (app);
-    
+
     ENGINE_cleanup ();
     CRYPTO_cleanup_all_ex_data ();
     ERR_free_strings ();
@@ -645,7 +645,8 @@ int main (int argc, char *argv[])
     gint dmode = -1;
 
     struct event_config *ev_config;
-    
+
+    srand (time (NULL));
     app = g_new0 (Application, 1);
     app->conf_path = g_build_filename (SYSCONFDIR, "riofs.conf.xml", NULL);
     g_snprintf (conf_str, sizeof (conf_str), "Path to configuration file. Default: %s", app->conf_path);
@@ -690,16 +691,16 @@ int main (int argc, char *argv[])
 
     // init main app structure
     ev_config = event_config_new ();
-    
+
 #if defined(__APPLE__)
     // method select is the preferred method on OS X. kqueue and poll are not supported.
     event_config_avoid_method (ev_config, "kqueue");
     event_config_avoid_method (ev_config, "poll");
 #endif
-    
+
     app->evbase = event_base_new_with_config (ev_config);
     event_config_free (ev_config);
-    
+
     if (!app->evbase) {
         LOG_err (APP_LOG, "Failed to create event base !");
         application_destroy (app);
@@ -785,11 +786,11 @@ int main (int argc, char *argv[])
         app->conf_path = g_strdup (s_config[0]);
         g_strfreev (s_config);
     }
-    
+
     app->conf = conf_create ();
     if (access (app->conf_path, R_OK) == 0) {
         LOG_debug (APP_LOG, "Using config file: %s", app->conf_path);
-        
+
         if (!conf_parse_file (app->conf, app->conf_path)) {
             LOG_err (APP_LOG, "Failed to parse configuration file: %s", app->conf_path);
             application_destroy (app);
@@ -825,18 +826,18 @@ int main (int argc, char *argv[])
 
     if (uid >= 0)
         conf_set_int (app->conf, "filesystem.uid", uid);
-  
+
     if (gid >= 0)
         conf_set_int (app->conf, "filesystem.gid", gid);
 
     if (fmode >= 0)
         conf_set_int (app->conf, "filesystem.file_mode", fmode);
-    
+
     if (dmode >= 0)
         conf_set_int (app->conf, "filesystem.dir_mode", dmode);
 
 /*}}}*/
-    
+
     // try to get access parameters from the environment
     if (getenv ("AWS_ACCESS_KEY_ID")) {
         conf_set_string (app->conf, "s3.access_key_id", getenv ("AWS_ACCESS_KEY_ID"));
@@ -908,7 +909,7 @@ int main (int argc, char *argv[])
 
     // check if directory exists
     if (stat (conf_get_string (app->conf, "app.mountpoint"), &st) == -1) {
-        LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!", 
+        LOG_err (APP_LOG, "Mountpoint %s does not exist! Please check directory permissions!",
             conf_get_string (app->conf, "app.mountpoint"));
         application_destroy (app);
         return -1;
@@ -919,7 +920,7 @@ int main (int argc, char *argv[])
         application_destroy (app);
         return -1;
     }
-    
+
     g_strfreev (s_params);
 
 #ifdef SSL_ENABLED
@@ -950,7 +951,7 @@ int main (int argc, char *argv[])
         application_exit (app);
         return -1;
     }
-  
+
     // perform the initial request to get  bucket ACL (handles redirect as well)
     app->service_con = http_connection_create (app);
     if (!app->service_con)  {

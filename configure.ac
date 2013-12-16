@@ -2,8 +2,8 @@ AC_PREREQ(2.61)
 AC_INIT([riofs], [0.6], [paul.ionkin@gmail.com])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE 
-AC_CONFIG_HEADERS([include/config.h]) 
+AM_INIT_AUTOMAKE
+AC_CONFIG_HEADERS([include/config.h])
 
 AC_PROG_CC
 AM_PROG_CC_C_O
@@ -70,11 +70,13 @@ AC_ARG_WITH(libmagic,
    esac
   ],
   [
+    libmagic=true
     AC_CHECK_HEADERS([magic.h],, [
+        libmagic=false
     ])
     AC_CHECK_LIB(magic, [magic_open], [MAGIC_LIBS="-lmagic"],[
+        libmagic=false
     ])
-    libmagic=true
   ])
 AC_SUBST(MAGIC_CFLAGS)
 AC_SUBST(MAGIC_LDFLAGS)
@@ -91,7 +93,7 @@ AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_test_apps" = "yes"])
 
 AC_DEFINE(FUSE_USE_VERSION, 26, [Fuse API Version])
 
-# check if we should enable verbose debugging 
+# check if we should enable verbose debugging
 AC_ARG_ENABLE(debug,
      AS_HELP_STRING(--enable-debug, enable support for running in debug mode),
         [], [enable_debug=no])

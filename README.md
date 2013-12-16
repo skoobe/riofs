@@ -10,7 +10,7 @@ RioFS is a userspace filesystem for Amazon S3 buckets for servers that runs on L
 * libxml-2.0 >= 2.6
 * libcrypto >= 0.9
 
-Dependency installation guides: [Ubuntu](https://github.com/skoobe/riofs/wiki/Ubuntu), [Centos 6.2](https://github.com/skoobe/riofs/wiki/Centos-6.2) and [MacOSX](https://github.com/skoobe/riofs/wiki/MacOSX)
+Find here installation guides for [Ubuntu](https://github.com/skoobe/riofs/wiki/Ubuntu), [Centos](https://github.com/skoobe/riofs/wiki/Centos) and [MacOSX](https://github.com/skoobe/riofs/wiki/MacOSX)
 
 ### Building
 

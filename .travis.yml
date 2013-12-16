@@ -1,6 +1,6 @@
 before_install:
   - sudo apt-get update -qq
-  - sudo apt-get install -qq libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev
+  - sudo apt-get install -qq libglib2.0-dev libfuse-dev libxml2-dev libevent-dev libssl-dev libmagic-dev
 language: c
 compiler:
   - gcc

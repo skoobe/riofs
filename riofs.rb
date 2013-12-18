@@ -11,8 +11,8 @@ class Riofs < Formula
   depends_on 'glib'
   depends_on 'osxfuse'
   depends_on 'libevent'
-  depends_on 'libmagic' => :recommend
-  depends_on 'openssl' => :recommend
+  depends_on 'libmagic' => :recommended
+  depends_on 'openssl' => :recommended
 
   def install
     system "./autogen.sh"

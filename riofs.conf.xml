@@ -25,11 +25,7 @@
 </pool>
 
 <s3>
-    <!-- Set True to use old path-style access
-         See http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html for details. -->
-    <path_style type="boolean">False</path_style>
-
-    <!-- S3 endpoint, must be set to the correct bucket region (only used for path-style access)
+    <!-- S3 endpoint, can be set to bucket's region to avoid initial redirect
          See http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region for options. -->
     <endpoint type="string">http://s3.amazonaws.com</endpoint>
 

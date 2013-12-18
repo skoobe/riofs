@@ -30,7 +30,6 @@ const gchar *conf_keys_str[] = {
     "pool.operations",
     "pool.max_requests_per_pool",
     "s3.endpoint",
-    "s3.path_style",
     "s3.keys_per_request",
     "s3.part_size",
     "s3.check_empty_files",

@@ -182,15 +182,7 @@ gboolean application_set_url (Application *app, const gchar *url)
         return FALSE;
     }
 
-    if (conf_get_boolean (app->conf, "s3.path_style")) {
-        conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
-    } else {
-        // add bucket name to s3.amazonaws.com
-        gchar *tmp = g_strdup_printf ("%s.s3.amazonaws.com", conf_get_string (app->conf, "s3.bucket_name"));
-        conf_set_string (app->conf, "s3.host", tmp);
-        g_free (tmp);
-    }
-
+    conf_set_string (app->conf, "s3.host", evhttp_uri_get_host (app->uri));
     conf_set_int (app->conf, "s3.port", uri_get_port (app->uri));
     conf_set_boolean (app->conf, "s3.ssl", uri_is_https (app->uri));
 
@@ -632,7 +624,6 @@ int main (int argc, char *argv[])
     gboolean foreground = FALSE;
     gchar conf_str[1023];
     struct stat st;
-    gboolean path_style = FALSE;
     gchar **cache_dir = NULL;
     gchar **s_fuse_opts = NULL;
     gchar **s_log_file = NULL;
@@ -663,7 +654,6 @@ int main (int argc, char *argv[])
         { "foreground", 'f', 0, G_OPTION_ARG_NONE, &foreground, "Flag. Do not daemonize process.", NULL },
         { "cache-dir", 0, 0, G_OPTION_ARG_STRING_ARRAY, &cache_dir, "Set cache directory.", NULL },
         { "fuse-options", 'o', 0, G_OPTION_ARG_STRING_ARRAY, &s_fuse_opts, "Fuse options.", "\"opt[,opt...]\"" },
-        { "path-style", 'p', 0, G_OPTION_ARG_NONE, &path_style, "Flag. Use legacy path-style access syntax.", NULL },
         { "disable-syslog", 0, 0, G_OPTION_ARG_NONE, &disable_syslog, "Flag. Disable logging to syslog.", NULL },
         { "disable-stats", 0, 0, G_OPTION_ARG_NONE, &disable_stats, "Flag. Disable Statistics HTTP interface.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
@@ -870,9 +860,6 @@ int main (int argc, char *argv[])
     // foreground is set
     if (foreground)
         conf_set_boolean (app->conf, "app.foreground", foreground);
-
-    if (path_style)
-        conf_set_boolean (app->conf, "s3.path_style", path_style);
 
     if (part_size)
         conf_set_uint (app->conf, "s3.part_size", part_size);

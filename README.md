@@ -37,7 +37,6 @@ riofs [options] [bucketname] [mountpoint]
 -c path: Path to configuration file.
 -o "opt[,opt...]": fuse options
 -l path: Log file to use.
--p: Use legacy path-style access syntax.
 --uid: Set UID of filesystem owner.
 --gid: Set GID of filesystem owner.
 --fmode: Set mode for files.

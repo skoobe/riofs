@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -24,7 +24,7 @@
 
 struct _CacheMng {
     Application *app;
-    GHashTable *h_entries; 
+    GHashTable *h_entries;
     GQueue *q_lru;
     guint64 size;
     guint64 max_size;
@@ -56,7 +56,6 @@ struct _CacheContext {
     struct event *ev;
 };
 
-#define CACHE_MNGR_DIR "riofs_cache"
 #define CMNG_LOG "cmng"
 
 static void cache_entry_destroy (gpointer data);
@@ -67,6 +66,7 @@ static void cache_mng_rm_cache_dir (CacheMng *cmng);
 CacheMng *cache_mng_create (Application *app)
 {
     CacheMng *cmng;
+    gchar *rnd_str;
 
     cmng = g_new0 (CacheMng, 1);
     cmng->app = app;
@@ -75,14 +75,17 @@ CacheMng *cache_mng_create (Application *app)
     cmng->size = 0;
     cmng->check_time = time (NULL);
     cmng->max_size = conf_get_uint (application_get_conf (cmng->app), "filesystem.cache_dir_max_size");
-    cmng->cache_dir = g_strdup_printf ("%s/%s", 
-        conf_get_string (application_get_conf (cmng->app), "filesystem.cache_dir"), CACHE_MNGR_DIR);
+    // generate random folder name for storing cache
+    rnd_str = get_random_string (20, TRUE);
+    cmng->cache_dir = g_strdup_printf ("%s/%s",
+        conf_get_string (application_get_conf (cmng->app), "filesystem.cache_dir"), rnd_str);
+    g_free (rnd_str);
     cmng->cache_hits = 0;
     cmng->cache_miss = 0;
 
     cache_mng_rm_cache_dir (cmng);
     if (g_mkdir_with_parents (cmng->cache_dir, 0700) != 0) {
-        LOG_err (CMNG_LOG, "Failed to remove directory: %s", cmng->cache_dir);
+        LOG_err (CMNG_LOG, "Failed to create directory: %s", cmng->cache_dir);
         cache_mng_destroy (cmng);
         return NULL;
     }
@@ -169,7 +172,7 @@ guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino)
 
 static void cache_mng_rm_cache_dir (CacheMng *cmng)
 {
-    if (cmng->cache_dir && strstr (cmng->cache_dir, CACHE_MNGR_DIR))
+    if (cmng->cache_dir)
         utils_del_tree (cmng->cache_dir, 1);
     else {
         LOG_err (CMNG_LOG, "Cache directory not found: %s", cmng->cache_dir);
@@ -194,7 +197,7 @@ gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (!entry)
         return FALSE;
-    
+
     if (range_count (entry->avail_range) != 1) {
         LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such object !", INO_T (ino));
         return FALSE;
@@ -227,7 +230,7 @@ gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
 const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
 {
     struct _CacheEntry *entry;
-    
+
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (!entry)
         return NULL;
@@ -238,17 +241,17 @@ const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
 void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id)
 {
     struct _CacheEntry *entry;
-    
+
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (!entry)
         return;
-    
+
     if (entry->version_id) {
         if (strcmp (entry->version_id, version_id)) {
             g_free (entry->version_id);
             entry->version_id = g_strdup (version_id);
         }
-    } else 
+    } else
         entry->version_id = g_strdup (version_id);
 }
 /*}}}*/
@@ -265,7 +268,7 @@ static void cache_read_cb (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
 
 // retrieve file buffer from local storage
 // if success == TRUE then "buf" contains "size" bytes of data
-void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_t off, 
+void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_t off,
     cache_mng_on_retrieve_file_buf_cb on_retrieve_file_buf_cb, void *ctx)
 {
     struct _CacheContext *context;
@@ -297,17 +300,17 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
                 context->cb.retrieve_cb (NULL, 0, FALSE, context->user_ctx);
             cache_context_destroy (context);
             cmng->cache_miss++;
-            return;            
+            return;
         }
 
         context->buf = g_malloc (size);
         res = pread (fd, context->buf, size, off);
         close (fd);
         context->success = (res == (ssize_t) size);
-        
-        LOG_debug (CMNG_LOG, INO_H"Read [%"OFF_FMT":%zu] bytes, result: %s", 
+
+        LOG_debug (CMNG_LOG, INO_H"Read [%"OFF_FMT":%zu] bytes, result: %s",
             INO_T (ino), off, size, context->success ? "OK" : "Failed");
-        
+
         if (!context->success) {
             g_free (context->buf);
             context->buf = NULL;
@@ -320,7 +323,7 @@ void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, o
         g_queue_unlink (cmng->q_lru, entry->ll_lru);
         g_queue_push_head_link (cmng->q_lru, entry->ll_lru);
     } else {
-        LOG_debug (CMNG_LOG, INO_H"Entry isn't found or doesn't contain requested range: [%"OFF_FMT": %"OFF_FMT"]", 
+        LOG_debug (CMNG_LOG, INO_H"Entry isn't found or doesn't contain requested range: [%"OFF_FMT": %"OFF_FMT"]",
             INO_T (ino), off, off + size);
 
         cmng->cache_miss++;
@@ -403,16 +406,16 @@ void cache_mng_store_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_
     if (new_length >= old_length)
         cmng->size += new_length - old_length;
     else {
-        LOG_err (CMNG_LOG, INO_H"New length is less than the old length !: %"G_GUINT64_FORMAT" <= %"G_GUINT64_FORMAT, 
+        LOG_err (CMNG_LOG, INO_H"New length is less than the old length !: %"G_GUINT64_FORMAT" <= %"G_GUINT64_FORMAT,
             INO_T (ino), new_length, old_length);
     }
-    
+
     // update modification time
     entry->modification_time = time (NULL);
-   
+
     context->success = (res == (ssize_t) size);
 
-    LOG_debug (CMNG_LOG, INO_H"Written [%"OFF_FMT":%zu] bytes, result: %s", 
+    LOG_debug (CMNG_LOG, INO_H"Written [%"OFF_FMT":%zu] bytes, result: %s",
         INO_T (ino), off, size, context->success ? "OK" : "Failed");
 
     context->ev = event_new (application_get_evbase (cmng->app), -1,  0,

@@ -2,8 +2,8 @@ AC_PREREQ(2.61)
 AC_INIT([riofs], [0.6], [paul.ionkin@gmail.com])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE 
-AC_CONFIG_HEADERS([include/config.h]) 
+AM_INIT_AUTOMAKE
+AC_CONFIG_HEADERS([include/config.h])
 
 AC_PROG_CC
 AM_PROG_CC_C_O
@@ -28,6 +28,63 @@ if test x$enable_openssl = xyes; then
     fi
 fi
 
+#AC_MSG_CHECKING(for libmagic)
+libmagic=false
+AC_ARG_WITH(libmagic,
+  [  --with-libmagic=PATH       base of libmagic installation],
+  [AC_MSG_RESULT($with_libmagic)
+   case $with_libmagic in
+   no)
+    libmagic=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([magic.h],, [
+        AC_MSG_ERROR([magic.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(magic, [magic_open], [MAGIC_LIBS="-lmagic"],[
+            AC_MSG_ERROR([Could not find libmagic])
+    ])
+    libmagic=true
+     ;;
+   *)
+    # set temp variables
+    LDFLAGS="-L$with_libmagic/lib $LDFLAGS"
+    CFLAGS="-I$with_libmagic/include $CFLAGS"
+
+    AC_CHECK_HEADERS(magic.h,
+     EXT_LIB_PATH="-L$with_libmagic/lib $EXT_LIB_PATH"
+     MAGIC_CFLAGS="-L$with_libmagic/lib"
+     MAGIC_LDFLAGS="-I$with_libmagic/include",
+     AC_MSG_ERROR([magic.h header not found or not usable])
+     )
+    AC_CHECK_LIB(magic, [magic_open], [MAGIC_LIBS="-lmagic"],[
+            AC_MSG_ERROR([Could not find libmagic])
+    ])
+
+    libmagic=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CFLAGS=$SAVE_CFLAGS
+    ;;
+   esac
+  ],
+  [
+    libmagic=true
+    AC_CHECK_HEADERS([magic.h],, [
+        libmagic=false
+    ])
+    AC_CHECK_LIB(magic, [magic_open], [MAGIC_LIBS="-lmagic"],[
+        libmagic=false
+    ])
+  ])
+AC_SUBST(MAGIC_CFLAGS)
+AC_SUBST(MAGIC_LDFLAGS)
+AC_SUBST(MAGIC_LIBS)
+if test "x$libmagic" = "xtrue" ; then
+    AC_DEFINE(MAGIC_ENABLED, [1], [Define to use libmagic])
+fi
+
 # check if we need to build test applications
 AC_ARG_ENABLE([test-apps],
      AS_HELP_STRING([--enable-test-apps build test applications]),
@@ -36,7 +93,7 @@ AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_test_apps" = "yes"])
 
 AC_DEFINE(FUSE_USE_VERSION, 26, [Fuse API Version])
 
-# check if we should enable verbose debugging 
+# check if we should enable verbose debugging
 AC_ARG_ENABLE(debug,
      AS_HELP_STRING(--enable-debug, enable support for running in debug mode),
         [], [enable_debug=no])

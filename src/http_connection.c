@@ -679,6 +679,8 @@ gboolean http_connection_make_request (HttpConnection *con,
     enum evhttp_cmd_type cmd_type;
     gchar *request_str = NULL;
     GList *l;
+    const gchar *bucket_name;
+    const gchar *host;
 
     if (!con->evcon)
         if (!http_connection_init (con)) {
@@ -788,8 +790,8 @@ gboolean http_connection_make_request (HttpConnection *con,
         // evbuffer_add_buffer_reference (req->output_buffer, out_buffer);
     }
 
-    const gchar *bucket_name = conf_get_string (application_get_conf (con->app), "s3.bucket_name");
-    const gchar *host = conf_get_string (application_get_conf (con->app), "s3.host");
+    bucket_name = conf_get_string (application_get_conf (con->app), "s3.bucket_name");
+    host = conf_get_string (application_get_conf (con->app), "s3.host");
 
     if (!strncasecmp (bucket_name, host, strlen (bucket_name))) {
         request_str = g_strdup_printf ("%s", data->resource_path);

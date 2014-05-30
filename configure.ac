@@ -13,17 +13,60 @@ AC_PROG_RANLIB
 PKG_PROG_PKG_CONFIG
 AC_CHECK_SIZEOF(long int)
 
-PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libevent >= 2.0 libxml-2.0 >= 2.6 libcrypto >= 0.9])
+AC_SYS_LARGEFILE
+AC_FUNC_FSEEKO
+AC_TYPE_OFF_T
+
+AC_STRUCT_TM
+AC_TYPE_OFF_T
+AC_TYPE_SIZE_T
+AC_TYPE_PID_T
+
+PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libxml-2.0 >= 2.6 libcrypto >= 0.9])
+
+AC_ARG_WITH(libevent,
+    AS_HELP_STRING(--with-libevent=PATH, base of libevent2 installation),
+    [
+    case $with_libevent in
+    no)
+        AC_MSG_ERROR([Please specify libevent2 installation path])
+    ;;
+    yes)
+        PKG_CHECK_MODULES([LEDEPS], [libevent >= 2.0])
+    ;;
+    *)
+        CFLAGS="-I$with_libevent/include"
+        LDFLAGS="-L$with_libevent/lib -levent"
+
+        AC_CHECK_HEADERS(event2/event.h, [],
+            AC_MSG_ERROR([libevent2 headers not found or not usable])
+        )
+
+        AC_CHECK_LIB(event, [main], [],
+            AC_MSG_ERROR([Could not find libevent2])
+        )
+
+        LEDEPS_CFLAGS="-I$with_libevent/include"
+        LEDEPS_LIBS="-L$with_libevent/lib -levent"
+    ;;
+    esac
+    ],
+    [
+        PKG_CHECK_MODULES([LEDEPS], [libevent >= 2.0])
+    ]
+)
 
 # check if we should link against libevent_openssl
 AC_ARG_ENABLE(openssl,
-     AS_HELP_STRING(--disable-openssl, disable support for openssl encryption (libevent_openssl must be installed)),
-        [], [enable_openssl=yes])
-if test x$enable_openssl = xyes; then
+    AS_HELP_STRING(--disable-openssl, disable support for openssl encryption (libevent_openssl must be installed)),
+    [], [enable_openssl=yes]
+)
+
+if test "x$enable_openssl" = "xyes" ; then
     # check if openssl is present
     AC_CHECK_LIB([ssl], [SSL_library_init], [], [AC_MSG_FAILURE([could not find OpenSSL])])
     PKG_CHECK_MODULES([LIBEVENT_OPENSSL], [libevent_openssl >= 2.1.2], [found_libevent_openssl=yes], [found_libevent_openssl=no])
-    if test x$found_libevent_openssl = xyes; then
+    if test "x$found_libevent_openssl" = "xyes" ; then
         AC_DEFINE([SSL_ENABLED], [1], [Define to 1 if SSL support is enabled])
     fi
 fi
@@ -31,7 +74,7 @@ fi
 #AC_MSG_CHECKING(for libmagic)
 libmagic=false
 AC_ARG_WITH(libmagic,
-  [  --with-libmagic=PATH       base of libmagic installation],
+  AS_HELP_STRING(--with-libmagic=PATH, base of libmagic installation),
   [AC_MSG_RESULT($with_libmagic)
    case $with_libmagic in
    no)
@@ -56,7 +99,7 @@ AC_ARG_WITH(libmagic,
      MAGIC_CFLAGS="-L$with_libmagic/lib"
      MAGIC_LDFLAGS="-I$with_libmagic/include",
      AC_MSG_ERROR([magic.h header not found or not usable])
-     )
+    )
     AC_CHECK_LIB(magic, [magic_open], [MAGIC_LIBS="-lmagic"],[
             AC_MSG_ERROR([Could not find libmagic])
     ])
@@ -86,18 +129,23 @@ if test "x$libmagic" = "xtrue" ; then
 fi
 
 # check if we need to build test applications
+AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE([test-apps],
-     AS_HELP_STRING([--enable-test-apps build test applications]),
-	[], [enable_test_apps=no])
+     AS_HELP_STRING(--enable-test-apps, build test applications),
+	[], [enable_test_apps=no]
+)
 AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_test_apps" = "yes"])
+AC_MSG_RESULT([$enable_test_apps])
 
 AC_DEFINE(FUSE_USE_VERSION, 26, [Fuse API Version])
 
 # check if we should enable verbose debugging
 AC_ARG_ENABLE(debug,
      AS_HELP_STRING(--enable-debug, enable support for running in debug mode),
-        [], [enable_debug=no])
-if test x$enable_debug = xyes; then
+     [], [enable_debug=no]
+)
+
+if test "x$enable_debug" = "xyes" ; then
     CFLAGS="$CFLAGS -Wall -Wextra -O0 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE"
 else
     CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -O2"

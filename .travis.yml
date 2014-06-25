@@ -5,13 +5,24 @@ language: c
 compiler:
   - gcc
   - clang
-script: 
+script:
   - ./autogen.sh
   - ./configure --enable-test-apps
   - make
 notifications:
   irc:
     channels:
-      - "irc.freenode.org#riofs"
+      - "chat.freenode.net#riofs"
     on_success: always
     on_failure: always
+env:
+  global:
+   - secure: "NyquHe2M6yf2szBEJ2ec/9ok24z9h5a8RYeAWWPioMqxb8Hl94OOqPtGTSvw8CjzzKbBcXNzINPGagt8NAzHfGEQst1dZ1feJd6mpk+5XqRNxtLPd9UbjvywVmGng2DgvkICbtRDTdJ2JEmF0C/Mgpbm3AxACVdDiB/xmk52ZHY="
+addons:
+  coverity_scan:
+    project:
+      name: skoobe/riofs
+    notification_email: paul.ionkin@gmail.com
+    build_command_prepend: ./configure
+    build_command: make
+    branch_pattern: master

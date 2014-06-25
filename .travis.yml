@@ -8,6 +8,7 @@ compiler:
 script:
   - ./autogen.sh
   - ./configure --enable-test-apps
+  - make clean
   - make
 notifications:
   irc:
@@ -23,6 +24,6 @@ addons:
     project:
       name: skoobe/riofs
     notification_email: paul.ionkin@gmail.com
-    build_command_prepend: ./configure
+    build_command_prepend: "./autogen.sh && ./configure && make clean"
     build_command: make
     branch_pattern: master

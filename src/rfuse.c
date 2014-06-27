@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -26,7 +26,7 @@ struct _RFuse {
     Application *app;
     DirTree *dir_tree;
     gchar *mountpoint;
-    
+
     // the session that we use to process the fuse stuff
     struct fuse_session *session;
     struct fuse_chan *chan;
@@ -50,7 +50,7 @@ struct _RFuse {
 #if defined(__APPLE__)
     pthread_t *unmount_thread;
 #endif
-    
+
     // statistics
     guint64 read_ops;
     guint64 write_ops;
@@ -95,6 +95,8 @@ static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, f
 #endif
 static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 static void rfuse_statfs (fuse_req_t req, fuse_ino_t ino);
+static void rfuse_symlink (fuse_req_t req, const char *link, fuse_ino_t parent_ino, const char *name);
+static void rfuse_readlink (fuse_req_t req, fuse_ino_t ino);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
@@ -118,6 +120,8 @@ static struct fuse_lowlevel_ops rfuse_opers = {
     .getxattr   = rfuse_getxattr,
     .listxattr  = rfuse_listxattr,
     .statfs     = rfuse_statfs,
+    .symlink    = rfuse_symlink,
+    .readlink   = rfuse_readlink,
 };
 /*}}}*/
 
@@ -191,7 +195,7 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
         return NULL;
     }
 #endif
-    
+
     // allocate a low-level session
     rfuse->session = fuse_lowlevel_new (NULL, &rfuse_opers, sizeof (rfuse_opers), rfuse);
     if (!rfuse->session) {
@@ -201,8 +205,8 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
 
     fuse_session_add_chan (rfuse->session, rfuse->chan);
 
-    rfuse->ev = event_new (application_get_evbase (app), 
-        fuse_chan_fd (rfuse->chan), EV_READ, &rfuse_on_read, 
+    rfuse->ev = event_new (application_get_evbase (app),
+        fuse_chan_fd (rfuse->chan), EV_READ, &rfuse_on_read,
         rfuse
     );
     if (!rfuse->ev) {
@@ -215,11 +219,11 @@ RFuse *rfuse_new (Application *app, const gchar *mountpoint, const gchar *fuse_o
         return NULL;
     }
     /*
-    rfuse->ev_timer = evtimer_new (application_get_evbase (app), 
-        &rfuse_on_timer, 
+    rfuse->ev_timer = evtimer_new (application_get_evbase (app),
+        &rfuse_on_timer,
         rfuse
     );
-    
+
     tv.tv_sec = 10;
     tv.tv_usec = 0;
     LOG_err (FUSE_LOG, "event_add");
@@ -271,7 +275,7 @@ static void *rfuse_unmount_internal (void *arg)
 void rfuse_unmount (RFuse *rfuse)
 {
     gboolean destroyed = rfuse->destroyed;
-    
+
     if (rfuse->mounted) {
 #if defined(__APPLE__)
         // fuse_unmount is synchronous on OS X
@@ -288,7 +292,7 @@ void rfuse_unmount (RFuse *rfuse)
 #endif
     }
     rfuse->mounted = FALSE;
-    
+
     if (destroyed) {
         // we won't get a destroy message
         application_exit (rfuse->app);
@@ -310,7 +314,7 @@ static void rfuse_on_timer (evutil_socket_t fd, short what, void *arg)
         LOG_err (FUSE_LOG, "No FUSE session !");
         return;
     }
-    
+
     if (event_add (rfuse->ev_timer, &tv)) {
         LOG_err (FUSE_LOG, "event_add");
         return NULL;
@@ -348,7 +352,7 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
         LOG_err (FUSE_LOG, "No FUSE session !");
         return;
     }
-    
+
     // loop until we complete a recv
     do {
         // a new fuse_req is available
@@ -364,7 +368,7 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
 
     if (res < 0 && res != -EAGAIN)
         LOG_err (FUSE_LOG, "fuse_chan_recv failed: %s", strerror(-res));
-    
+
     if (res > 0) {
      //   LOG_debug (FUSE_LOG, "got %d bytes from /dev/fuse", res);
 
@@ -374,7 +378,7 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
         fuse_session_process (rfuse->session, rfuse->recv_buf, res, ch);
 #endif
     }
-    
+
     // reschedule
     if (event_add (rfuse->ev, NULL))
         LOG_err (FUSE_LOG, "event_add");
@@ -388,9 +392,9 @@ static void rfuse_on_read (G_GNUC_UNUSED evutil_socket_t fd, G_GNUC_UNUSED short
 static void rfuse_opendir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_H"opendir", INO_T (ino));
-    
+
     if (dir_tree_opendir (rfuse->dir_tree, ino, fi))
         fuse_reply_open (req, fi);
     else
@@ -402,11 +406,11 @@ static void rfuse_opendir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info
 static void rfuse_releasedir (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_H"releasedir", INO_T (ino));
 
     dir_tree_releasedir (rfuse->dir_tree, ino, fi);
-    
+
     fuse_reply_err (req, 0);
 }
 /*}}}*/
@@ -423,7 +427,7 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
 
     if (!req)
         return;
-    
+
     LOG_debug (FUSE_LOG, INO_H"add_dirbuf, name: %s", INO_T (ino), name);
 
     // get required buff size
@@ -440,10 +444,10 @@ void rfuse_add_dirbuf (fuse_req_t req, struct dirbuf *b, const char *name, fuse_
 
 // readdir callback
 // Valid replies: fuse_reply_buf() fuse_reply_err()
-static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off, 
+static void rfuse_readdir_cb (fuse_req_t req, gboolean success, size_t max_size, off_t off,
     const char *buf, size_t buf_size, G_GNUC_UNUSED gpointer ctx)
 {
-    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zu, size: %zu, off: %"OFF_FMT, 
+    LOG_debug (FUSE_LOG, "readdir_cb  success: %s, buf_size: %zu, size: %zu, off: %"OFF_FMT,
         success?"YES":"NO", buf_size, max_size, off);
 
     if (!success) {
@@ -464,7 +468,7 @@ static void rfuse_readdir (fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
     RFuse *rfuse = fuse_req_userdata (req);
 
     LOG_debug (FUSE_LOG, INO_H"readdir inode, size: %zu, off: %"OFF_FMT, INO_T (ino), size, off);
-    
+
     rfuse->readdir_ops++;
     // fill directory buffer for "ino" directory
     dir_tree_fill_dir_buf (rfuse->dir_tree, ino, size, off, rfuse_readdir_cb, req, NULL, fi);
@@ -496,7 +500,7 @@ static void rfuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
         stbuf.st_uid = rfuse->uid;
     if (rfuse->gid >= 0)
         stbuf.st_gid = rfuse->gid;
-   
+
     fuse_reply_attr (req, &stbuf, 1.0);
 }
 
@@ -505,7 +509,7 @@ static void rfuse_getattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, 
 static void rfuse_getattr (fuse_req_t req, fuse_ino_t ino, G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_H"getattr", INO_T (ino));
 
     dir_tree_getattr (rfuse->dir_tree, ino, rfuse_getattr_cb, req);
@@ -610,7 +614,7 @@ static void rfuse_open_cb (fuse_req_t req, gboolean success, struct fuse_file_in
 static void rfuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_FI_H"open inode, flags: %d", INO_T (ino), fi, fi->flags);
 
     dir_tree_file_open (rfuse->dir_tree, ino, fi, rfuse_open_cb, req);
@@ -652,7 +656,7 @@ void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode
 static void rfuse_create (fuse_req_t req, fuse_ino_t parent_ino, const char *name, mode_t mode, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, "create  parent inode: %"INO_FMT", name: %s, mode: %d ", INO parent_ino, name, mode);
 
     dir_tree_file_create (rfuse->dir_tree, parent_ino, name, mode, rfuse_create_cb, req, fi);
@@ -696,7 +700,7 @@ static void rfuse_read_cb (fuse_req_t req, gboolean success, const char *buf, si
 static void rfuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_FI_H">>>> read  inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fi, size, off);
 
     rfuse->read_ops++;
@@ -714,7 +718,7 @@ static void rfuse_write_cb (fuse_req_t req, gboolean success, size_t count)
         fuse_reply_err (req, ENOENT);
         return;
     }
-    
+
     fuse_reply_write (req, count);
 }
 // FUSE lowlevel operation: write
@@ -722,7 +726,7 @@ static void rfuse_write_cb (fuse_req_t req, gboolean success, size_t count)
 static void rfuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_FI_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fi, size, off);
 
     rfuse->write_ops++;
@@ -747,9 +751,9 @@ static void rfuse_forget_cb (fuse_req_t req, gboolean success)
 static void rfuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, INO_H"forget nlookup: %lu", INO_T (ino), nlookup);
-    
+
     if (nlookup != 0) {
         LOG_debug (FUSE_LOG, "Ignoring forget with nlookup > 0");
         fuse_reply_none (req);
@@ -776,7 +780,7 @@ static void rfuse_unlink_cb (fuse_req_t req, gboolean success)
 static void rfuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, "[%p] unlink  parent_ino: %"INO_FMT", name: %s", req, INO parent, name);
 
     dir_tree_file_unlink (rfuse->dir_tree, parent, name, rfuse_unlink_cb, req);
@@ -810,10 +814,10 @@ static void rfuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, in
         e.attr.st_uid = rfuse->uid;
     if (rfuse->gid >= 0)
         e.attr.st_gid = rfuse->gid;
-    
+
     e.attr.st_ino = ino;
     e.attr.st_size = file_size;
-    
+
     fuse_reply_entry (req, &e);
 }
 
@@ -822,7 +826,7 @@ static void rfuse_mkdir_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, in
 static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name, mode_t mode)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, "mkdir  parent_ino: %"INO_FMT", name: %s, mode: %d", INO parent_ino, name, mode);
 
     dir_tree_dir_create (rfuse->dir_tree, parent_ino, name, mode, rfuse_mkdir_cb, req);
@@ -836,7 +840,7 @@ static void rfuse_mkdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, "[%p] rmdir  parent_ino: %"INO_FMT", name: %s", rfuse, INO parent_ino, name);
 
     // notify dir tree
@@ -857,7 +861,7 @@ static void rfuse_rename_cb (fuse_req_t req, gboolean success)
         fuse_reply_err (req, EPERM);
         return;
     }
-    
+
     fuse_reply_err (req, 0);
 }
 
@@ -866,10 +870,10 @@ static void rfuse_rename_cb (fuse_req_t req, gboolean success)
 static void rfuse_rename (fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname)
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
-    LOG_debug (FUSE_LOG, "rename  parent_ino: %"INO_FMT", name: %s new_parent_in: %"INO_FMT", newname: %s", 
+
+    LOG_debug (FUSE_LOG, "rename  parent_ino: %"INO_FMT", name: %s new_parent_in: %"INO_FMT", newname: %s",
         INO parent, name, INO newparent, newname);
-   
+
     dir_tree_rename (rfuse->dir_tree, parent, name, newparent, newname, rfuse_rename_cb, req);
 }
 /*}}}*/
@@ -880,7 +884,7 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
     RFuse *rfuse = fuse_req_userdata (req);
     // XXX: move to DirTree
     gchar attr_list[] = "user.version\0user.etag\0user.content_type\0";
-    
+
     LOG_debug (FUSE_LOG, INO_H"listxattr, size: %zu", INO_T (ino), size);
 
     (void) rfuse;
@@ -897,7 +901,7 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
 static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, const gchar *str, size_t size)
 {
     LOG_debug (FUSE_LOG, INO_H"getattr_cb  success: %s  str: %s", INO_T (ino), success?"YES":"NO", str);
-    
+
     if (!success || !str) {
         fuse_reply_err (req, ENOTSUP);
         return;
@@ -917,7 +921,7 @@ static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino,
 #endif
 {
     RFuse *rfuse = fuse_req_userdata (req);
-    
+
     LOG_debug (FUSE_LOG, "getxattr  for: %"INO_FMT" attr name: %s size: %zu", INO ino, name, size);
 
     dir_tree_getxattr (rfuse->dir_tree, ino, name, size, rfuse_getxattr_cb, req);
@@ -943,14 +947,79 @@ static void rfuse_statfs (fuse_req_t req, fuse_ino_t ino)
     struct statvfs st;
 
     LOG_debug (FUSE_LOG, INO_H"statfs", INO_T (ino));
-    
+
     memset (&st, 0, sizeof (struct statvfs));
-    
+
     st.f_bsize  = 0X1000000;
     st.f_blocks = 0X1000000;
     st.f_bfree  = 0x1000000;
     st.f_bavail = 0x1000000;
     st.f_namemax = NAME_MAX;
     fuse_reply_statfs (req, &st);
+}
+/*}}}*/
+
+/*{{{ symlink */
+static void rfuse_symlik_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime)
+{
+    struct fuse_entry_param e;
+    RFuse *rfuse = fuse_req_userdata (req);
+
+    LOG_debug (FUSE_LOG, INO_H"symlik_cb, file size: %"OFF_FMT" success: %s", INO_T (ino), file_size, success?"YES":"NO");
+    if (!success) {
+        fuse_reply_err (req, ENOENT);
+        return;
+    }
+
+    memset(&e, 0, sizeof(e));
+    e.ino = ino;
+    e.attr_timeout = ATTR_TIMEOUT;
+    e.entry_timeout = ENTRY_TIMEOUT;
+
+    e.attr.st_ino = ino;
+    e.attr.st_mode = mode;
+    e.attr.st_nlink = 1;
+    e.attr.st_size = file_size;
+    e.attr.st_ctime = ctime;
+    e.attr.st_atime = ctime;
+    e.attr.st_mtime = ctime;
+    if (rfuse->uid >= 0)
+        e.attr.st_uid = rfuse->uid;
+    if (rfuse->gid >= 0)
+        e.attr.st_gid = rfuse->gid;
+
+    fuse_reply_entry (req, &e);
+}
+
+static void rfuse_symlink (fuse_req_t req, const char *link, fuse_ino_t parent_ino, const char *name)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+
+    LOG_debug (FUSE_LOG, "[%p] symlink  parent_ino: %"INO_FMT", name: %s link: %s", rfuse, INO parent_ino, name, link);
+
+    dir_tree_create_symlink (rfuse->dir_tree, parent_ino, name, link, rfuse_symlik_cb, req);
+}
+/*}}}*/
+
+/*{{{ readlink */
+static void rfuse_readlink_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, const char *link)
+{
+    LOG_debug (FUSE_LOG, INO_H"readlink_cb, success: %s, link: %s", INO_T (ino), success?"YES":"NO", link);
+
+    if (!success) {
+        fuse_reply_err (req, ENOENT);
+        return;
+    }
+
+    fuse_reply_readlink (req, link);
+}
+
+static void rfuse_readlink (fuse_req_t req, fuse_ino_t ino)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+
+    LOG_debug (FUSE_LOG, "[%p] readlink ino: %"INO_FMT, rfuse, INO ino);
+
+    dir_tree_readlink (rfuse->dir_tree, ino, rfuse_readlink_cb, req);
 }
 /*}}}*/

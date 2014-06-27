@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -30,7 +30,7 @@ typedef struct _DirEntry DirEntry;
 DirTree *dir_tree_create (Application *app);
 void dir_tree_destroy (DirTree *dtree);
 
-DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType type, 
+DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType type,
     fuse_ino_t parent_ino, const gchar *entry_name, long long size, time_t last_modified);
 
 void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
@@ -43,10 +43,10 @@ void dir_tree_stop_update (DirTree *dtree, fuse_ino_t parent_ino);
 gboolean dir_tree_opendir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
 gboolean dir_tree_releasedir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *fi);
 
-typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off, 
+typedef void (*dir_tree_readdir_cb) (fuse_req_t req, gboolean success, size_t max_size, off_t off,
     const char *buf, size_t buf_size,
     gpointer ctx);
-void dir_tree_fill_dir_buf (DirTree *dtree, 
+void dir_tree_fill_dir_buf (DirTree *dtree,
     fuse_ino_t ino, size_t size, off_t off,
     dir_tree_readdir_cb readdir_cb, fuse_req_t req,
     gpointer ctx, struct fuse_file_info *fi);
@@ -57,17 +57,17 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
 
 
 typedef void (*dir_tree_getattr_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime);
-void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_getattr (DirTree *dtree, fuse_ino_t ino,
     dir_tree_getattr_cb getattr_cb, fuse_req_t req);
 
 typedef void (*dir_tree_setattr_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size);
-void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_setattr (DirTree *dtree, fuse_ino_t ino,
     struct stat *attr, int to_set,
     dir_tree_setattr_cb setattr_cb, fuse_req_t req, void *fi);
 
 
 typedef void (*DirTree_file_read_cb) (fuse_req_t req, gboolean success, const char *buf, size_t buf_size);
-void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
     size_t size, off_t off,
     DirTree_file_read_cb getattr_cb, fuse_req_t req,
     struct fuse_file_info *fi);
@@ -77,8 +77,8 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     DirTree_file_create_cb file_create_cb, fuse_req_t req, struct fuse_file_info *fi);
 
 typedef void (*DirTree_file_write_cb) (fuse_req_t req, gboolean success, size_t count);
-void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino, 
-    const char *buf, size_t size, off_t off, 
+void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
+    const char *buf, size_t size, off_t off,
     DirTree_file_write_cb file_write_cb, fuse_req_t req,
     struct fuse_file_info *fi);
 
@@ -98,12 +98,12 @@ void dir_tree_dir_create (DirTree *dtree, fuse_ino_t parent_ino, const char *nam
      dir_tree_mkdir_cb mkdir_cb, fuse_req_t req);
 
 typedef void (*DirTree_rename_cb) (fuse_req_t req, gboolean success);
-void dir_tree_rename (DirTree *dtree, 
+void dir_tree_rename (DirTree *dtree,
     fuse_ino_t parent_ino, const char *name, fuse_ino_t newparent_ino, const char *newname,
     DirTree_rename_cb rename_cb, fuse_req_t req);
 
 typedef void (*dir_tree_getxattr_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, const gchar *str, size_t size);
-void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino, 
+void dir_tree_getxattr (DirTree *dtree, fuse_ino_t ino,
     const char *name, size_t size,
     dir_tree_getxattr_cb getxattr_cb, fuse_req_t req);
 
@@ -113,4 +113,11 @@ guint dir_tree_get_inode_count (DirTree *dtree);
 
 void dir_tree_set_entry_exist (DirTree *dtree, fuse_ino_t ino);
 
+
+typedef void (*DirTree_symlink_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode, off_t file_size, time_t ctime);
+void dir_tree_create_symlink (DirTree *dtree, fuse_ino_t parent_ino, const char *fname, const char *link,
+    DirTree_symlink_cb symlink_cb, fuse_req_t req);
+
+typedef void (*DirTree_readlink_cb) (fuse_req_t req, gboolean success, fuse_ino_t ino, const char *link);
+void dir_tree_readlink (DirTree *dtree, fuse_ino_t ino, DirTree_readlink_cb readlink_cb, fuse_req_t req);
 #endif

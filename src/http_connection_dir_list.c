@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -31,7 +31,7 @@ typedef struct {
 
 #define CON_DIR_LOG "con_dir"
 
-// parses  directory XML 
+// parses  directory XML
 // returns TRUE if ok
 static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t xml_len)
 {
@@ -111,7 +111,7 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
         name = (gchar *)xmlNodeListGetString (doc, key_nodes->nodeTab[0]->xmlChildrenNode, 1);
         xmlXPathFreeObject (key);
         XML_VAR_CHK (name);
-        
+
         key = xmlXPathEvalExpression ((xmlChar *) "s3:Size", ctx);
         XML_VAR_CHK (key);
         key_nodes = key->nodesetval;
@@ -136,8 +136,8 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
             xmlFree (s_last_modified);
         }
         xmlXPathFreeObject (key);
-        
-        // 
+
+        //
         if (!strncmp (name, dir_list->dir_path, strlen (name))) {
             xmlFree (name);
             continue;
@@ -158,9 +158,9 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
             size = 0;
         }
 
-        dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino, 
+        dir_tree_update_entry (dir_list->dir_tree, dir_list->dir_path, DET_file, dir_list->ino,
             bname, size, last_modified);
-        
+
         xmlFree (name);
     }
 
@@ -200,17 +200,17 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
 
         bname = strstr (name, dir_list->dir_path);
         bname = bname + strlen (dir_list->dir_path);
-    
+
         //XXX: remove trailing '/' characters
         if (strlen (bname) > 1 && bname[strlen (bname) - 1] == '/') {
             bname[strlen (bname) - 1] = '\0';
-        // XXX: 
+        // XXX:
         } else if (strlen (bname) == 1 && bname[0] == '/')  {
             LOG_debug (CON_DIR_LOG, "Wrong directory name !");
             xmlFree (name);
             continue;
         }
-        
+
         // XXX: save / restore directory mtime
         last_modified = time (NULL);
 
@@ -275,10 +275,10 @@ static void directory_listing_done (HttpConnection *con, DirListRequest *dir_req
 {
     if (dir_req->directory_listing_callback)
         dir_req->directory_listing_callback (dir_req->callback_data, success);
-        
+
     // we are done, stop updating
     dir_tree_stop_update (dir_req->dir_tree, dir_req->ino);
-        
+
     // release HTTP client
     if (con)
         http_connection_release (con);
@@ -291,12 +291,12 @@ static void directory_listing_done (HttpConnection *con, DirListRequest *dir_req
 // Directory read callback function
 static void http_connection_on_directory_listing_data (HttpConnection *con, void *ctx, gboolean success,
         const gchar *buf, size_t buf_len, G_GNUC_UNUSED struct evkeyvalq *headers)
-{   
+{
     DirListRequest *dir_req = (DirListRequest *) ctx;
     const gchar *next_marker = NULL;
     gchar *req_path;
     gboolean res;
-   
+
     if (!buf_len || !buf) {
         LOG_err (CON_DIR_LOG, INO_CON_H"Directory buffer is empty !", INO_T (dir_req->ino), con);
         directory_listing_done (con, dir_req, FALSE);
@@ -308,13 +308,13 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
         directory_listing_done (con, dir_req, FALSE);
         return;
     }
-   
+
     if (!parse_dir_xml (dir_req, buf, buf_len)) {
         LOG_err (CON_DIR_LOG, INO_CON_H"Error parsing directory XML !", INO_T (dir_req->ino), con);
         directory_listing_done (con, dir_req, FALSE);
         return;
     }
-    
+
     // repeat starting from the mark
     next_marker = get_next_marker (buf, buf_len);
 
@@ -327,10 +327,10 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
 
     // execute HTTP request
     req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%u&marker=%s", dir_req->dir_path, dir_req->max_keys, next_marker);
-    
+
     xmlFree ((void *) next_marker);
 
-    res = http_connection_make_request (dir_req->con, 
+    res = http_connection_make_request (dir_req->con,
         req_path, "GET",
         NULL, TRUE, NULL,
         http_connection_on_directory_listing_data,
@@ -366,7 +366,7 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
 
     // acquire HTTP client
     http_connection_acquire (con);
-    
+
     //XXX: fix dir_path
     if (!strlen (dir_path)) {
         dir_req->dir_path = g_strdup ("");
@@ -376,13 +376,13 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
 
     req_path = g_strdup_printf ("/?delimiter=/&max-keys=%u&prefix=%s", dir_req->max_keys, dir_req->dir_path);
 
-    res = http_connection_make_request (con, 
+    res = http_connection_make_request (con,
         req_path, "GET",
         NULL, TRUE, NULL,
         http_connection_on_directory_listing_data,
         dir_req
     );
-    
+
     g_free (req_path);
 
     if (!res) {

@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -37,4 +37,11 @@ void fileio_read_buffer (FileIO *fop,
     size_t size, off_t off, fuse_ino_t ino,
     FileIO_on_buffer_read_cb on_buffer_read_cb, gpointer ctx);
 
+typedef void (*FileIO_simple_on_upload_cb) (gpointer ctx, gboolean success);
+void fileio_simple_upload (Application *app, const gchar *fname, const char *str, mode_t mode,
+    FileIO_simple_on_upload_cb on_upload_cb, gpointer ctx);
+
+typedef void (*FileIO_simple_on_download_cb) (gpointer ctx, gboolean success, const gchar *buf, size_t buf_len);
+void fileio_simple_download (Application *app, const gchar *fname,
+    FileIO_simple_on_download_cb on_download_cb, gpointer ctx);
 #endif

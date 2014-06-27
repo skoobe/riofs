@@ -630,6 +630,7 @@ int main (int argc, char *argv[])
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
     gboolean disable_stats = FALSE;
+    gboolean force_head_requests = FALSE;
     gint uid = -1;
     gint gid = -1;
     gint fmode = -1;
@@ -658,6 +659,7 @@ int main (int argc, char *argv[])
         { "disable-stats", 0, 0, G_OPTION_ARG_NONE, &disable_stats, "Flag. Disable Statistics HTTP interface.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
         { "log-file", 'l', 0, G_OPTION_ARG_STRING_ARRAY, &s_log_file, "File to write output.", NULL },
+        { "force-head-requests", 0, 0, G_OPTION_ARG_NONE, &force_head_requests, "Flag. Send HEAD request for each file.", NULL },
         { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output.", NULL },
         { "version", 'V', 0, G_OPTION_ARG_NONE, &version, "Show application version and exit.", NULL },
         { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
@@ -866,6 +868,9 @@ int main (int argc, char *argv[])
 
     if (disable_stats)
         conf_set_boolean (app->conf, "statistics.enabled", FALSE);
+
+    if (force_head_requests)
+        conf_set_boolean (app->conf, "s3.force_head_requests_on_lookup", TRUE);
 
     conf_set_string (app->conf, "s3.bucket_name", s_params[0]);
     if (!application_set_url (app, conf_get_string (app->conf, "s3.endpoint"))) {

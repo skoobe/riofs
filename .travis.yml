@@ -4,7 +4,6 @@ before_install:
 language: c
 compiler:
   - gcc
-  - clang
 script:
   - ./autogen.sh
   - ./configure --enable-test-apps

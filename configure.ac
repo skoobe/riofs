@@ -1,13 +1,26 @@
+m4_define([version_major], [0])
+m4_define([version_minor], [7])
+m4_define([version_micro], [0])
+m4_define([version_micro_extra], version_micro)
+m4_append([version_micro_extra], [])
+
+AC_INIT([riofs], [version_major.version_minor.version_micro_extra], [paul.ionkin@gmail.com], , [https://github.com/skoobe/riofs])
+
 AC_PREREQ(2.61)
-AC_INIT([riofs], [0.6], [paul.ionkin@gmail.com])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([1.9 tar-ustar dist-bzip2 no-dist-gzip])
+
+AC_DEFINE(VERSION_MAJOR, version_major, [RioFS major version])
+AC_DEFINE(VERSION_MINOR, version_minor, [RioFS minor version])
+AC_DEFINE(VERSION_MICRO, version_micro, [RioFS micro version])
+
 AC_CONFIG_HEADERS([include/config.h])
 
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_INSTALL
+AC_PROG_MKDIR_P
 AC_PROG_LN_S
 AC_PROG_RANLIB
 PKG_PROG_PKG_CONFIG
@@ -146,9 +159,7 @@ AC_ARG_ENABLE(debug,
 )
 
 if test "x$enable_debug" = "xyes" ; then
-    CFLAGS="$CFLAGS -Wall -Wextra -O0 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE"
-else
-    CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -O2"
+    CFLAGS="$CFLAGS -Wall -Wextra -O0 -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-default -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-overflow=5 -Wformat=2 -Wunreachable-code -Wfloat-equal -ffloat-store -g -ggdb3"
 fi
 
 AC_CONFIG_FILES(Makefile src/Makefile include/Makefile tests/Makefile)

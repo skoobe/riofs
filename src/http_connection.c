@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -38,7 +38,7 @@ static void http_connection_free_headers (GList *l_headers);
 
 /*{{{ create / destroy */
 // create HttpConnection object
-// establish HTTP connections to 
+// establish HTTP connections to
 gpointer http_connection_create (Application *app)
 {
     HttpConnection *con;
@@ -48,7 +48,7 @@ gpointer http_connection_create (Application *app)
         LOG_err (CON_LOG, "Failed to create HttpConnection !");
         return NULL;
     }
-    
+
     con->app = app;
     con->l_output_headers = NULL;
     con->cur_cmd_type = CMD_IDLE;
@@ -62,7 +62,7 @@ gpointer http_connection_create (Application *app)
     con->errors_nr = 0;
 
     con->is_acquired = FALSE;
-    
+
     if (!http_connection_init (con)) {
         g_free (con);
         return NULL;
@@ -87,7 +87,7 @@ static gboolean http_connection_init (HttpConnection *con)
     if (conf_get_boolean (application_get_conf (con->app), "s3.ssl")) {
         SSL *ssl;
         struct bufferevent *bev;
-        
+
         ssl = SSL_new (application_get_ssl_ctx (con->app));
         if (!ssl) {
             LOG_err (CON_LOG, CON_H"Failed to create SSL connection: %s", con,
@@ -97,7 +97,7 @@ static gboolean http_connection_init (HttpConnection *con)
 
         bev = bufferevent_openssl_socket_new (
             application_get_evbase (con->app),
-            -1, ssl, 
+            -1, ssl,
             BUFFEREVENT_SSL_CONNECTING,
             BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS
         );
@@ -130,12 +130,12 @@ static gboolean http_connection_init (HttpConnection *con)
         LOG_err (CON_LOG, "Failed to create evhttp_connection !");
         return FALSE;
     }
-    
+
     evhttp_connection_set_timeout (con->evcon, conf_get_int (application_get_conf (con->app), "connection.timeout"));
     evhttp_connection_set_retries (con->evcon, conf_get_int (application_get_conf (con->app), "connection.retries"));
 
     evhttp_connection_set_closecb (con->evcon, http_connection_on_close, con);
-    
+
     return TRUE;
 }
 
@@ -143,7 +143,7 @@ static gboolean http_connection_init (HttpConnection *con)
 void http_connection_destroy (gpointer data)
 {
     HttpConnection *con = (HttpConnection *) data;
-    
+
     if (con->cur_url)
         g_free (con->cur_url);
     if (con->evcon)
@@ -184,7 +184,7 @@ gboolean http_connection_release (HttpConnection *con)
 
     if (con->client_on_released_cb)
         con->client_on_released_cb (con, con->pool_ctx);
-    
+
     return TRUE;
 }
 
@@ -196,7 +196,7 @@ static void http_connection_on_close (G_GNUC_UNUSED struct evhttp_connection *ev
     LOG_debug (CON_LOG, CON_H"Connection closed !", con);
 
     //con->cur_cmd_type = CMD_IDLE;
-    
+
     //XXX: need further investigation !
     //con->evcon = NULL;
 }
@@ -217,7 +217,7 @@ struct evhttp_connection *http_connection_get_evcon (HttpConnection *con)
 /*{{{ get_auth_string */
 // create  auth string
 // http://docs.amazonwebservices.com/Amazon/2006-03-01/dev/RESTAuthentication.html
-static gchar *http_connection_get_auth_string (Application *app, 
+static gchar *http_connection_get_auth_string (Application *app,
         const gchar *method, const gchar *resource, const gchar *time_str,
         GList *l_output_headers)
 {
@@ -253,8 +253,8 @@ static gchar *http_connection_get_auth_string (Application *app,
     if (!content_type)
         content_type = g_strdup ("");
 
-    // The list of sub-resources that must be included when constructing the CanonicalizedResource 
-    // Element are: acl, lifecycle, location, logging, notification, partNumber, policy, 
+    // The list of sub-resources that must be included when constructing the CanonicalizedResource
+    // Element are: acl, lifecycle, location, logging, notification, partNumber, policy,
     // requestPayment, torrent, uploadId, uploads, versionId, versioning, versions and website.
     if (strlen (resource) > 2 && resource[1] == '?') {
         if (strstr (resource, "?acl") || strstr (resource, "?versioning") || strstr (resource, "?versions"))
@@ -268,7 +268,7 @@ static gchar *http_connection_get_auth_string (Application *app,
         "%s\n"  // HTTP-Verb + "\n"
         "%s\n"  // Content-MD5 + "\n"
         "%s\n"  // Content-Type + "\n"
-        "%s\n"  // Date + "\n" 
+        "%s\n"  // Date + "\n"
         "%s"    // CanonicalizedAmzHeaders
         "%s",    // CanonicalizedResource
 
@@ -395,14 +395,14 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     const gchar *range_str = NULL;
 
     con = data->con;
-    
+
     gettimeofday (&end_tv, NULL);
     con->cur_time_stop = time (NULL);
 
     if (con->cur_time_start) {
         struct tm *cur_p;
         struct tm cur;
-        
+
         localtime_r (&con->cur_time_start, &cur);
         cur_p = &cur;
         if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
@@ -413,7 +413,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
     if (con->cur_time_start && con->cur_time_start < con->cur_time_stop)
         diff_sec = con->cur_time_stop - con->cur_time_start;
-    
+
     if (req) {
         struct evkeyvalq *output_headers;
         struct evkeyvalq *input_headers;
@@ -421,20 +421,20 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
         inbuf = evhttp_request_get_input_buffer (req);
         buf_len = evbuffer_get_length (inbuf);
-        
+
         output_headers = evhttp_request_get_output_headers (req);
         if (output_headers) {
             range_str = evhttp_find_header (output_headers, "Range");
-            
-            // get the size of Output headers 
+
+            // get the size of Output headers
             TAILQ_FOREACH(header, output_headers, next) {
                 con->total_bytes_out += strlen (header->key) + strlen (header->value);
             }
         }
-            
+
         con->cur_code = evhttp_request_get_response_code (req);
 
-        // get the size of Input headers 
+        // get the size of Input headers
         input_headers = evhttp_request_get_input_headers (req);
         if (input_headers) {
             TAILQ_FOREACH(header, input_headers, next) {
@@ -447,20 +447,20 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     } else {
         con->cur_code = 500;
     }
-    
-    s_history = g_strdup_printf ("[%p] %s (%u sec) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)", 
+
+    s_history = g_strdup_printf ("[%p] %s (%u sec) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)",
         con,
-        ts, diff_sec, data->http_cmd, data->con->cur_url, 
+        ts, diff_sec, data->http_cmd, data->con->cur_url,
         range_str ? range_str : "",
         con->cur_code,
         data->out_size,
         buf_len
     );
-    
+
     stats_srv_add_op_history (application_get_stat_srv (data->con->app), s_history);
     g_free (s_history);
 
-    LOG_debug (CON_LOG, CON_H"Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)", 
+    LOG_debug (CON_LOG, CON_H"Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)",
         con, timeval_diff (&data->start_tv, &end_tv));
 
     if (!req) {
@@ -479,7 +479,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
         if (data->enable_retry) {
             data->retry_id++;
-            LOG_err (CON_LOG, CON_H"Server returned HTTP error ! Retry ID: %d of %d", 
+            LOG_err (CON_LOG, CON_H"Server returned HTTP error ! Retry ID: %d of %d",
                 con, data->retry_id,
                 conf_get_int (application_get_conf (data->con->app), "connection.max_retries"));
 
@@ -503,7 +503,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         }
         goto done;
     }
-    
+
     // check if we reached maximum redirect count
     if (data->redirects > conf_get_int (application_get_conf (data->con->app), "connection.max_redirects")) {
         LOG_err (CON_LOG, CON_H"Too many redirects !", con);
@@ -532,7 +532,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             // let's parse XML
             loc = get_endpoint (buf, buf_len);
             free_loc = TRUE;
-            
+
             if (!loc) {
                 LOG_err (CON_LOG, CON_H"Redirect URL not found !", con);
                 if (data->responce_cb)
@@ -570,7 +570,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         }
         goto done;
     }
-    
+
     inbuf = evhttp_request_get_input_buffer (req);
     buf_len = evbuffer_get_length (inbuf);
     buf = (const char *) evbuffer_pullup (inbuf, buf_len);
@@ -579,25 +579,25 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     // 200
     // 204 (No Content)
     // 206 (Partial Content)
-    if (evhttp_request_get_response_code (req) != 200 && 
-        evhttp_request_get_response_code (req) != 204 && 
+    if (evhttp_request_get_response_code (req) != 200 &&
+        evhttp_request_get_response_code (req) != 204 &&
         evhttp_request_get_response_code (req) != 206) {
         gchar *msg;
-        
+
         // if it contains any readable information
         msg = parse_aws_error (buf, buf_len);
 
-        LOG_debug (CON_LOG, CON_H"Server returned HTTP error: %d (%s). AWS message: %s", 
+        LOG_debug (CON_LOG, CON_H"Server returned HTTP error: %d (%s). AWS message: %s",
             con, evhttp_request_get_response_code (req), req->response_code_line, msg);
 
         if (msg)
             xmlFree (msg);
-        
+
         con->errors_nr++;
-        
+
         if (data->enable_retry) {
             data->retry_id++;
-            LOG_err (CON_LOG, CON_H"Server returned HTTP error: %d (%s)! Retry ID: %d of %d", 
+            LOG_err (CON_LOG, CON_H"Server returned HTTP error: %d (%s)! Retry ID: %d of %d",
                 con, evhttp_request_get_response_code (req), req->response_code_line, data->retry_id,
                 conf_get_int (application_get_conf (data->con->app), "connection.max_retries"));
 
@@ -622,7 +622,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         goto done;
     }
 
-    
+
     if (data->responce_cb)
         data->responce_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));
     else
@@ -661,7 +661,7 @@ static void http_connection_free_headers (GList *l_headers)
     g_list_free (l_headers);
 }
 
-gboolean http_connection_make_request (HttpConnection *con, 
+gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
@@ -703,7 +703,7 @@ gboolean http_connection_make_request (HttpConnection *con,
             data->out_size = 0;
         data->retry_id = 0;
         data->enable_retry = enable_retry;
-        
+
         data->l_output_headers = NULL;
 
         // save headers
@@ -727,7 +727,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     data->responce_cb = responce_cb;
     data->ctx = ctx;
     data->con = con;
-    
+
     if (!strcasecmp (http_cmd, "GET")) {
         cmd_type = EVHTTP_REQ_GET;
     } else if (!strcasecmp (http_cmd, "PUT")) {
@@ -745,7 +745,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_data_free (data);
         return FALSE;
     }
-    
+
     t = time (NULL);
     if (!strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
         LOG_err (CON_LOG, CON_H"strftime returned error !", con);
@@ -754,7 +754,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_data_free (data);
         return FALSE;
     }
-    
+
     auth_str = http_connection_get_auth_string (con->app, http_cmd, data->resource_path, time_str, data->l_output_headers);
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     g_free (auth_str);
@@ -777,7 +777,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     for (l = g_list_first (data->l_output_headers); l; l = g_list_next (l)) {
         HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
-        evhttp_add_header (req->output_headers, 
+        evhttp_add_header (req->output_headers,
             header->key, header->value
         );
     }
@@ -802,7 +802,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     LOG_msg (CON_LOG, CON_H"%s %s  bucket: %s, host: %s, out_len: %zd", con,
         http_cmd, request_str, bucket_name, host,
         out_buffer ? evbuffer_get_length (out_buffer) : 0);
-    
+
     // update stats info
     con->cur_cmd_type = cmd_type;
     if (con->cur_url)
@@ -828,10 +828,10 @@ gboolean http_connection_make_request (HttpConnection *con,
 // return string with various statistics information
 void http_connection_get_stats_info_caption (G_GNUC_UNUSED gpointer client, GString *str, struct PrintFormat *print_format)
 {
-    g_string_append_printf (str, 
+    g_string_append_printf (str,
         "%s ID %s Current state %s Last CMD %s Last URL %s Last Code %s Time started (Response sec) %s Jobs (Errors) %s Connects Nr %s Total Out %s Total In %s"
-        , 
-        print_format->caption_start, 
+        ,
+        print_format->caption_start,
         print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
         print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div, print_format->caption_col_div,
         print_format->caption_col_div,
@@ -869,7 +869,7 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
     if (con->cur_time_start) {
         struct tm *cur_p;
         struct tm cur;
-        
+
         localtime_r (&con->cur_time_start, &cur);
         cur_p = &cur;
         if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
@@ -880,8 +880,8 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
 
     if (con->cur_time_start && con->cur_time_start < con->cur_time_stop)
         diff_sec = con->cur_time_stop - con->cur_time_start;
-    
-    g_string_append_printf (str, 
+
+    g_string_append_printf (str,
         "%s" // header
         "%p %s" // ID
         "%s %s" // State

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -31,7 +31,7 @@ void test_conf_destroy (ConfData **conf, gconstpointer test_data)
 void test_conf_parse_file (ConfData **conf, gconstpointer test_data)
 {
     gboolean res;
-    
+
     res = conf_parse_file (*conf, "test.conf.xml");
     g_assert (res == TRUE);
 }
@@ -40,7 +40,7 @@ void test_conf_get_string (ConfData **conf, gconstpointer test_data)
 {
     gboolean res;
     const gchar *str;
-    
+
     res = conf_parse_file (*conf, "test.conf.xml");
     g_assert (res == TRUE);
 
@@ -52,7 +52,7 @@ void test_conf_get_int (ConfData **conf, gconstpointer test_data)
 {
     gboolean res;
     gint32 i;
-    
+
     res = conf_parse_file (*conf, "test.conf.xml");
     g_assert (res == TRUE);
 
@@ -64,7 +64,7 @@ void test_conf_get_boolean (ConfData **conf, gconstpointer test_data)
 {
     gboolean res;
     gboolean b;
-    
+
     res = conf_parse_file (*conf, "test.conf.xml");
     g_assert (res == TRUE);
 
@@ -78,7 +78,7 @@ void test_conf_get_list (ConfData **conf, gconstpointer test_data)
     GList *l, *l_tmp;
     int itr = 0;
     gchar *str;
-    
+
     res = conf_parse_file (*conf, "test.conf.xml");
     g_assert (res == TRUE);
 

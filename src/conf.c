@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -91,8 +91,8 @@ void conf_destroy (ConfData *conf)
     g_free (conf);
 }
 
-static void start_element_handler (G_GNUC_UNUSED GMarkupParseContext *context, 
-    const gchar *element_name, G_GNUC_UNUSED const gchar **attribute_names, 
+static void start_element_handler (G_GNUC_UNUSED GMarkupParseContext *context,
+    const gchar *element_name, G_GNUC_UNUSED const gchar **attribute_names,
     const gchar **attribute_values, G_GNUC_UNUSED gpointer user_data, G_GNUC_UNUSED GError **error)
 {
     ConfData *conf = (ConfData *) user_data;
@@ -144,7 +144,7 @@ static void start_element_handler (G_GNUC_UNUSED GMarkupParseContext *context,
     }
 }
 
-static void end_element_handler (G_GNUC_UNUSED GMarkupParseContext *context, G_GNUC_UNUSED const gchar *element_name, 
+static void end_element_handler (G_GNUC_UNUSED GMarkupParseContext *context, G_GNUC_UNUSED const gchar *element_name,
     G_GNUC_UNUSED gpointer user_data, G_GNUC_UNUSED GError **error)
 {
     ConfData *conf = (ConfData *) user_data;
@@ -153,14 +153,14 @@ static void end_element_handler (G_GNUC_UNUSED GMarkupParseContext *context, G_G
     conf_node = g_queue_pop_head (conf->q_nodes);
     if (!conf_node)
         return;
-    
+
     if (conf_node->type != CT_NODE)
         g_hash_table_insert (conf->h_conf, conf_node->full_name, conf_node);
-    else 
+    else
         conf_data_destroy (conf_node);
 }
 
-static void text_handler (G_GNUC_UNUSED GMarkupParseContext *context, const gchar*text, 
+static void text_handler (G_GNUC_UNUSED GMarkupParseContext *context, const gchar*text,
     gsize text_len, G_GNUC_UNUSED gpointer user_data, G_GNUC_UNUSED GError **error)
 {
     ConfData *conf = (ConfData *) user_data;
@@ -212,12 +212,12 @@ static void text_handler (G_GNUC_UNUSED GMarkupParseContext *context, const gcha
 }
 
 static void error_handler (G_GNUC_UNUSED GMarkupParseContext *context, GError *error, G_GNUC_UNUSED gpointer user_data)
-{ 
+{
     LOG_err (CONF, "Error parsing config file: %s", error->message);
 }
 
 /**
- * Parse config file 
+ * Parse config file
  *
  * @retval TRUE if file is parsed
  * @retval FALSE if failed to parse file
@@ -258,7 +258,7 @@ gboolean conf_parse_file (ConfData *conf, const gchar *filename)
 
     g_markup_parse_context_free (context);
     g_free (contents);
-    
+
     return TRUE;
 }
 

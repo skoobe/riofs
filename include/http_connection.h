@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -78,12 +78,12 @@ typedef void (*BucketClient_on_cb) (gpointer ctx, gboolean success, const gchar 
 void bucket_client_get (HttpConnection *con, const gchar *req_str, BucketClient_on_cb on_cb, gpointer ctx);
 
 typedef void (*HttpConnection_on_entry_sent_cb) (gpointer ctx, gboolean success);
-void http_connection_file_send (HttpConnection *con, int fd, const gchar *resource_path, 
+void http_connection_file_send (HttpConnection *con, int fd, const gchar *resource_path,
     HttpConnection_on_entry_sent_cb on_entry_sent_cb, gpointer ctx);
 
 typedef void (*HttpConnection_responce_cb) (HttpConnection *con, gpointer ctx, gboolean success,
         const gchar *buf, size_t buf_len, struct evkeyvalq *headers);
-gboolean http_connection_make_request (HttpConnection *con, 
+gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,

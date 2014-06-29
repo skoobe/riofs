@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -54,7 +54,7 @@ static gint intervals_compare (Interval *a, Interval *b)
         return -1;
     else if (a->start > b->start)
         return 1;
-    else 
+    else
         return 0;
 }
 
@@ -66,7 +66,7 @@ void range_add (Range *range, guint64 start, guint64 end)
     l = g_list_first (range->l_intervals);
     while (l) {
         Interval *in = (Interval *) l->data;
-        
+
         // is in range
         if (in->start <= start && in->end >= end) {
             return;
@@ -82,13 +82,13 @@ void range_add (Range *range, guint64 start, guint64 end)
             if (in->start > start)
                 in->start = start;
 
-            
+
             j = l->next;
             while (j) {
                 // extend
                 Interval *in1 = (Interval *) j->data;
-                if ((in->start >= in1->start && in->start <= in1->end) || 
-                    (in->end >= in1->start && in->end <= in1->end) || 
+                if ((in->start >= in1->start && in->start <= in1->end) ||
+                    (in->end >= in1->start && in->end <= in1->end) ||
                     (in->start <= in1->start && in->end >= in1->end)) {
                     GList *l_save;
 
@@ -102,7 +102,7 @@ void range_add (Range *range, guint64 start, guint64 end)
                     j = l_save;
 
                     g_free (in1);
-                } else 
+                } else
                     j = j->next;
             }
         }

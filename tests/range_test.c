@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -73,12 +73,12 @@ static void range_test_remove_2 (Range **range, gconstpointer test_data)
     range_add (*range, 11, 15);
     range_add (*range, 16, 20);
     range_add (*range, 25, 30);
-    range_add (*range, 25, 30); 
-    range_add (*range, 32, 36); 
-    range_add (*range, 40, 50); 
+    range_add (*range, 25, 30);
+    range_add (*range, 32, 36);
+    range_add (*range, 40, 50);
 
 
-    range_add (*range, 10, 32); 
+    range_add (*range, 10, 32);
     g_assert (range_contain (*range, 2, 14) == FALSE);
     g_assert (range_contain (*range, 1, 9) == TRUE);
     g_assert (range_contain (*range, 10, 35) == TRUE);
@@ -95,7 +95,7 @@ static void range_test_remove_3 (Range **range, gconstpointer test_data)
 
     range_add (*range, 24, 30);
 
-    range_add (*range, 10, 35); 
+    range_add (*range, 10, 35);
 
     g_assert (range_contain (*range, 2, 14) == FALSE);
     g_assert (range_contain (*range, 1, 9) == TRUE);

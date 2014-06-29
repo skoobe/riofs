@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -49,7 +49,7 @@ static void stat_srv_on_gen_cb (struct evhttp_request *req, void *ctx);
 StatSrv *stat_srv_create (Application *app)
 {
     StatSrv *stat_srv;
-    
+
     stat_srv = g_new0 (StatSrv, 1);
     stat_srv->app = app;
     stat_srv->q_op_history = g_queue_new ();
@@ -67,7 +67,7 @@ StatSrv *stat_srv_create (Application *app)
     }
 
     // bind
-    if (evhttp_bind_socket (stat_srv->http, 
+    if (evhttp_bind_socket (stat_srv->http,
         conf_get_string (application_get_conf (stat_srv->app), "statistics.host"),
         conf_get_int (application_get_conf (stat_srv->app), "statistics.port")) == -1) {
         LOG_err (STAT_LOG, "Failed to bind statistics server to  %s:%d",
@@ -131,17 +131,17 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     char ts[50];
 
     uri = evhttp_uri_parse (evhttp_request_get_uri (req));
-    LOG_debug (STAT_LOG, "Incoming request: %s from %s:%d", 
+    LOG_debug (STAT_LOG, "Incoming request: %s from %s:%d",
         evhttp_request_get_uri (req), req->remote_host, req->remote_port);
 
     if (uri) {
         const gchar *query;
-        
+
         query = evhttp_uri_get_query (uri);
         if (query) {
             const gchar *refresh = NULL;
             struct evkeyvalq q_params;
-            
+
             TAILQ_INIT (&q_params);
             evhttp_parse_query_str (query, &q_params);
             refresh = http_find_header (&q_params, "refresh");
@@ -154,14 +154,14 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     }
 
     str = g_string_new (NULL);
-    
+
     now = time (NULL);
     localtime_r (&now, &cur);
     cur_p = &cur;
     if (!strftime (ts, sizeof (ts), "%H:%M:%S", cur_p))
         ts[0] = '\0';
 
-    g_string_append_printf (str, "RioFS version: %s Uptime: %u sec, Now: %s, Log level: %d, Dir cache time: %u sec<BR>", 
+    g_string_append_printf (str, "RioFS version: %s Uptime: %u sec, Now: %s, Log level: %d, Dir cache time: %u sec<BR>",
         VERSION, (guint32)(now - stat_srv->boot_time), ts, log_level,
         conf_get_uint (application_get_conf (stat_srv->app), "filesystem.dir_cache_max_time"));
 
@@ -179,17 +179,17 @@ static void stat_srv_on_stats_cb (struct evhttp_request *req, void *ctx)
     // CacheMng
     cache_mng_get_stats (application_get_cache_mng (stat_srv->app), &cache_entries, &total_cache_size, &cache_hits, &cache_miss);
     g_string_append_printf (str, "<BR>CacheMng: <BR>-Total entries: %"G_GUINT32_FORMAT", Total cache size: %"G_GUINT64_FORMAT
-        " bytes, Cache hits: %"G_GUINT64_FORMAT", Cache misses: %"G_GUINT64_FORMAT" <BR>", 
+        " bytes, Cache hits: %"G_GUINT64_FORMAT", Cache misses: %"G_GUINT64_FORMAT" <BR>",
         cache_entries, total_cache_size, cache_hits, cache_miss);
-    
-    g_string_append_printf (str, "<BR>Read workers (%d): <BR>", 
+
+    g_string_append_printf (str, "<BR>Read workers (%d): <BR>",
         client_pool_get_client_count (application_get_read_client_pool (stat_srv->app)));
     client_pool_get_client_stats_info (application_get_read_client_pool (stat_srv->app), str, &print_format_http);
-    
+
     g_string_append_printf (str, "<BR>Write workers (%d): <BR>",
         client_pool_get_client_count (application_get_write_client_pool (stat_srv->app)));
     client_pool_get_client_stats_info (application_get_write_client_pool (stat_srv->app), str, &print_format_http);
-    
+
     g_string_append_printf (str, "<BR>Op workers (%d): <BR>",
         client_pool_get_client_count (application_get_ops_client_pool (stat_srv->app)));
     client_pool_get_client_stats_info (application_get_ops_client_pool (stat_srv->app), str, &print_format_http);
@@ -217,9 +217,9 @@ static void stat_srv_on_gen_cb (struct evhttp_request *req, void *ctx)
 {
     StatSrv *stat_srv = (StatSrv *) ctx;
     const gchar *query;
-    
+
     query = evhttp_uri_get_query (evhttp_request_get_evhttp_uri (req));
-    
+
     LOG_debug (STAT_LOG, "Unhandled request to: %s", query);
 
     (void) stat_srv;

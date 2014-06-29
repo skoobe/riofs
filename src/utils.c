@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -50,7 +50,7 @@ gboolean get_md5_sum (const gchar *buf, size_t len, gchar **md5str, gchar **md5b
 
     MD5 ((const unsigned char *)buf, len, digest);
 
-  
+
     if (md5b)
         *md5b = get_base64 ((const gchar *)digest, 16);
     if (md5str) {
@@ -68,7 +68,7 @@ gchar *get_base64 (const gchar *buf, size_t len)
     gchar *res;
     BIO *bmem, *b64;
     BUF_MEM *bptr;
-    
+
     b64 = BIO_new (BIO_f_base64 ());
     bmem = BIO_new (BIO_s_mem ());
     b64 = BIO_push (b64, bmem);
@@ -100,7 +100,7 @@ gboolean uri_is_https (const struct evhttp_uri *uri)
 
     if (!strncasecmp ("https", scheme, 5))
         return TRUE;
-    
+
     return FALSE;
 }
 
@@ -129,7 +129,7 @@ const gchar *http_find_header (const struct evkeyvalq *headers, const gchar *key
     return evhttp_find_header (headers, key);
 }
 
-static int on_unlink_cb (const char *fpath, G_GNUC_UNUSED const struct stat *sb, 
+static int on_unlink_cb (const char *fpath, G_GNUC_UNUSED const struct stat *sb,
     G_GNUC_UNUSED int typeflag, G_GNUC_UNUSED struct FTW *ftwbuf)
 {
     int rv = remove (fpath);
@@ -149,7 +149,7 @@ int utils_del_tree (const gchar *path, int depth)
 guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime)
 {
     guint64 msec = 0;
-    
+
     // special case, when finishtime is not set
     if (!finishtime->tv_sec && !finishtime->tv_usec)
         return 0;
@@ -160,7 +160,7 @@ guint64 timeval_diff (struct timeval *starttime, struct timeval *finishtime)
     } else if (finishtime->tv_usec > starttime->tv_usec) {
         msec = (guint64)((finishtime->tv_usec - starttime->tv_usec) / 1000);
     }
-    
+
     return msec;
 }
 

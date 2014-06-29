@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -28,7 +28,7 @@ typedef gboolean (*ClientPool_client_check_rediness) (gpointer client);
 typedef void (*ClientPool_client_get_stats_info_data) (gpointer client, GString *str, struct PrintFormat *print_format);
 typedef void (*ClientPool_client_get_stats_info_caption) (gpointer client, GString *str, struct PrintFormat *print_format);
 
-ClientPool *client_pool_create (Application *app, 
+ClientPool *client_pool_create (Application *app,
     gint client_count,
     ClientPool_client_create client_create,
     ClientPool_client_destroy client_destroy,
@@ -47,7 +47,7 @@ gboolean client_pool_get_client (ClientPool *pool, ClientPool_on_client_ready on
 gint client_pool_get_client_count (ClientPool *pool);
 
 typedef void (*ClientPool_on_request_done) (gpointer callback_data, gboolean success);
-void client_pool_add_request (ClientPool *pool, 
+void client_pool_add_request (ClientPool *pool,
     ClientPool_on_request_done on_request_done, gpointer callback_data);
 
 void client_pool_get_client_stats_info (ClientPool *pool, GString *str, struct PrintFormat *print_format);

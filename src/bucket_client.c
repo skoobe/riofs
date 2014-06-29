@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -44,8 +44,8 @@ void bucket_client_get (HttpConnection *con, const gchar *req_str,
     bclient->ctx = ctx;
     bclient->on_cb = on_cb;
 
-    res = http_connection_make_request (con, 
-        req_str, "GET", 
+    res = http_connection_make_request (con,
+        req_str, "GET",
         NULL, TRUE, NULL,
         bucket_client_on_cb,
         bclient
@@ -58,7 +58,7 @@ void bucket_client_get (HttpConnection *con, const gchar *req_str,
 }
 
 static void bucket_client_on_cb (HttpConnection *con, gpointer ctx, gboolean success,
-    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len, 
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len,
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     BucketClient *bclient = (BucketClient *) ctx;
@@ -70,6 +70,6 @@ static void bucket_client_on_cb (HttpConnection *con, gpointer ctx, gboolean suc
         bucket_client_get_done (bclient, FALSE, NULL, 0);
         return;
     }
-    
+
     bucket_client_get_done (bclient, TRUE, buf, buf_len);
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -726,8 +726,8 @@ int main (int argc, char *argv[])
         // check if --version is specified
     if (version) {
         g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
-        g_fprintf (stdout, "Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>\n");
-        g_fprintf (stdout, "Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.\n");
+        g_fprintf (stdout, "Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>\n");
+        g_fprintf (stdout, "Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.\n");
         g_fprintf (stdout, "Libraries:\n");
         g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d",
                 GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,

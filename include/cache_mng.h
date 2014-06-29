@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -26,7 +26,7 @@ void cache_mng_destroy (CacheMng *cmng);
 // retrieve file buffer from local storage
 // if success == TRUE then "buf" contains "size" bytes of data
 typedef void (*cache_mng_on_retrieve_file_buf_cb) (unsigned char *buf, size_t size, gboolean success, void *ctx);
-void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_t off, 
+void cache_mng_retrieve_file_buf (CacheMng *cmng, fuse_ino_t ino, size_t size, off_t off,
     cache_mng_on_retrieve_file_buf_cb on_retrieve_file_buf_cb, void *ctx);
 
 // store file buffer into local storage
@@ -45,7 +45,7 @@ guint64 cache_mng_size (CacheMng *cmng);
 guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino);
 
 // return MD5 of cached file.
-// if result is TRUE then md5str will containd string with MD5 sum 
+// if result is TRUE then md5str will containd string with MD5 sum
 gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str);
 
 // return version ID of cached file

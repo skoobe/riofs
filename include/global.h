@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -31,7 +31,7 @@
 #define _DARWIN_C_SOURCE
 #endif
 
-#include "config.h" 
+#include "config.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -154,8 +154,8 @@ void application_exit (Application *app);
 // sets new S3 URL in case of redirect
 gboolean application_set_url (Application *app, const gchar *url);
 
-#include "log.h" 
-#include "conf.h" 
+#include "log.h"
+#include "conf.h"
 
 struct PrintFormat {
     const gchar *header;
@@ -174,12 +174,12 @@ LogLevel log_level;
 
 // XXX: improve this part !!
 // this test is to determine Fuse ino_t size on 32bit systems
-// tested on both 32bit and 64bit Ubuntu and Centos 
+// tested on both 32bit and 64bit Ubuntu and Centos
 #ifdef SIZEOF_LONG_INT
     #if SIZEOF_LONG_INT == 4
         #define INO_FMT "lu"
         #define INO (unsigned long)
-    #else 
+    #else
         #define INO_FMT "llu"
         #define INO (unsigned long long)
     #endif

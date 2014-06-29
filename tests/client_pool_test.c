@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012-2013 Paul Ionkin <paul.ionkin@gmail.com>
- * Copyright (C) 2012-2013 Skoobe GmbH. All rights reserved.
+ * Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>
+ * Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
@@ -26,7 +26,7 @@ typedef struct {
     gchar *in_name;
     gchar *md5;
     gchar *url;
-    
+
     gchar *out_name;
     FILE *fout;
 
@@ -68,7 +68,7 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
         bytes = g_malloc (bytes_len + 1);
         RAND_pseudo_bytes ((unsigned char *)bytes, bytes_len);
         *(bytes + bytes_len) = '\0';
-        
+
         name = get_random_string (15, TRUE);
         fdata->in_name = g_strdup_printf ("%s/%s", in_dir, name);
         f = fopen (fdata->in_name, "w");
@@ -77,15 +77,15 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
 
         fdata->out_name = g_strdup_printf ("%s/%s", out_dir, name);
         get_md5_sum (bytes, bytes_len + 1, &fdata->md5, NULL);
-        
+
         fdata->fout = fopen (fdata->out_name, "w");
         g_assert (fdata->fout);
 
         fdata->url = g_strdup_printf ("http://127.0.0.1:8011/%s", name);
         g_assert (fdata->url);
-        
+
         LOG_debug (POOL_TEST, "%s -> %s, size: %u", fdata->in_name, fdata->md5, bytes_len);
-        
+
         l_files = g_list_append (l_files, fdata);
     }
 
@@ -95,7 +95,7 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
 gboolean check_list (GList *l)
 {
     GList *tmp;
-    
+
     for (tmp = g_list_first (l); tmp; tmp = g_list_next (tmp)) {
         FileData *fdata = (FileData *) tmp->data;
         if (!fdata->checked)
@@ -197,17 +197,17 @@ int main (int argc, char *argv[])
     l_files = populate_file_list (100, l_files, in_dir);
     g_assert (l_files);
 
-    
-    
+
+
     app = app_create ();
-    
-    
-    
+
+
+
     app->h_clients_freq = g_hash_table_new (g_direct_hash, g_direct_equal);
     app->l_files = l_files;
     // start server
     start_srv (app->evbase, in_dir);
-    
+
     /*
     pool = client_pool_create (app, 12,
         http_client_create,
@@ -220,7 +220,7 @@ int main (int argc, char *argv[])
     cb = g_new (CBData, 1);
     cb->pool = pool;
     cb->l_files = l_files;
-    
+
     timeout = evtimer_new (app->evbase, on_output_timer, cb);
 
     evutil_timerclear(&tv);

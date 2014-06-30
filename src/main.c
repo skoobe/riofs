@@ -871,6 +871,8 @@ int main (int argc, char *argv[])
 
     if (force_head_requests)
         conf_set_boolean (app->conf, "s3.force_head_requests_on_lookup", TRUE);
+    else
+        conf_set_boolean (app->conf, "s3.force_head_requests_on_lookup", FALSE);
 
     conf_set_string (app->conf, "s3.bucket_name", s_params[0]);
     if (!application_set_url (app, conf_get_string (app->conf, "s3.endpoint"))) {

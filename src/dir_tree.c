@@ -1145,7 +1145,7 @@ void dir_tree_lookup (DirTree *dtree, fuse_ino_t parent_ino, const char *name,
         LookupOpData *op_data;
 
         //XXX: CacheMng !
-        //LOG_debug (DIR_TREE_LOG, INO_H"FILE has 0 length: %s", INO_T (en->ino), en->fullpath);
+        LOG_debug (DIR_TREE_LOG, INO_H"Forced to send HEAD request: %s", INO_T (en->ino), en->fullpath);
 
         op_data = g_new0 (LookupOpData, 1);
         op_data->dtree = dtree;

@@ -97,6 +97,7 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size);
 static void rfuse_statfs (fuse_req_t req, fuse_ino_t ino);
 static void rfuse_symlink (fuse_req_t req, const char *link, fuse_ino_t parent_ino, const char *name);
 static void rfuse_readlink (fuse_req_t req, fuse_ino_t ino);
+static void rfuse_flush (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 
 static struct fuse_lowlevel_ops rfuse_opers = {
     .init       = rfuse_init,
@@ -122,6 +123,7 @@ static struct fuse_lowlevel_ops rfuse_opers = {
     .statfs     = rfuse_statfs,
     .symlink    = rfuse_symlink,
     .readlink   = rfuse_readlink,
+    .flush      = rfuse_flush,
 };
 /*}}}*/
 
@@ -1021,5 +1023,29 @@ static void rfuse_readlink (fuse_req_t req, fuse_ino_t ino)
     LOG_debug (FUSE_LOG, "[%p] readlink ino: %"INO_FMT, rfuse, INO ino);
 
     dir_tree_readlink (rfuse->dir_tree, ino, rfuse_readlink_cb, req);
+}
+/*}}}*/
+
+/*{{{ flush */
+// XXX: currently just a placeholder, does nothing
+static void rfuse_flush_cb (fuse_req_t req, gboolean success)
+{
+    LOG_debug (FUSE_LOG, "[req: %p] flush_cb  success: %s", req, success?"YES":"NO");
+
+    if (!success) {
+        fuse_reply_err (req, ENOENT);
+        return;
+    }
+
+    fuse_reply_err (req, 0);
+}
+
+static void rfuse_flush (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+    RFuse *rfuse = fuse_req_userdata (req);
+
+    LOG_debug (FUSE_LOG, "[%p][req: %p] flush ino: %"INO_FMT, rfuse, req, INO ino);
+
+    rfuse_flush_cb (req, TRUE);
 }
 /*}}}*/

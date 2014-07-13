@@ -376,6 +376,7 @@ typedef struct {
 static void request_data_free (RequestData *data)
 {
     http_connection_free_headers (data->l_output_headers);
+    evbuffer_free (data->out_buffer);
     g_free (data->resource_path);
     g_free (data->http_cmd);
     g_free (data);
@@ -692,15 +693,25 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     // if this is the first request
     if (!parent_request_data) {
+
         data = g_new0 (RequestData, 1);
         data->redirects = 0;
         data->resource_path = url_escape (resource_path);
         data->http_cmd = g_strdup (http_cmd);
-        data->out_buffer = out_buffer;
-        if (out_buffer)
+        data->out_buffer = evbuffer_new ();
+        if (out_buffer) {
+            gchar *tmp;
+
             data->out_size = evbuffer_get_length (out_buffer);
-        else
+
+            tmp = g_new0 (gchar, data->out_size);
+            evbuffer_copyout (out_buffer, tmp, data->out_size);
+            evbuffer_add (data->out_buffer, tmp, data->out_size);
+
+            g_free (tmp);
+        } else
             data->out_size = 0;
+
         data->retry_id = 0;
         data->enable_retry = enable_retry;
 

@@ -63,6 +63,8 @@ riofs [options] [bucketname] [mountpoint]
 
 * Send a USR2 signal to tell RioFS to reopen log file (useful for logrotate)
 
+* Send a TERM signal to unmount filesystem and terminate running RioFS instance (example: ```killall riofs```)
+
 ### Known limitations
 
 * Appending data to an existing file is not supported.

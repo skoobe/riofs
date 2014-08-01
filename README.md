@@ -55,7 +55,7 @@ riofs [options] [bucketname] [mountpoint]
  
 * Default configuration is located at `$(prefix)/etc/riofs.conf.xml`
 
-* Use `./configure --with-libmagic=PATH` to guess the content-type of uploaded content
+* Use `./configure --with-libmagic=PATH` to guess the content-type of uploaded content (requires libmagic)
 
 * Use `./configure --enable-debug` to create a debug build
 

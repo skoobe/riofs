@@ -350,7 +350,6 @@ static gchar *parse_aws_error (const char *xml, size_t xml_len) {
     return msg;
 }
 
-
 typedef struct {
     HttpConnection *con;
     HttpConnection_responce_cb responce_cb;

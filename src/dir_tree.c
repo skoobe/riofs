@@ -716,6 +716,7 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
     const gchar *content_type;
     DirEntry  *en;
     const gchar *mode_str;
+    const gchar *time_str;
 
     LOG_debug (DIR_TREE_LOG, INO_H"Got attributes", INO_T (op_data->ino));
 
@@ -779,6 +780,16 @@ static void dir_tree_on_lookup_cb (HttpConnection *con, void *ctx, gboolean succ
             en->mode = val;
         }
         LOG_debug (DIR_TREE_LOG, "XXXXXXXXXXXXXXXXXX: %d", val);
+    }
+
+    time_str = http_find_header (headers, "x-amz-meta-date");
+    if (time_str) {
+        struct tm tmp;
+        LOG_debug (DIR_TREE_LOG, INO_H"Creation time: %s", INO_T (en->ino), time_str);
+        if (strptime (time_str, "%a, %d %b %Y %H:%M:%S %Z", &tmp) ||
+            strptime (time_str, "%a, %d %b %Y %H:%M:%S %z", &tmp)) {
+            en->ctime = timegm (&tmp);
+        }
     }
 
     en->is_updating = FALSE;

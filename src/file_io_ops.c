@@ -316,6 +316,8 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     FileIOPart *part;
     size_t buf_len;
     const gchar *buf;
+    time_t t;
+    gchar time_str[50];
 
     LOG_debug (FIO_LOG, INO_CON_H"Releasing fop. Size: %zu", INO_T (fop->ino), con, evbuffer_get_length (fop->write_buf));
 
@@ -367,6 +369,12 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
     if (fop->content_type)
         http_connection_add_output_header (con, "Content-Type", fop->content_type);
+
+    // Add current time
+    t = time (NULL);
+    if (strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
+        http_connection_add_output_header (con, "x-amz-meta-date", time_str);
+    }
 
     // if this is the full file
     if (!fop->multipart_initiated)
@@ -1043,7 +1051,9 @@ static void fileio_simple_upload_on_con_cb (gpointer client, gpointer ctx)
 {
     HttpConnection *con = (HttpConnection *) client;
     FileIOSimpleUpload *fsim = (FileIOSimpleUpload *) ctx;
+    time_t t;
     gchar str[10];
+    char time_str[50];
     gboolean res;
 
     LOG_debug (FIO_LOG, CON_H"Uploading data. Size: %zu", con, evbuffer_get_length (fsim->write_buf));
@@ -1054,6 +1064,11 @@ static void fileio_simple_upload_on_con_cb (gpointer client, gpointer ctx)
 
     http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
     http_connection_add_output_header (con, "x-amz-meta-mode", str);
+
+    t = time (NULL);
+    if (strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
+        http_connection_add_output_header (con, "x-amz-meta-date", time_str);
+    }
 
     res = http_connection_make_request (con,
         fsim->fname, "PUT", fsim->write_buf, TRUE, NULL,

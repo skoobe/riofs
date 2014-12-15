@@ -741,7 +741,9 @@ int main (int argc, char *argv[])
 #endif
         g_fprintf (stdout, "Features:\n");
         g_fprintf (stdout, " libevent backend method: %s\n", event_base_get_method(app->evbase));
-
+#ifdef SSL_ENABLED
+        g_fprintf (stdout, " SSL enabled\n");
+#endif
         /*
         {
             int i;

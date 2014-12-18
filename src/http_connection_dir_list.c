@@ -326,7 +326,7 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
     }
 
     // execute HTTP request
-    req_path = g_strdup_printf ("/?delimiter=/&prefix=%s&max-keys=%u&marker=%s", dir_req->dir_path, dir_req->max_keys, next_marker);
+    req_path = g_strdup_printf ("/?delimiter=/&marker=%s&max-keys=%u&prefix=%s", next_marker, dir_req->max_keys, dir_req->dir_path);
 
     xmlFree ((void *) next_marker);
 

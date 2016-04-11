@@ -86,6 +86,7 @@ void fileio_destroy (FileIO *fop)
         g_free (part->md5b);
         g_free (part);
     }
+    g_list_free(fop->l_parts);
     evbuffer_free (fop->write_buf);
     g_free (fop->fname);
     if (fop->content_type)

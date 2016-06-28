@@ -4,6 +4,7 @@ RioFS is an userspace filesystem for Amazon S3 buckets for servers that run on L
 
 ### Dependencies
 
+* C compiler
 * glib >= 2.22
 * fuse >= 2.7.3
 * libevent >= 2.0

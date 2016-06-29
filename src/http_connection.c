@@ -783,7 +783,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     evhttp_add_header (req->output_headers, "Date", time_str);
     // ask to keep connection opened
     evhttp_add_header (req->output_headers, "Connection", "keep-alive");
-    evhttp_add_header (req->output_headers, "Accept-Encoding", "identify");
+    evhttp_add_header (req->output_headers, "Accept-Encoding", "identity");
 
     for (l = g_list_first (data->l_output_headers); l; l = g_list_next (l)) {
         HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;

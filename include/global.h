@@ -18,7 +18,10 @@
 #ifndef _GLOBAL_H_
 #define _GLOBAL_H_
 
-#define _XOPEN_SOURCE
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 500
+#endif
+
 #ifndef _BSD_SOURCE
 #define _BSD_SOURCE
 #endif

@@ -18,13 +18,13 @@
 #ifndef _H_LOG_H_
 #define _H_LOG_H_
 
-#include "global.h"
-
-enum _LogLevel {
+typedef enum {
     LOG_err = 0,
     LOG_msg = 1,
     LOG_debug = 2,
-};
+} LogLevel;
+
+#include "global.h"
 
 void logger_log_msg (const gchar *file, gint line, const gchar *func,
         LogLevel level, const gchar *subsystem,

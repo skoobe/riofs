@@ -123,7 +123,6 @@ typedef struct _HttpConnection HttpConnection;
 typedef struct _DirTree DirTree;
 typedef struct _RFuse RFuse;
 typedef struct _ClientPool ClientPool;
-typedef enum _LogLevel LogLevel;
 typedef struct _ConfData ConfData;
 typedef struct _CacheMng CacheMng;
 typedef struct _StatSrv StatSrv;

@@ -353,7 +353,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
 
 #ifdef MAGIC_ENABLED
     // guess MIME type
-    gchar *mime_type = magic_buffer (application_get_magic_ctx (fop->app), buf, buf_len);
+    const gchar *mime_type = magic_buffer (application_get_magic_ctx (fop->app), buf, buf_len);
     if (mime_type) {
         LOG_debug (FIO_LOG, "Guessed MIME type of %s as %s", path, mime_type);
         fop->content_type = g_strdup (mime_type);

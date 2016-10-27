@@ -9,7 +9,7 @@ AC_INIT([riofs], [version_major.version_minor.version_micro_extra], [paul.ionkin
 AC_PREREQ(2.61)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE([1.9 tar-ustar dist-bzip2 no-dist-gzip])
+AM_INIT_AUTOMAKE([1.9 tar-ustar dist-bzip2 no-dist-gzip subdir-objects no-dependencies])
 
 AC_DEFINE(VERSION_MAJOR, version_major, [RioFS major version])
 AC_DEFINE(VERSION_MINOR, version_minor, [RioFS minor version])

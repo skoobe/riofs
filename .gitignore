@@ -52,3 +52,6 @@ src/run_w.sh
 src/test_w.sh
 .DS_Store
 xcuserdata/
+INSTALL
+.pc/
+patches/

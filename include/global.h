@@ -18,13 +18,20 @@
 #ifndef _GLOBAL_H_
 #define _GLOBAL_H_
 
-#define _XOPEN_SOURCE
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 500
+#endif
+
 #ifndef _BSD_SOURCE
 #define _BSD_SOURCE
 #endif
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
 #endif
 
 #ifndef _DARWIN_C_SOURCE
@@ -123,7 +130,6 @@ typedef struct _HttpConnection HttpConnection;
 typedef struct _DirTree DirTree;
 typedef struct _RFuse RFuse;
 typedef struct _ClientPool ClientPool;
-typedef enum _LogLevel LogLevel;
 typedef struct _ConfData ConfData;
 typedef struct _CacheMng CacheMng;
 typedef struct _StatSrv StatSrv;

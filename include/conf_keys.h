@@ -43,7 +43,6 @@ const gchar *conf_keys_str[] = {
     "filesystem.md5_enabled",
     "filesystem.cache_enabled",
     "filesystem.cache_dir",
-    "filesystem.cache_dir_max_size",
     "filesystem.cache_object_ttl",
     "filesystem.uid",
     "filesystem.gid",

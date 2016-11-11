@@ -243,7 +243,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 
     fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 
-#if defined(__GLIBC__)
+#if defined(__GLIBC__) || defined(__APPLE__)
     size = backtrace (array, 50);
 
     /* overwrite sigaction with caller's address */

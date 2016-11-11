@@ -243,6 +243,7 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 
     fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 
+#if defined(__GLIBC__)
     size = backtrace (array, 50);
 
     /* overwrite sigaction with caller's address */
@@ -255,9 +256,10 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
         fprintf (f, "[bt]: (%d) %s\n", i, messages[i]);
     }
 
-    fflush (f);
-
     free (messages);
+#endif // __GLIBC__
+
+    fflush (f);
 
     LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 #endif // __FreeBSD__
@@ -675,10 +677,6 @@ int main (int argc, char *argv[])
     SSL_load_error_strings ();
     SSL_library_init ();
 #endif
-    if (!RAND_poll ()) {
-        fprintf(stderr, "RAND_poll() failed.\n");
-        return -1;
-    }
     g_random_set_seed (time (NULL));
 
     // init main app structure
@@ -734,7 +732,7 @@ int main (int argc, char *argv[])
                 LIBEVENT_VERSION,
                 FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
         );
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || !defined(__GLIBC__)
         g_fprintf (stdout, "\n");
 #else
         g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());

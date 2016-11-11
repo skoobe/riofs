@@ -55,10 +55,12 @@
     #include <sys/endian.h>
 #else
     #include <endian.h>
+#endif
+#if defined(__GLIBC__)
     #include <gnu/libc-version.h>
+    #include <execinfo.h>
 #endif
 
-#include <execinfo.h>
 #if defined(__APPLE__) || defined(__FreeBSD__)
     #include <ucontext.h>
 #endif
@@ -93,6 +95,7 @@
 #include <openssl/evp.h>
 #include <openssl/ssl.h>
 #include <openssl/md5.h>
+#include <openssl/rand.h>
 
 #include <event2/event.h>
 #include <event2/listener.h>

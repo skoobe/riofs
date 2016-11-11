@@ -18,36 +18,12 @@
 #ifndef _GLOBAL_H_
 #define _GLOBAL_H_
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 500
-#endif
-
-#ifndef _BSD_SOURCE
-#define _BSD_SOURCE
-#endif
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE
-#endif
-
-#ifndef _DARWIN_C_SOURCE
-#define _DARWIN_C_SOURCE
-#endif
-
 #include "config.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
 #include <ctype.h>
 #if defined(__APPLE__)
     #include <machine/endian.h>
@@ -58,6 +34,9 @@
 #endif
 #if defined(__GLIBC__)
     #include <gnu/libc-version.h>
+#endif
+
+#if defined(HAVE_BACKTRACE)
     #include <execinfo.h>
 #endif
 
@@ -67,7 +46,6 @@
 
 #include <signal.h>
 #include <sys/queue.h>
-#include <ctype.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <sys/resource.h>
@@ -77,6 +55,10 @@
     #include <sys/prctl.h>
 #endif
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 #include <fcntl.h>

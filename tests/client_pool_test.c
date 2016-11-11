@@ -66,7 +66,7 @@ static GList *populate_file_list (gint max_files, GList *l_files, gchar *in_dir)
         fdata->checked = FALSE;
         bytes_len = g_random_int_range (100000, 1000000);
         bytes = g_malloc (bytes_len + 1);
-        RAND_pseudo_bytes ((unsigned char *)bytes, bytes_len);
+        RAND_bytes ((unsigned char *)bytes, bytes_len);
         *(bytes + bytes_len) = '\0';
 
         name = get_random_string (15, TRUE);

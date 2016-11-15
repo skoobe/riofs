@@ -212,7 +212,7 @@ typedef struct _sig_ucontext {
 static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 {
     void *array[50];
-    void *caller_address;
+    void *caller_address = 0;
     char **messages;
     int size, i;
     sig_ucontext_t *uc;
@@ -220,8 +220,6 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
 
     g_fprintf (stderr, "Got segmentation fault !\n");
 
-// haven't found the way to get caller addr on FreeBSD, and we need to link with -lexecinfo
-#if !defined(__FreeBSD__)
     uc = (sig_ucontext_t *)ucontext;
 
     /* Get the address at the time the signal was raised from the EIP (x86) */
@@ -231,18 +229,25 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
     #else
         caller_address = (void *) uc->uc_mcontext->__ss.__rip;
     #endif
-#else /* !__APPLE__ */
+#elif defined(__FreeBSD__)
+    #ifdef __i386__
+        caller_address = (void *) uc->uc_mcontext.mc_eip;
+    #else
+        caller_address = (void *) uc->uc_mcontext.mc_rip;
+    #endif
+#else
     #ifdef __i386__
         caller_address = (void *) uc->uc_mcontext.eip;
     #else
         caller_address = (void *) uc->uc_mcontext.rip;
     #endif
-#endif /* !__APPLE__ */
+#endif
 
     f = stderr;
 
     fprintf (f, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
 
+#if defined(HAVE_BACKTRACE)
     size = backtrace (array, 50);
 
     /* overwrite sigaction with caller's address */
@@ -255,12 +260,12 @@ static void sigsegv_cb (int sig_num, siginfo_t *info, void * ucontext)
         fprintf (f, "[bt]: (%d) %s\n", i, messages[i]);
     }
 
+    free (messages);
+#endif // HAVE_BACKTRACE
+
     fflush (f);
 
-    free (messages);
-
     LOG_err (APP_LOG, "signal %d (%s), address is %p from %p\n", sig_num, strsignal (sig_num), info->si_addr, (void *)caller_address);
-#endif // __FreeBSD__
 
     // try to unmount FUSE mountpoint
     if (_app && _app->rfuse)
@@ -675,10 +680,6 @@ int main (int argc, char *argv[])
     SSL_load_error_strings ();
     SSL_library_init ();
 #endif
-    if (!RAND_poll ()) {
-        fprintf(stderr, "RAND_poll() failed.\n");
-        return -1;
-    }
     g_random_set_seed (time (NULL));
 
     // init main app structure
@@ -734,7 +735,7 @@ int main (int argc, char *argv[])
                 LIBEVENT_VERSION,
                 FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
         );
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || !defined(__GLIBC__)
         g_fprintf (stdout, "\n");
 #else
         g_fprintf (stdout, "  glibc: %s\n", gnu_get_libc_version ());

@@ -30,7 +30,7 @@ gchar *get_random_string (size_t len, gboolean readable)
         for (i = 0; i < len; i++)
             out[i] = readable_chars[rand() % strlen (readable_chars)];
     } else {
-        if (!RAND_pseudo_bytes ((unsigned char *)out, len))
+        if (!RAND_bytes ((unsigned char *)out, len))
             return out;
     }
 

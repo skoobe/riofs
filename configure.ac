@@ -17,6 +17,8 @@ AC_DEFINE(VERSION_MICRO, version_micro, [RioFS micro version])
 
 AC_CONFIG_HEADERS([include/config.h])
 
+AC_USE_SYSTEM_EXTENSIONS
+
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_INSTALL
@@ -140,6 +142,8 @@ AC_SUBST(MAGIC_LIBS)
 if test "x$libmagic" = "xtrue" ; then
     AC_DEFINE(MAGIC_ENABLED, [1], [Define to use libmagic])
 fi
+
+AX_EXECINFO()
 
 # check if we need to build test applications
 AC_MSG_CHECKING([if building example applications])

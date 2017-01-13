@@ -885,12 +885,10 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     dtree = application_get_dir_tree (rdata->fop->app);
     dir_tree_set_entry_exist (dtree, rdata->ino);
 
-    // consistency checking:
-
-    // 1. check local and remote file sizes
     content_len_header = http_find_header (headers, "Content-Length");
+
+    // Set file size from header Content-Length
     if (content_len_header) {
-        guint64 local_size = 0;
         gint64 size = 0;
 
         size = strtoll ((char *)content_len_header, NULL, 10);
@@ -901,6 +899,13 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 
         rdata->fop->file_size = size;
         LOG_debug (FIO_LOG, INO_H"Remote file size: %"G_GUINT64_FORMAT, INO_T (rdata->ino), rdata->fop->file_size);
+    }
+
+    // consistency checking:
+
+    // 1. check local and remote file sizes
+    if (content_len_header) {
+        guint64 local_size;
 
         local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
         if (local_size != rdata->fop->file_size) {

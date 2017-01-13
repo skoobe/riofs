@@ -156,6 +156,16 @@ AC_MSG_RESULT([$enable_test_apps])
 
 AC_DEFINE(FUSE_USE_VERSION, 26, [Fuse API Version])
 
+# check if we should enable strict compile warnings
+AC_ARG_ENABLE(strict-compile,
+     AS_HELP_STRING(--enable-strict-compile, enable support for strict compiler warnings),
+     [], [enable_strict_compile=no]
+)
+
+if test "x$enable_strict_compile" = "xyes" ; then
+    CFLAGS="$CFLAGS -Wextra -pedantic -Wall"
+fi
+
 # check if we should enable verbose debugging
 AC_ARG_ENABLE(debug,
      AS_HELP_STRING(--enable-debug, enable support for running in debug mode),

@@ -352,7 +352,7 @@ static gchar *parse_aws_error (const char *xml, size_t xml_len) {
 
 typedef struct {
     HttpConnection *con;
-    HttpConnection_responce_cb responce_cb;
+    HttpConnection_response_cb response_cb;
     gpointer ctx;
 
     // number of redirects so far
@@ -381,7 +381,7 @@ static void request_data_free (RequestData *data)
     g_free (data);
 }
 
-static void http_connection_on_responce_cb (struct evhttp_request *req, void *ctx)
+static void http_connection_on_response_cb (struct evhttp_request *req, void *ctx)
 {
     RequestData *data = (RequestData *) ctx;
     HttpConnection *con;
@@ -485,21 +485,21 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
             if (data->retry_id >= conf_get_int (application_get_conf (data->con->app), "connection.max_retries")) {
                 LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", (void *)con);
-                if (data->responce_cb)
-                    data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                if (data->response_cb)
+                    data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
                 if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
-                    data->responce_cb, data->ctx)) {
+                    data->response_cb, data->ctx)) {
                     LOG_err (CON_LOG, CON_H"Failed to send request !", (void *)con);
-                    if (data->responce_cb)
-                        data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                    if (data->response_cb)
+                        data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 } else {
                     return;
                 }
             }
         } else {
-            if (data->responce_cb)
-                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            if (data->response_cb)
+                data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         }
         goto done;
     }
@@ -508,8 +508,8 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     if (data->redirects > conf_get_int (application_get_conf (data->con->app), "connection.max_redirects")) {
         LOG_err (CON_LOG, CON_H"Too many redirects !", (void *)con);
         con->errors_nr++;
-        if (data->responce_cb)
-            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        if (data->response_cb)
+            data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         goto done;
     }
 
@@ -535,8 +535,8 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
             if (!loc) {
                 LOG_err (CON_LOG, CON_H"Redirect URL not found !", (void *)con);
-                if (data->responce_cb)
-                    data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                if (data->response_cb)
+                    data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 goto done;
             }
         }
@@ -544,8 +544,8 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         LOG_debug (CON_LOG, CON_H"New URL: %s", (void *)con, loc);
 
         if (!application_set_url (data->con->app, loc)) {
-            if (data->responce_cb)
-                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            if (data->response_cb)
+                data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             goto done;
         }
 
@@ -554,17 +554,17 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             xmlFree ((char *)loc);
 
         if (!http_connection_init (data->con)) {
-            if (data->responce_cb)
-                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            if (data->response_cb)
+                data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             goto done;
         }
 
         // re-send request
         if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
-            data->responce_cb, data->ctx)) {
+            data->response_cb, data->ctx)) {
             LOG_err (CON_LOG, CON_H"Failed to send request !", (void *)con);
-            if (data->responce_cb)
-                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            if (data->response_cb)
+                data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         } else {
             return;
         }
@@ -603,28 +603,28 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
             if (data->retry_id >= conf_get_int (application_get_conf (data->con->app), "connection.max_retries")) {
                 LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", (void *)con);
-                if (data->responce_cb)
-                    data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                if (data->response_cb)
+                    data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
                 if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
-                    data->responce_cb, data->ctx)) {
+                    data->response_cb, data->ctx)) {
                     LOG_err (CON_LOG, CON_H"Failed to send request !", (void *)con);
-                    if (data->responce_cb)
-                        data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+                    if (data->response_cb)
+                        data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 } else {
                     return;
                 }
             }
         } else {
-            if (data->responce_cb)
-                data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+            if (data->response_cb)
+                data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         }
         goto done;
     }
 
 
-    if (data->responce_cb)
-        data->responce_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));
+    if (data->response_cb)
+        data->response_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));
     else
         LOG_debug (CON_LOG, CON_H"NO callback function !", (void *)con);
 
@@ -666,7 +666,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     const gchar *http_cmd,
     struct evbuffer *out_buffer,
     gboolean enable_retry, gpointer parent_request_data,
-    HttpConnection_responce_cb responce_cb,
+    HttpConnection_response_cb response_cb,
     gpointer ctx)
 {
     gchar *auth_str;
@@ -685,8 +685,8 @@ gboolean http_connection_make_request (HttpConnection *con,
     if (!con->evcon)
         if (!http_connection_init (con)) {
             LOG_err (CON_LOG, CON_H"Failed to init HTTP connection !", (void *)con);
-            if (responce_cb)
-                responce_cb (con, ctx, FALSE, NULL, 0, NULL);
+            if (response_cb)
+                response_cb (con, ctx, FALSE, NULL, 0, NULL);
             return FALSE;
         }
 
@@ -734,7 +734,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     } else
         data = (RequestData *) parent_request_data;
 
-    data->responce_cb = responce_cb;
+    data->response_cb = response_cb;
     data->ctx = ctx;
     data->con = con;
 
@@ -750,8 +750,8 @@ gboolean http_connection_make_request (HttpConnection *con,
         cmd_type = EVHTTP_REQ_HEAD;
     } else {
         LOG_err (CON_LOG, CON_H"Unsupported HTTP method: %s", (void *)con, http_cmd);
-        if (data->responce_cb)
-            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        if (data->response_cb)
+            data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
         return FALSE;
     }
@@ -759,8 +759,8 @@ gboolean http_connection_make_request (HttpConnection *con,
     t = time (NULL);
     if (!strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
         LOG_err (CON_LOG, CON_H"strftime returned error !", (void *)con);
-        if (data->responce_cb)
-            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        if (data->response_cb)
+            data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
         return FALSE;
     }
@@ -769,11 +769,11 @@ gboolean http_connection_make_request (HttpConnection *con,
     snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     g_free (auth_str);
 
-    req = evhttp_request_new (http_connection_on_responce_cb, data);
+    req = evhttp_request_new (http_connection_on_response_cb, data);
     if (!req) {
         LOG_err (CON_LOG, CON_H"Failed to create HTTP request object !", (void *)con);
-        if (data->responce_cb)
-            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        if (data->response_cb)
+            data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
         return FALSE;
     }
@@ -827,8 +827,8 @@ gboolean http_connection_make_request (HttpConnection *con,
     g_free (request_str);
 
     if (res < 0) {
-        if (data->responce_cb)
-            data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
+        if (data->response_cb)
+            data->response_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
         return FALSE;
     } else

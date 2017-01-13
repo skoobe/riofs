@@ -902,7 +902,7 @@ static void rfuse_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size)
 
 static void rfuse_getxattr_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, const gchar *str, size_t size)
 {
-    LOG_debug (FUSE_LOG, INO_H"getattr_cb  success: %s  str: %s", INO_T (ino), success?"YES":"NO", str);
+    LOG_debug (FUSE_LOG, INO_H"getxattr_cb  success: %s  str: %s", INO_T (ino), success?"YES":"NO", str);
 
     if (!success || !str) {
         fuse_reply_err (req, ENOTSUP);

@@ -286,7 +286,7 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to send bufer to server !", INO_T (fop->ino), (void *)con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send buffer to server !", INO_T (fop->ino), (void *)con);
         fileio_destroy (fop);
         return;
     }
@@ -448,7 +448,7 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to send bufer to server !", INO_T (wdata->ino), (void *)con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send buffer to server !", INO_T (wdata->ino), (void *)con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;

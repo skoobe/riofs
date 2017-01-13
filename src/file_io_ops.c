@@ -985,9 +985,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         }
     }
 
-    // 3. use one of the following ways to check that local and remote files are identical
-    // if versioning is enabled: compare version IDs
-    // if bucket has versioning disabled: compare MD5 sums
+    // 3. if versioning is enabled: compare version IDs to check that local and remote files are identical
     if (conf_get_boolean (application_get_conf (rdata->fop->app), "s3.versioning")) {
         const char *versioning_header = http_find_header (headers, "x-amz-version-id");
         if (versioning_header) {
@@ -1003,34 +1001,6 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         // header was not found
         } else {
             LOG_debug (FIO_LOG, INO_H"Versioning header was not found, invalidating local cached file!", INO_T (rdata->ino));
-            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        }
-
-    //check for MD5
-    } else  {
-        const char *md5_header = http_find_header (headers, "x-amz-meta-md5");
-        if (md5_header) {
-            gchar *md5str = NULL;
-
-            // at this point we have both remote and local MD5 sums
-            if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
-                if (!strncmp (md5_header, md5str, 32)) {
-                    LOG_debug (FIO_LOG, INO_H"MD5 sums match, using local cached file!", INO_T (rdata->ino));
-                } else {
-                    LOG_debug (FIO_LOG, INO_H"MD5 sums do not match, invalidating local cached file!", INO_T (rdata->ino));
-                    cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-                }
-            } else {
-                LOG_debug (FIO_LOG, INO_H"Failed to get local MD5 sum, invalidating local cached file!", INO_T (rdata->ino));
-                cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-            }
-
-            if (md5str)
-                g_free (md5str);
-
-        // header was not found
-        } else {
-            LOG_debug (FIO_LOG, INO_H"MD5 sum header was not found, invalidating local cached file!", INO_T (rdata->ino));
             cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
         }
     }

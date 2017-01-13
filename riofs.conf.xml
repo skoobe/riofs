@@ -80,9 +80,6 @@
     <!-- time to keep file attributes cache (seconds) -->
     <file_cache_max_time type="uint">10</file_cache_max_time>
 
-    <!-- set True to enable calculating MD5 sum of file content, increases CPU load -->
-    <md5_enabled type="boolean">True</md5_enabled>
-    
     <!-- set True to enable objects caching -->
     <cache_enabled type="boolean">True</cache_enabled>
 

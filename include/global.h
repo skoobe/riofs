@@ -61,6 +61,7 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <sys/stat.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <math.h>
 #include <ftw.h>

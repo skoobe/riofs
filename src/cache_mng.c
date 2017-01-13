@@ -81,7 +81,7 @@ CacheMng *cache_mng_create (Application *app)
     } else {
         cmng->max_size = conf_get_uint (application_get_conf (cmng->app), "filesystem.cache_dir_max_size");
     }
-    LOG_debug (CMNG_LOG, "Maximum cache size (bytes): %llu", cmng->max_size);
+    LOG_debug (CMNG_LOG, "Maximum cache size (bytes): %"PRId64, cmng->max_size);
     // generate random folder name for storing cache
     rnd_str = get_random_string (20, TRUE);
     cmng->cache_dir = g_strdup_printf ("%s/%s",

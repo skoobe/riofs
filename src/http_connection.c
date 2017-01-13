@@ -73,7 +73,7 @@ gpointer http_connection_create (Application *app)
 
 static gboolean http_connection_init (HttpConnection *con)
 {
-    LOG_debug (CON_LOG, CON_H"Connecting to %s:%d", con,
+    LOG_debug (CON_LOG, CON_H"Connecting to %s:%d", (void *)con,
         conf_get_string (application_get_conf (con->app), "s3.host"),
         conf_get_int (application_get_conf (con->app), "s3.port")
     );
@@ -90,7 +90,7 @@ static gboolean http_connection_init (HttpConnection *con)
 
         ssl = SSL_new (application_get_ssl_ctx (con->app));
         if (!ssl) {
-            LOG_err (CON_LOG, CON_H"Failed to create SSL connection: %s", con,
+            LOG_err (CON_LOG, CON_H"Failed to create SSL connection: %s", (void *)con,
                 ERR_reason_error_string (ERR_get_error ()));
             return FALSE;
         }
@@ -103,7 +103,7 @@ static gboolean http_connection_init (HttpConnection *con)
         );
 
         if (!bev) {
-            LOG_err (CON_LOG, CON_H"Failed to create SSL connection !", con);
+            LOG_err (CON_LOG, CON_H"Failed to create SSL connection !", (void *)con);
             return FALSE;
         }
 
@@ -171,7 +171,7 @@ gboolean http_connection_acquire (HttpConnection *con)
 {
     con->is_acquired = TRUE;
 
-    LOG_debug (CON_LOG, CON_H"Connection object is acquired!", con);
+    LOG_debug (CON_LOG, CON_H"Connection object is acquired!", (void *)con);
 
     return TRUE;
 }
@@ -180,7 +180,7 @@ gboolean http_connection_release (HttpConnection *con)
 {
     con->is_acquired = FALSE;
 
-    LOG_debug (CON_LOG, CON_H"Connection object is released!", con);
+    LOG_debug (CON_LOG, CON_H"Connection object is released!", (void *)con);
 
     if (con->client_on_released_cb)
         con->client_on_released_cb (con, con->pool_ctx);
@@ -193,7 +193,7 @@ static void http_connection_on_close (G_GNUC_UNUSED struct evhttp_connection *ev
 {
     HttpConnection *con = (HttpConnection *) ctx;
 
-    LOG_debug (CON_LOG, CON_H"Connection closed !", con);
+    LOG_debug (CON_LOG, CON_H"Connection closed !", (void *)con);
 
     //con->cur_cmd_type = CMD_IDLE;
 
@@ -449,7 +449,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     }
 
     s_history = g_strdup_printf ("[%p] %s (%u sec) %s %s %s   HTTP Code: %d (Sent: %zu Received: %zu bytes)",
-        con,
+        (void *)con,
         ts, diff_sec, data->http_cmd, data->con->cur_url,
         range_str ? range_str : "",
         con->cur_code,
@@ -461,10 +461,10 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     g_free (s_history);
 
     LOG_debug (CON_LOG, CON_H"Got HTTP response from server! (%"G_GUINT64_FORMAT"msec)",
-        con, timeval_diff (&data->start_tv, &end_tv));
+        (void *)con, timeval_diff (&data->start_tv, &end_tv));
 
     if (!req) {
-        LOG_err (CON_LOG, CON_H"Request failed !", con);
+        LOG_err (CON_LOG, CON_H"Request failed !", (void *)con);
         con->errors_nr++;
 
 #ifdef SSL_ENABLED
@@ -472,7 +472,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
       while ((oslerr = bufferevent_get_openssl_error (evhttp_connection_get_bufferevent (data->con->evcon))))
         { char b[128];
           ERR_error_string_n (oslerr, b, sizeof (b));
-          LOG_err (CON_LOG, CON_H"SSL error: %s", con, b);
+          LOG_err (CON_LOG, CON_H"SSL error: %s", (void *)con, b);
         }
     }
 #endif
@@ -480,17 +480,17 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         if (data->enable_retry) {
             data->retry_id++;
             LOG_err (CON_LOG, CON_H"Server returned HTTP error ! Retry ID: %d of %d",
-                con, data->retry_id,
+                (void *)con, data->retry_id,
                 conf_get_int (application_get_conf (data->con->app), "connection.max_retries"));
 
             if (data->retry_id >= conf_get_int (application_get_conf (data->con->app), "connection.max_retries")) {
-                LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", con);
+                LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", (void *)con);
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
                 if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
                     data->responce_cb, data->ctx)) {
-                    LOG_err (CON_LOG, CON_H"Failed to send request !", con);
+                    LOG_err (CON_LOG, CON_H"Failed to send request !", (void *)con);
                     if (data->responce_cb)
                         data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 } else {
@@ -506,7 +506,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
 
     // check if we reached maximum redirect count
     if (data->redirects > conf_get_int (application_get_conf (data->con->app), "connection.max_redirects")) {
-        LOG_err (CON_LOG, CON_H"Too many redirects !", con);
+        LOG_err (CON_LOG, CON_H"Too many redirects !", (void *)con);
         con->errors_nr++;
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
@@ -534,14 +534,14 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
             free_loc = TRUE;
 
             if (!loc) {
-                LOG_err (CON_LOG, CON_H"Redirect URL not found !", con);
+                LOG_err (CON_LOG, CON_H"Redirect URL not found !", (void *)con);
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 goto done;
             }
         }
 
-        LOG_debug (CON_LOG, CON_H"New URL: %s", con, loc);
+        LOG_debug (CON_LOG, CON_H"New URL: %s", (void *)con, loc);
 
         if (!application_set_url (data->con->app, loc)) {
             if (data->responce_cb)
@@ -562,7 +562,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         // re-send request
         if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
             data->responce_cb, data->ctx)) {
-            LOG_err (CON_LOG, CON_H"Failed to send request !", con);
+            LOG_err (CON_LOG, CON_H"Failed to send request !", (void *)con);
             if (data->responce_cb)
                 data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         } else {
@@ -588,7 +588,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         msg = parse_aws_error (buf, buf_len);
 
         LOG_debug (CON_LOG, CON_H"Server returned HTTP error: %d (%s). AWS message: %s",
-            con, evhttp_request_get_response_code (req), req->response_code_line, msg);
+            (void *)con, evhttp_request_get_response_code (req), req->response_code_line, msg);
 
         if (msg)
             xmlFree (msg);
@@ -598,17 +598,17 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
         if (data->enable_retry) {
             data->retry_id++;
             LOG_err (CON_LOG, CON_H"Server returned HTTP error: %d (%s)! Retry ID: %d of %d",
-                con, evhttp_request_get_response_code (req), req->response_code_line, data->retry_id,
+                (void *)con, evhttp_request_get_response_code (req), req->response_code_line, data->retry_id,
                 conf_get_int (application_get_conf (data->con->app), "connection.max_retries"));
 
             if (data->retry_id >= conf_get_int (application_get_conf (data->con->app), "connection.max_retries")) {
-                LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", con);
+                LOG_err (CON_LOG, CON_H"Reached the maximum number of retries !", (void *)con);
                 if (data->responce_cb)
                     data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
             } else {
                 if (!http_connection_make_request (data->con, data->resource_path, data->http_cmd, data->out_buffer, data->enable_retry, data,
                     data->responce_cb, data->ctx)) {
-                    LOG_err (CON_LOG, CON_H"Failed to send request !", con);
+                    LOG_err (CON_LOG, CON_H"Failed to send request !", (void *)con);
                     if (data->responce_cb)
                         data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
                 } else {
@@ -626,7 +626,7 @@ static void http_connection_on_responce_cb (struct evhttp_request *req, void *ct
     if (data->responce_cb)
         data->responce_cb (data->con, data->ctx, TRUE, buf, buf_len, evhttp_request_get_input_headers (req));
     else
-        LOG_debug (CON_LOG, CON_H"NO callback function !", con);
+        LOG_debug (CON_LOG, CON_H"NO callback function !", (void *)con);
 
 done:
     request_data_free (data);
@@ -684,7 +684,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     if (!con->evcon)
         if (!http_connection_init (con)) {
-            LOG_err (CON_LOG, CON_H"Failed to init HTTP connection !", con);
+            LOG_err (CON_LOG, CON_H"Failed to init HTTP connection !", (void *)con);
             if (responce_cb)
                 responce_cb (con, ctx, FALSE, NULL, 0, NULL);
             return FALSE;
@@ -749,7 +749,7 @@ gboolean http_connection_make_request (HttpConnection *con,
     } else if (!strcasecmp (http_cmd, "HEAD")) {
         cmd_type = EVHTTP_REQ_HEAD;
     } else {
-        LOG_err (CON_LOG, CON_H"Unsupported HTTP method: %s", con, http_cmd);
+        LOG_err (CON_LOG, CON_H"Unsupported HTTP method: %s", (void *)con, http_cmd);
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
@@ -758,7 +758,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     t = time (NULL);
     if (!strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
-        LOG_err (CON_LOG, CON_H"strftime returned error !", con);
+        LOG_err (CON_LOG, CON_H"strftime returned error !", (void *)con);
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
@@ -771,7 +771,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     req = evhttp_request_new (http_connection_on_responce_cb, data);
     if (!req) {
-        LOG_err (CON_LOG, CON_H"Failed to create HTTP request object !", con);
+        LOG_err (CON_LOG, CON_H"Failed to create HTTP request object !", (void *)con);
         if (data->responce_cb)
             data->responce_cb (data->con, data->ctx, FALSE, NULL, 0, NULL);
         request_data_free (data);
@@ -809,7 +809,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         request_str = g_strdup_printf ("/%s%s", bucket_name, data->resource_path);
     }
 
-    LOG_msg (CON_LOG, CON_H"%s %s  bucket: %s, host: %s, out_len: %zd", con,
+    LOG_msg (CON_LOG, CON_H"%s %s  bucket: %s, host: %s, out_len: %zd", (void *)con,
         http_cmd, request_str, bucket_name, host,
         out_buffer ? evbuffer_get_length (out_buffer) : 0);
 
@@ -906,7 +906,7 @@ void http_connection_get_stats_info_data (gpointer client, GString *str, struct 
         "%s" // footer
         ,
         print_format->row_start,
-        con, print_format->col_div,
+        (void *)con, print_format->col_div,
         con->is_acquired ? "Busy" : "Idle", print_format->col_div,
         cmd, print_format->col_div,
         con->cur_url ? con->cur_url : "-",  print_format->col_div,

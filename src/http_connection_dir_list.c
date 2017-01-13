@@ -298,19 +298,19 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
     gboolean res;
 
     if (!buf_len || !buf) {
-        LOG_err (CON_DIR_LOG, INO_CON_H"Directory buffer is empty !", INO_T (dir_req->ino), con);
+        LOG_err (CON_DIR_LOG, INO_CON_H"Directory buffer is empty !", INO_T (dir_req->ino), (void *)con);
         directory_listing_done (con, dir_req, FALSE);
         return;
     }
 
     if (!success) {
-        LOG_err (CON_DIR_LOG, INO_CON_H"Error getting directory list !", INO_T (dir_req->ino), con);
+        LOG_err (CON_DIR_LOG, INO_CON_H"Error getting directory list !", INO_T (dir_req->ino), (void *)con);
         directory_listing_done (con, dir_req, FALSE);
         return;
     }
 
     if (!parse_dir_xml (dir_req, buf, buf_len)) {
-        LOG_err (CON_DIR_LOG, INO_CON_H"Error parsing directory XML !", INO_T (dir_req->ino), con);
+        LOG_err (CON_DIR_LOG, INO_CON_H"Error parsing directory XML !", INO_T (dir_req->ino), (void *)con);
         directory_listing_done (con, dir_req, FALSE);
         return;
     }
@@ -320,7 +320,7 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
 
     // check if we need to get more data
     if (!g_strstr_len (buf, buf_len, "<IsTruncated>true</IsTruncated>") && !next_marker) {
-        LOG_debug (CON_DIR_LOG, INO_CON_H"Directory listing done !", INO_T (dir_req->ino), con);
+        LOG_debug (CON_DIR_LOG, INO_CON_H"Directory listing done !", INO_T (dir_req->ino), (void *)con);
         directory_listing_done (con, dir_req, TRUE);
         return;
     }
@@ -339,7 +339,7 @@ static void http_connection_on_directory_listing_data (HttpConnection *con, void
     g_free (req_path);
 
     if (!res) {
-        LOG_err (CON_DIR_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (dir_req->ino), con);
+        LOG_err (CON_DIR_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (dir_req->ino), (void *)con);
         directory_listing_done (con, dir_req, FALSE);
         return;
     }
@@ -353,7 +353,7 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
     gchar *req_path;
     gboolean res;
 
-    LOG_debug (CON_DIR_LOG, INO_CON_H"Getting directory listing for: >>%s<<", INO_T (con), con, dir_path);
+    LOG_debug (CON_DIR_LOG, INO_CON_H"Getting directory listing for: >>%s<<", INO_T (con), (void *)con, dir_path);
 
     dir_req = g_new0 (DirListRequest, 1);
     dir_req->con = con;
@@ -386,7 +386,7 @@ void http_connection_get_directory_listing (HttpConnection *con, const gchar *di
     g_free (req_path);
 
     if (!res) {
-        LOG_err (CON_DIR_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (dir_req->ino), con);
+        LOG_err (CON_DIR_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (dir_req->ino), (void *)con);
         directory_listing_done (con, dir_req, FALSE);
         return;
     }

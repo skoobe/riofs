@@ -617,7 +617,7 @@ static void rfuse_open (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *f
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, INO_FI_H"open inode, flags: %d", INO_T (ino), fi, fi->flags);
+    LOG_debug (FUSE_LOG, INO_FI_H"open inode, flags: %d", INO_T (ino), (void *)fi, fi->flags);
 
     dir_tree_file_open (rfuse->dir_tree, ino, fi, rfuse_open_cb, req);
 }
@@ -630,7 +630,7 @@ void rfuse_create_cb (fuse_req_t req, gboolean success, fuse_ino_t ino, int mode
     struct fuse_entry_param e;
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, INO_FI_H"add_file_cb  success: %s", INO_T (ino), fi, success?"YES":"NO");
+    LOG_debug (FUSE_LOG, INO_FI_H"add_file_cb  success: %s", INO_T (ino), (void *)fi, success?"YES":"NO");
     if (!success) {
         fuse_reply_err (req, ENOENT);
         return;
@@ -673,7 +673,7 @@ static void rfuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, INO_FI_H"release  inode, flags: %d", INO_T (ino), fi, fi->flags);
+    LOG_debug (FUSE_LOG, INO_FI_H"release  inode, flags: %d", INO_T (ino), (void *)fi, fi->flags);
 
     dir_tree_file_release (rfuse->dir_tree, ino, fi);
 
@@ -687,7 +687,7 @@ static void rfuse_release (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info
 static void rfuse_read_cb (fuse_req_t req, gboolean success, const char *buf, size_t buf_size)
 {
 
-    LOG_debug (FUSE_LOG, "[req: %p] <<<<< read_cb  success: %s IN buf: %zu", req, success?"YES":"NO", buf_size);
+    LOG_debug (FUSE_LOG, "[req: %p] <<<<< read_cb  success: %s IN buf: %zu", (void *)req, success?"YES":"NO", buf_size);
 
     if (!success) {
         fuse_reply_err (req, ENOENT);
@@ -703,7 +703,7 @@ static void rfuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, 
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, INO_FI_H">>>> read  inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fi, size, off);
+    LOG_debug (FUSE_LOG, INO_FI_H">>>> read  inode, size: %zu, off: %"OFF_FMT, INO_T (ino), (void *)fi, size, off);
 
     rfuse->read_ops++;
     dir_tree_file_read (rfuse->dir_tree, ino, size, off, rfuse_read_cb, req, fi);
@@ -714,7 +714,7 @@ static void rfuse_read (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, 
 // write callback
 static void rfuse_write_cb (fuse_req_t req, gboolean success, size_t count)
 {
-    LOG_debug (FUSE_LOG, "[req: %p] write_cb  success: %s", req, success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "[req: %p] write_cb  success: %s", (void *)req, success?"YES":"NO");
 
     if (!success) {
         fuse_reply_err (req, ENOENT);
@@ -729,7 +729,7 @@ static void rfuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, INO_FI_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fi, size, off);
+    LOG_debug (FUSE_LOG, INO_FI_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), (void *)fi, size, off);
 
     rfuse->write_ops++;
     dir_tree_file_write (rfuse->dir_tree, ino, buf, size, off, rfuse_write_cb, req, fi);
@@ -768,7 +768,7 @@ static void rfuse_forget (fuse_req_t req, fuse_ino_t ino, unsigned long nlookup)
 
 static void rfuse_unlink_cb (fuse_req_t req, gboolean success)
 {
-    LOG_debug (FUSE_LOG, "[%p] success: %s", req, success ? "TRUE" : "FALSE");
+    LOG_debug (FUSE_LOG, "[%p] success: %s", (void *)req, success ? "TRUE" : "FALSE");
 
     if (success)
         fuse_reply_err (req, 0);
@@ -783,7 +783,7 @@ static void rfuse_unlink (fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "[%p] unlink  parent_ino: %"INO_FMT", name: %s", req, INO parent, name);
+    LOG_debug (FUSE_LOG, "[%p] unlink  parent_ino: %"INO_FMT", name: %s", (void *)req, INO parent, name);
 
     dir_tree_file_unlink (rfuse->dir_tree, parent, name, rfuse_unlink_cb, req);
 }
@@ -843,7 +843,7 @@ static void rfuse_rmdir (fuse_req_t req, fuse_ino_t parent_ino, const char *name
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "[%p] rmdir  parent_ino: %"INO_FMT", name: %s", rfuse, INO parent_ino, name);
+    LOG_debug (FUSE_LOG, "[%p] rmdir  parent_ino: %"INO_FMT", name: %s", (void *)rfuse, INO parent_ino, name);
 
     // notify dir tree
     if (dir_tree_dir_remove (rfuse->dir_tree, parent_ino, name, req))
@@ -997,7 +997,7 @@ static void rfuse_symlink (fuse_req_t req, const char *link, fuse_ino_t parent_i
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "[%p] symlink  parent_ino: %"INO_FMT", name: %s link: %s", rfuse, INO parent_ino, name, link);
+    LOG_debug (FUSE_LOG, "[%p] symlink  parent_ino: %"INO_FMT", name: %s link: %s", (void *)rfuse, INO parent_ino, name, link);
 
     dir_tree_create_symlink (rfuse->dir_tree, parent_ino, name, link, rfuse_symlik_cb, req);
 }
@@ -1020,7 +1020,7 @@ static void rfuse_readlink (fuse_req_t req, fuse_ino_t ino)
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "[%p] readlink ino: %"INO_FMT, rfuse, INO ino);
+    LOG_debug (FUSE_LOG, "[%p] readlink ino: %"INO_FMT, (void *)rfuse, INO ino);
 
     dir_tree_readlink (rfuse->dir_tree, ino, rfuse_readlink_cb, req);
 }
@@ -1030,7 +1030,7 @@ static void rfuse_readlink (fuse_req_t req, fuse_ino_t ino)
 // XXX: currently just a placeholder, does nothing
 static void rfuse_flush_cb (fuse_req_t req, gboolean success)
 {
-    LOG_debug (FUSE_LOG, "[req: %p] flush_cb  success: %s", req, success?"YES":"NO");
+    LOG_debug (FUSE_LOG, "[req: %p] flush_cb  success: %s", (void *)req, success?"YES":"NO");
 
     if (!success) {
         fuse_reply_err (req, ENOENT);
@@ -1040,11 +1040,11 @@ static void rfuse_flush_cb (fuse_req_t req, gboolean success)
     fuse_reply_err (req, 0);
 }
 
-static void rfuse_flush (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void rfuse_flush (fuse_req_t req, fuse_ino_t ino, G_GNUC_UNUSED struct fuse_file_info *fi)
 {
     RFuse *rfuse = fuse_req_userdata (req);
 
-    LOG_debug (FUSE_LOG, "[%p][req: %p] flush ino: %"INO_FMT, rfuse, req, INO ino);
+    LOG_debug (FUSE_LOG, "[%p][req: %p] flush ino: %"INO_FMT, (void *)rfuse, (void *)req, INO ino);
 
     rfuse_flush_cb (req, TRUE);
 }

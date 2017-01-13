@@ -844,6 +844,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     }
 
     rdata->fop->head_req_sent = TRUE;
+
     // update DirTree
     dtree = application_get_dir_tree (rdata->fop->app);
     dir_tree_set_entry_exist (dtree, rdata->ino);
@@ -863,25 +864,12 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         LOG_debug (FIO_LOG, INO_H"Remote file size: %"G_GUINT64_FORMAT, INO_T (rdata->ino), rdata->fop->file_size);
     }
 
-    // 1. check that the etag we're caching matches the AWS ETag
+    // Check that the etag we're caching matches the AWS ETag
     if (!insure_cache_etag_consistent_or_invalidate_cache(headers, rdata))
         return;
 
-    // 2. check local and remote file sizes
-    if (content_len_header) {
-        guint64 local_size;
-
-        local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        if (local_size != rdata->fop->file_size) {
-            LOG_debug (FIO_LOG, INO_H"Local and remote file sizes do not match, invalidating local cached file!",
-                INO_T (rdata->ino));
-            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        }
-    }
-
     // resume downloading file
     fileio_read_get_buf (rdata);
-
 }
 
 // got HttpConnection object

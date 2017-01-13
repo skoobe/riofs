@@ -44,11 +44,6 @@ guint64 cache_mng_size (CacheMng *cmng);
 // return total size of cached file
 guint64 cache_mng_get_file_length (CacheMng *cmng, fuse_ino_t ino);
 
-// return version ID of cached file
-// return NULL if version ID is not set
-const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino);
-void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id);
-
 // return and update local copy of AWS ETag for this file
 const char *cache_mng_get_etag(CacheMng *cmng, fuse_ino_t ino);
 gboolean cache_mng_update_etag(CacheMng *cmng, fuse_ino_t ino, const char *etag);

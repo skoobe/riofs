@@ -289,7 +289,7 @@ static void sigusr1_cb (G_GNUC_UNUSED evutil_socket_t sig, G_GNUC_UNUSED short e
         LOG_err (APP_LOG, "Failed to parse configuration file: %s", _app->conf_path);
         conf_destroy(conf_new);
     } else {
-        const gchar *copy_entries[] = {"s3.host", "s3.port", "s3.versioning", "s3.access_key_id", "s3.secret_access_key", "s3.bucket_name", NULL};
+        const gchar *copy_entries[] = {"s3.host", "s3.port", "s3.access_key_id", "s3.secret_access_key", "s3.bucket_name", NULL};
         int i;
 
         _app->conf = conf_new;
@@ -483,39 +483,6 @@ static gint application_finish_initialization_and_run (Application *app)
 }
 /*}}}*/
 
-/*{{{ application_on_bucket_versioning_cb */
-//  replies on bucket versioning information
-static void application_on_bucket_versioning_cb (gpointer ctx, gboolean success,
-    const gchar *buf, size_t buf_len)
-{
-    Application *app = (Application *)ctx;
-    gchar *tmp;
-
-    if (!success) {
-        LOG_err (APP_LOG, "Failed to get bucket versioning!");
-        application_exit (app);
-        return;
-    }
-
-    if (buf_len > 1) {
-        tmp = (gchar *)buf;
-        tmp[buf_len - 1] = '\0';
-
-        if (strstr (buf, "<Status>Enabled</Status>")) {
-            LOG_debug (APP_LOG, "Bucket has versioning enabled !");
-            conf_set_boolean (app->conf, "s3.versioning", TRUE);
-        } else {
-            LOG_debug (APP_LOG, "Bucket has versioning disabled !");
-            conf_set_boolean (app->conf, "s3.versioning", FALSE);
-        }
-    } else {
-        conf_set_boolean (app->conf, "s3.versioning", FALSE);
-    }
-
-    application_finish_initialization_and_run (app);
-}
-/*}}}*/
-
 /*{{{ application_on_bucket_acl_cb */
 //  replies on bucket ACL
 static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
@@ -531,7 +498,7 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
 
     // XXX: check ACL permissions
 
-    bucket_client_get (app->service_con, "/?versioning", application_on_bucket_versioning_cb, app);
+    application_finish_initialization_and_run (app);
 }
 /*}}}*/
 

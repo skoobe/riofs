@@ -41,7 +41,6 @@ struct _CacheEntry {
     Range *avail_range;
     time_t modification_time;
     GList *ll_lru;
-    gchar *version_id;
     gchar *etag;
 };
 
@@ -118,7 +117,6 @@ static struct _CacheEntry* cache_entry_create (fuse_ino_t ino)
     entry->avail_range = range_create ();
     entry->ll_lru = NULL;
     entry->modification_time = time (NULL);
-    entry->version_id = NULL; // version not set
     entry->etag = NULL;
 
     return entry;
@@ -129,8 +127,6 @@ static void cache_entry_destroy (gpointer data)
     struct _CacheEntry * entry = (struct _CacheEntry*) data;
 
     range_destroy(entry->avail_range);
-    if (entry->version_id)
-        g_free (entry->version_id);
     if (entry->etag)
         g_free (entry->etag);
     g_free(entry);
@@ -188,36 +184,6 @@ static void cache_mng_rm_cache_dir (CacheMng *cmng)
     else {
         LOG_err (CMNG_LOG, "Cache directory not found: %s", cmng->cache_dir);
     }
-}
-
-// return version ID of cached file
-// return NULL if version ID is not set
-const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
-{
-    struct _CacheEntry *entry;
-
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return NULL;
-
-    return entry->version_id;
-}
-
-void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id)
-{
-    struct _CacheEntry *entry;
-
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return;
-
-    if (entry->version_id) {
-        if (strcmp (entry->version_id, version_id)) {
-            g_free (entry->version_id);
-            entry->version_id = g_strdup (version_id);
-        }
-    } else
-        entry->version_id = g_strdup (version_id);
 }
 
 // What was Amazon's AWS ETag for this inode, when we cached it?

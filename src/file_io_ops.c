@@ -99,89 +99,10 @@ void fileio_destroy (FileIO *fop)
 
 /*{{{ fileio_release*/
 
-/*{{{ update headers on uploaded object */
-static void fileio_release_on_update_header_cb (HttpConnection *con, void *ctx, gboolean success,
-    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len,
-    G_GNUC_UNUSED struct evkeyvalq *headers)
-{
-    FileIO *fop = (FileIO *) ctx;
-
-    http_connection_release (con);
-
-    if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to update headers on the server !", INO_T (fop->ino), (void *)con);
-        fileio_destroy (fop);
-        return;
-    }
-
-    // done
-    LOG_debug (FIO_LOG, INO_CON_H"Headers are updated !", INO_T (fop->ino), (void *)con);
-
-    fileio_destroy (fop);
-}
-
-// got HttpConnection object
-static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer ctx)
-{
-    HttpConnection *con = (HttpConnection *) client;
-    FileIO *fop = (FileIO *) ctx;
-    gchar *path;
-    gchar *cpy_path;
-    gboolean res;
-    unsigned char digest[16];
-    gchar *md5str;
-    size_t i;
-
-    LOG_debug (FIO_LOG, INO_CON_H"Updating object's headers..", INO_T (fop->ino), (void *)con);
-
-    http_connection_acquire (con);
-
-    if (fop->content_type)
-        http_connection_add_output_header (con, "Content-Type", fop->content_type);
-    http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
-    http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
-
-    MD5_Final (digest, &fop->md5);
-    md5str = g_malloc (33);
-    for (i = 0; i < 16; ++i)
-        sprintf(&md5str[i*2], "%02x", (unsigned int)digest[i]);
-    http_connection_add_output_header (con, "x-amz-meta-md5", md5str);
-    g_free (md5str);
-
-    cpy_path = g_strdup_printf ("%s%s", conf_get_string (application_get_conf (fop->app), "s3.bucket_name"), fop->fname);
-    http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
-    g_free (cpy_path);
-
-    path = g_strdup_printf ("%s", fop->fname);
-    res = http_connection_make_request (con,
-        path, "PUT", NULL, TRUE, NULL,
-        fileio_release_on_update_header_cb,
-        fop
-    );
-    g_free (path);
-
-    if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), (void *)con);
-        http_connection_release (con);
-        fileio_destroy (fop);
-        return;
-    }
-}
-
 static void fileio_release_update_headers (FileIO *fop)
 {
-    // update MD5 headers only if versioning is disabled
-    if (conf_get_boolean (application_get_conf (fop->app), "s3.versioning")) {
         LOG_debug (FIO_LOG, INO_H"File uploaded !", INO_T (fop->ino));
         fileio_destroy (fop);
-    } else {
-        if (!client_pool_get_client (application_get_write_client_pool (fop->app),
-            fileio_release_on_update_headers_con_cb, fop)) {
-            LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (fop->ino));
-            fileio_destroy (fop);
-            return;
-        }
-    }
 }
 /*}}}*/
 
@@ -192,7 +113,6 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileIO *fop = (FileIO *) ctx;
-    const gchar *versioning_header;
 
     http_connection_release (con);
 
@@ -200,12 +120,6 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
         LOG_err (FIO_LOG, INO_CON_H"Failed to send Multipart data to the server !", INO_T (fop->ino), (void *)con);
         fileio_destroy (fop);
         return;
-    }
-
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (fop->app),
-            fop->ino, versioning_header);
     }
 
     // done
@@ -281,7 +195,6 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileIO *fop = (FileIO *) ctx;
-    const gchar *versioning_header;
 
     http_connection_release (con);
 
@@ -291,11 +204,6 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
         return;
     }
 
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (fop->app),
-            fop->ino, versioning_header);
-    }
     // if it's a multi part upload - Complete Multipart Upload
     if (fop->multipart_initiated) {
         fileio_release_complete_multipart (fop);
@@ -443,7 +351,6 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileWriteData *wdata = (FileWriteData *) ctx;
-    const char *versioning_header;
 
     http_connection_release (con);
 
@@ -452,12 +359,6 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
-    }
-
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (wdata->fop->app),
-            wdata->ino, versioning_header);
     }
 
     // empty part buffer
@@ -783,7 +684,6 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     const gchar *buf, size_t buf_len, struct evkeyvalq *headers)
 {
     FileReadData *rdata = (FileReadData *) ctx;
-    const char *versioning_header = NULL;
     const char *cached_etag;
 
     // release HttpConnection
@@ -803,12 +703,6 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     cache_mng_store_file_buf (application_get_cache_mng (rdata->fop->app),
         rdata->ino, buf_len, rdata->request_offset, (unsigned char *) buf,
         NULL, NULL);
-
-    // update version ID
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino, versioning_header);
-    }
 
     cached_etag = cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino);
     LOG_debug (FIO_LOG, INO_H"Read from server done, AWS etag %.8s..., cache etag %.8s...",
@@ -981,26 +875,6 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         if (local_size != rdata->fop->file_size) {
             LOG_debug (FIO_LOG, INO_H"Local and remote file sizes do not match, invalidating local cached file!",
                 INO_T (rdata->ino));
-            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        }
-    }
-
-    // 3. if versioning is enabled: compare version IDs to check that local and remote files are identical
-    if (conf_get_boolean (application_get_conf (rdata->fop->app), "s3.versioning")) {
-        const char *versioning_header = http_find_header (headers, "x-amz-version-id");
-        if (versioning_header) {
-            const gchar *local_version_id = cache_mng_get_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino);
-            if (local_version_id && !strcmp (local_version_id, versioning_header)) {
-                LOG_debug (FIO_LOG, INO_H"Both version IDs match, using local cached file!", INO_T (rdata->ino));
-            } else {
-                LOG_debug (FIO_LOG, INO_H"Version IDs do not match, invalidating local cached file!: %s %s",
-                    INO_T (rdata->ino), local_version_id, versioning_header);
-                cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-            }
-
-        // header was not found
-        } else {
-            LOG_debug (FIO_LOG, INO_H"Versioning header was not found, invalidating local cached file!", INO_T (rdata->ino));
             cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
         }
     }

@@ -1,5 +1,5 @@
 m4_define([version_major], [0])
-m4_define([version_minor], [7])
+m4_define([version_minor], [8])
 m4_define([version_micro], [0])
 m4_define([version_micro_extra], version_micro)
 m4_append([version_micro_extra], [])

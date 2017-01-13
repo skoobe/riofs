@@ -721,17 +721,70 @@ typedef struct {
     off_t request_offset;
     FileIO_on_buffer_read_cb on_buffer_read_cb;
     gpointer ctx;
+    char *aws_etag;
+    gboolean cache_etag_is_set;
 } FileReadData;
+
+void fileread_destroy (FileReadData *rdata)
+{
+    if (rdata->aws_etag)
+        g_free (rdata->aws_etag);
+    g_free (rdata);
+}
 
 static void fileio_read_get_buf (FileReadData *rdata);
 
+static gboolean insure_cache_etag_consistent_or_invalidate_cache(struct evkeyvalq *headers, FileReadData *rdata)
+{
+    const char *aws_etag, *cached_etag;
+
+    // consistency checking:
+    //    If AWS and cached ETag's aren't equal, invalidate local cache
+
+    aws_etag = http_find_header (headers, "ETag");
+
+    if (!aws_etag) {
+        LOG_err (FIO_LOG, INO_H"Header fails to contain ETag!", INO_T (rdata->ino));
+        rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
+        fileread_destroy (rdata);
+        return FALSE;
+    }
+
+    if (!rdata->aws_etag)
+        rdata->aws_etag = strdup (aws_etag);
+    else if (strcmp (rdata->aws_etag, aws_etag)) {
+        g_free (rdata->aws_etag);
+        rdata->aws_etag = strdup (aws_etag);
+    }
+
+    cached_etag = cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino);
+
+    if (cached_etag) {
+        if (!strcmp(rdata->aws_etag, cached_etag)) {
+            LOG_debug (FIO_LOG, INO_H"ETags same %.8s..., using local cached file",
+                INO_T (rdata->ino), rdata->aws_etag+1);
+        } else {
+            LOG_debug (FIO_LOG, INO_H"ETags differ, invalidating local cached file!: AWS %.8s..., cache %.8s...",
+                INO_T (rdata->ino), rdata->aws_etag+1, cached_etag+1);
+            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+        }
+    } else {
+        if (cache_mng_update_etag (application_get_cache_mng (rdata->fop->app), rdata->ino, rdata->aws_etag)) {
+            LOG_debug (FIO_LOG, INO_H"Set cache etag: %.8s...", INO_T (rdata->ino), rdata->aws_etag+1);
+            rdata->cache_etag_is_set = TRUE;
+        }
+    }
+
+    return TRUE;
+}
+
 /*{{{ GET request */
 static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len,
-    G_GNUC_UNUSED struct evkeyvalq *headers)
+    const gchar *buf, size_t buf_len, struct evkeyvalq *headers)
 {
     FileReadData *rdata = (FileReadData *) ctx;
     const char *versioning_header = NULL;
+    const char *cached_etag;
 
     // release HttpConnection
     http_connection_release (con);
@@ -739,9 +792,12 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     if (!success) {
         LOG_err (FIO_LOG, INO_CON_H"Failed to get file from server !", INO_T (rdata->ino), (void *)con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
+
+    if (!insure_cache_etag_consistent_or_invalidate_cache(headers, rdata))
+        return;
 
     // store it in the local cache
     cache_mng_store_file_buf (application_get_cache_mng (rdata->fop->app),
@@ -752,6 +808,15 @@ static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean succ
     versioning_header = http_find_header (headers, "x-amz-version-id");
     if (versioning_header) {
         cache_mng_update_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino, versioning_header);
+    }
+
+    cached_etag = cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino);
+    LOG_debug (FIO_LOG, INO_H"Read from server done, AWS etag %.8s..., cache etag %.8s...",
+        INO_T (rdata->ino), rdata->aws_etag+1, cached_etag ? cached_etag+1 : "not set");
+
+    if (rdata->aws_etag && !cached_etag) {
+        LOG_debug (FIO_LOG, INO_H"Setting cache etag: %.8s...", INO_T (rdata->ino), rdata->aws_etag+1);
+        cache_mng_update_etag (application_get_cache_mng (rdata->fop->app), rdata->ino, rdata->aws_etag);
     }
 
     LOG_debug (FIO_LOG, INO_H"Storing [%"G_GUINT64_FORMAT" %zu]", INO_T(rdata->ino), rdata->request_offset, buf_len);
@@ -800,7 +865,7 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
         LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), (void *)con);
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
 }
@@ -809,17 +874,21 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 {
     FileReadData *rdata = (FileReadData *) ctx;
 
-    // we got data from the cache
     if (success) {
+        // read directly from cache
         LOG_debug (FIO_LOG, INO_H"Reading from cache", INO_T (rdata->ino));
         rdata->on_buffer_read_cb (rdata->ctx, TRUE, (char *)buf, size);
-        g_free (rdata);
+        fileread_destroy (rdata);
     } else {
+        // try reading from server, using fileio_read_on_con_cb() callback
         LOG_debug (FIO_LOG, INO_H"Reading from server !", INO_T (rdata->ino));
-        if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
+        if (client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
+            // fileio_read_on_con_cb() callback will resume handling this request
+        } else {
+            // couldn't get HTTP client to try accessing server; fail directly
             LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (rdata->ino));
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-            g_free (rdata);
+            fileread_destroy (rdata);
             return;
         }
     }
@@ -876,7 +945,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     if (!success) {
         LOG_err (FIO_LOG, INO_CON_H"Failed to get HEAD from server !", INO_T (rdata->ino), (void *)con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
 
@@ -885,9 +954,8 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     dtree = application_get_dir_tree (rdata->fop->app);
     dir_tree_set_entry_exist (dtree, rdata->ino);
 
-    content_len_header = http_find_header (headers, "Content-Length");
-
     // Set file size from header Content-Length
+    content_len_header = http_find_header (headers, "Content-Length");
     if (content_len_header) {
         gint64 size = 0;
 
@@ -901,9 +969,11 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         LOG_debug (FIO_LOG, INO_H"Remote file size: %"G_GUINT64_FORMAT, INO_T (rdata->ino), rdata->fop->file_size);
     }
 
-    // consistency checking:
+    // 1. check that the etag we're caching matches the AWS ETag
+    if (!insure_cache_etag_consistent_or_invalidate_cache(headers, rdata))
+        return;
 
-    // 1. check local and remote file sizes
+    // 2. check local and remote file sizes
     if (content_len_header) {
         guint64 local_size;
 
@@ -915,7 +985,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
         }
     }
 
-    // 2. use one of the following ways to check that local and remote files are identical
+    // 3. use one of the following ways to check that local and remote files are identical
     // if versioning is enabled: compare version IDs
     // if bucket has versioning disabled: compare MD5 sums
     if (conf_get_boolean (application_get_conf (rdata->fop->app), "s3.versioning")) {
@@ -967,6 +1037,7 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
 
     // resume downloading file
     fileio_read_get_buf (rdata);
+
 }
 
 // got HttpConnection object
@@ -988,7 +1059,7 @@ static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
         LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), (void *)con);
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
 }
@@ -1010,18 +1081,24 @@ void fileio_read_buffer (FileIO *fop,
     rdata->on_buffer_read_cb = on_buffer_read_cb;
     rdata->ctx = ctx;
     rdata->request_offset = off;
+    rdata->aws_etag = NULL;
 
     // send HEAD request first
     if (!rdata->fop->head_req_sent) {
+        rdata->cache_etag_is_set = FALSE;
          // get HTTP connection to download manifest or a full file
         if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_head_con_cb, rdata)) {
             LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (rdata->ino));
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-            g_free (rdata);
+            fileread_destroy (rdata);
         }
 
     // HEAD is sent, try to get data from cache
     } else {
+        if (cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino))
+            rdata->cache_etag_is_set = TRUE;
+        else
+            rdata->cache_etag_is_set = FALSE;
         fileio_read_get_buf (rdata);
     }
 }

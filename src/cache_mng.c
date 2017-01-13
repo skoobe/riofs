@@ -42,6 +42,7 @@ struct _CacheEntry {
     time_t modification_time;
     GList *ll_lru;
     gchar *version_id;
+    gchar *etag;
 };
 
 struct _CacheContext {
@@ -118,6 +119,7 @@ static struct _CacheEntry* cache_entry_create (fuse_ino_t ino)
     entry->ll_lru = NULL;
     entry->modification_time = time (NULL);
     entry->version_id = NULL; // version not set
+    entry->etag = NULL;
 
     return entry;
 }
@@ -129,6 +131,8 @@ static void cache_entry_destroy (gpointer data)
     range_destroy(entry->avail_range);
     if (entry->version_id)
         g_free (entry->version_id);
+    if (entry->etag)
+        g_free (entry->etag);
     g_free(entry);
 }
 
@@ -260,6 +264,37 @@ void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *v
         }
     } else
         entry->version_id = g_strdup (version_id);
+}
+
+// What was Amazon's AWS ETag for this inode, when we cached it?
+const gchar *cache_mng_get_etag (CacheMng *cmng, fuse_ino_t ino)
+{
+    struct _CacheEntry *entry;
+
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return NULL;
+
+    return entry->etag;
+}
+
+gboolean cache_mng_update_etag (CacheMng *cmng, fuse_ino_t ino, const gchar *etag)
+{
+    struct _CacheEntry *entry;
+
+    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
+    if (!entry)
+        return FALSE;
+
+    if (entry->etag) {
+        if (strcmp (entry->etag, etag)) {
+            g_free (entry->etag);
+            entry->etag = g_strdup (etag);
+        }
+    } else
+        entry->etag = g_strdup (etag);
+
+    return TRUE;
 }
 /*}}}*/
 

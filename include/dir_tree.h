@@ -33,8 +33,6 @@ void dir_tree_destroy (DirTree *dtree);
 DirEntry *dir_tree_update_entry (DirTree *dtree, const gchar *path, DirEntryType type,
     fuse_ino_t parent_ino, const gchar *entry_name, long long size, time_t last_modified);
 
-void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
-
 // mark that DirTree is being updated
 
 void dir_tree_start_update (DirEntry *en, G_GNUC_UNUSED const gchar *dir_path);

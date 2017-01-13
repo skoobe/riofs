@@ -85,6 +85,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     DirEntryType type, fuse_ino_t parent_ino, off_t size, time_t ctime);
 static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en);
 static void dir_entry_destroy (gpointer data);
+static void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
 /*}}}*/
 
 /*{{{ create / destroy */
@@ -1533,7 +1534,7 @@ static void dir_tree_file_remove_on_con_data_cb (HttpConnection *con, gpointer c
         LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
         if (data->file_remove_cb)
             data->file_remove_cb (data->req, FALSE);
-		g_free (data);
+                g_free (data);
         return;
     }
 
@@ -2131,7 +2132,7 @@ static const gchar *dir_tree_getxattr_from_entry (DirEntry *en, XAttrType attr_t
     return out;
 }
 
-void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
+static void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
 {
     const gchar *header = NULL;
 

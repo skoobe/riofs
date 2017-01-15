@@ -23,6 +23,35 @@
 #include "cache_mng.h"
 #include "utils.h"
 
+/*
+ * The following union and convert_*() routines
+ * convert between a pointer (that might be either
+ * 32 or 64 bits, depending on architecture), and
+ * a 64 bit integer (the fuse fh, always uint64_t),
+ * and they do this without generating warnings
+ * when compiling with strict options.
+ */
+typedef union {
+    uint64_t fh;
+    void *p;
+} u64_ptr_union_t;
+
+static uint64_t convert_ptr_to_fh (void *p)
+{
+    u64_ptr_union_t u64_ptr_u;
+
+    u64_ptr_u.p = p;
+    return u64_ptr_u.fh;
+}
+
+static void *convert_fh_to_ptr (uint64_t fh)
+{
+    u64_ptr_union_t u64_ptr_u;
+
+    u64_ptr_u.fh = fh;
+    return u64_ptr_u.p;
+}
+
 /*{{{ struct / defines*/
 
 struct _DirEntry {
@@ -569,7 +598,7 @@ gboolean dir_tree_opendir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info
     dop->buf = NULL;
     dop->size = 0;
 
-    fi->fh = (uint64_t) dop;
+    fi->fh = convert_ptr_to_fh (dop);
 
     return TRUE;
 }
@@ -578,7 +607,7 @@ gboolean dir_tree_releasedir (G_GNUC_UNUSED DirTree *dtree, G_GNUC_UNUSED fuse_i
 {
     DirOpData *dop;
 
-    dop = (DirOpData *) fi->fh;
+    dop = convert_fh_to_ptr (fi->fh);
     if (dop) {
         if (dop->buf)
             g_free (dop->buf);
@@ -613,7 +642,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
 
     // get request structure
     if (fi && fi->fh) {
-        dop = (DirOpData *) fi->fh;
+        dop = convert_fh_to_ptr (fi->fh);
     }
 
     // if request buffer is set - return it right away
@@ -1305,7 +1334,7 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     en->is_modified = TRUE;
 
     fop = fileio_create (dtree->app, en->fullpath, en->ino, TRUE);
-    fi->fh = (uint64_t) fop;
+    fi->fh = convert_ptr_to_fh (fop);
 
     LOG_debug (DIR_TREE_LOG, INO_FOP_H"New Entry created: %s, directory ino: %"INO_FMT, INO_T (en->ino), (void *)fop, name, INO parent_ino);
 
@@ -1332,7 +1361,7 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
     }
 
     fop = fileio_create (dtree->app, en->fullpath, en->ino, FALSE);
-    fi->fh = (uint64_t) fop;
+    fi->fh = convert_ptr_to_fh (fop);
 
     LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_open", INO_T (en->ino), (void *)fop);
 
@@ -1357,7 +1386,7 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, G_GNUC_UNUSED struct
         return;
     }
 
-    fop = (FileIO *)fi->fh;
+    fop = convert_fh_to_ptr (fi->fh);
 
     LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_file_release", INO_T (ino), (void *)fop);
 
@@ -1411,7 +1440,7 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
         return;
     }
 
-    fop = (FileIO *)fi->fh;
+    fop = convert_fh_to_ptr (fi->fh);
 
     LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zu, off: %"OFF_FMT, INO_T (ino), (void *)fop, size, off);
 
@@ -1492,7 +1521,7 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
         return;
     }
 
-    fop = (FileIO *)fi->fh;
+    fop = convert_fh_to_ptr (fi->fh);
 
     // set updated time for write op
     en->updated_time = time (NULL);

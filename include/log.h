@@ -35,6 +35,9 @@ void logger_set_color (gboolean use);
 void logger_set_file (FILE *f);
 void logger_destroy (void);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
+
 #define LOG_debug(subsystem, x...) \
 G_STMT_START { \
     logger_log_msg (__FILE__, __LINE__, __func__, LOG_debug, subsystem, x); \
@@ -49,5 +52,7 @@ G_STMT_START { \
 G_STMT_START { \
     logger_log_msg (__FILE__, __LINE__, __func__, LOG_err, subsystem, x); \
 } G_STMT_END
+
+#pragma GCC diagnostic pop
 
 #endif

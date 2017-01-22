@@ -99,89 +99,10 @@ void fileio_destroy (FileIO *fop)
 
 /*{{{ fileio_release*/
 
-/*{{{ update headers on uploaded object */
-static void fileio_release_on_update_header_cb (HttpConnection *con, void *ctx, gboolean success,
-    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len,
-    G_GNUC_UNUSED struct evkeyvalq *headers)
-{
-    FileIO *fop = (FileIO *) ctx;
-
-    http_connection_release (con);
-
-    if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to update headers on the server !", INO_T (fop->ino), con);
-        fileio_destroy (fop);
-        return;
-    }
-
-    // done
-    LOG_debug (FIO_LOG, INO_CON_H"Headers are updated !", INO_T (fop->ino), con);
-
-    fileio_destroy (fop);
-}
-
-// got HttpConnection object
-static void fileio_release_on_update_headers_con_cb (gpointer client, gpointer ctx)
-{
-    HttpConnection *con = (HttpConnection *) client;
-    FileIO *fop = (FileIO *) ctx;
-    gchar *path;
-    gchar *cpy_path;
-    gboolean res;
-    unsigned char digest[16];
-    gchar *md5str;
-    size_t i;
-
-    LOG_debug (FIO_LOG, INO_CON_H"Updating object's headers..", INO_T (fop->ino), con);
-
-    http_connection_acquire (con);
-
-    if (fop->content_type)
-        http_connection_add_output_header (con, "Content-Type", fop->content_type);
-    http_connection_add_output_header (con, "x-amz-metadata-directive", "REPLACE");
-    http_connection_add_output_header (con, "x-amz-storage-class", conf_get_string (application_get_conf (con->app), "s3.storage_type"));
-
-    MD5_Final (digest, &fop->md5);
-    md5str = g_malloc (33);
-    for (i = 0; i < 16; ++i)
-        sprintf(&md5str[i*2], "%02x", (unsigned int)digest[i]);
-    http_connection_add_output_header (con, "x-amz-meta-md5", md5str);
-    g_free (md5str);
-
-    cpy_path = g_strdup_printf ("%s%s", conf_get_string (application_get_conf (fop->app), "s3.bucket_name"), fop->fname);
-    http_connection_add_output_header (con, "x-amz-copy-source", cpy_path);
-    g_free (cpy_path);
-
-    path = g_strdup_printf ("%s", fop->fname);
-    res = http_connection_make_request (con,
-        path, "PUT", NULL, TRUE, NULL,
-        fileio_release_on_update_header_cb,
-        fop
-    );
-    g_free (path);
-
-    if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), con);
-        http_connection_release (con);
-        fileio_destroy (fop);
-        return;
-    }
-}
-
 static void fileio_release_update_headers (FileIO *fop)
 {
-    // update MD5 headers only if versioning is disabled
-    if (conf_get_boolean (application_get_conf (fop->app), "s3.versioning")) {
         LOG_debug (FIO_LOG, INO_H"File uploaded !", INO_T (fop->ino));
         fileio_destroy (fop);
-    } else {
-        if (!client_pool_get_client (application_get_write_client_pool (fop->app),
-            fileio_release_on_update_headers_con_cb, fop)) {
-            LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (fop->ino));
-            fileio_destroy (fop);
-            return;
-        }
-    }
 }
 /*}}}*/
 
@@ -192,24 +113,17 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileIO *fop = (FileIO *) ctx;
-    const gchar *versioning_header;
 
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to send Multipart data to the server !", INO_T (fop->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send Multipart data to the server !", INO_T (fop->ino), (void *)con);
         fileio_destroy (fop);
         return;
     }
 
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (fop->app),
-            fop->ino, versioning_header);
-    }
-
     // done
-    LOG_debug (FIO_LOG, INO_CON_H"Multipart Upload is done !", INO_T (fop->ino), con);
+    LOG_debug (FIO_LOG, INO_CON_H"Multipart Upload is done !", INO_T (fop->ino), (void *)con);
 
     // fileio_destroy (fop);
     fileio_release_update_headers (fop);
@@ -235,7 +149,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     }
     evbuffer_add_printf (xml_buf, "%s", "</CompleteMultipartUpload>");
 
-    LOG_debug (FIO_LOG, INO_CON_H"Sending Multipart Final part..", INO_T (fop->ino), con);
+    LOG_debug (FIO_LOG, INO_CON_H"Sending Multipart Final part..", INO_T (fop->ino), (void *)con);
 
     http_connection_acquire (con);
 
@@ -250,7 +164,7 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     evbuffer_free (xml_buf);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), (void *)con);
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -281,21 +195,15 @@ static void fileio_release_on_part_sent_cb (HttpConnection *con, void *ctx, gboo
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileIO *fop = (FileIO *) ctx;
-    const gchar *versioning_header;
 
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to send bufer to server !", INO_T (fop->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send buffer to server !", INO_T (fop->ino), (void *)con);
         fileio_destroy (fop);
         return;
     }
 
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (fop->app),
-            fop->ino, versioning_header);
-    }
     // if it's a multi part upload - Complete Multipart Upload
     if (fop->multipart_initiated) {
         fileio_release_complete_multipart (fop);
@@ -318,7 +226,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     size_t buf_len;
     const gchar *buf;
 
-    LOG_debug (FIO_LOG, INO_CON_H"Releasing fop. Size: %zu", INO_T (fop->ino), con, evbuffer_get_length (fop->write_buf));
+    LOG_debug (FIO_LOG, INO_CON_H"Releasing fop. Size: %zu", INO_T (fop->ino), (void *)con, evbuffer_get_length (fop->write_buf));
 
     // add part information to the list
     part = g_new0 (FileIOPart, 1);
@@ -338,7 +246,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     if (fop->multipart_initiated) {
 
         if (!fop->uploadid) {
-            LOG_err (FIO_LOG, INO_CON_H"UploadID is not set, aborting operation !", INO_T (fop->ino), con);
+            LOG_err (FIO_LOG, INO_CON_H"UploadID is not set, aborting operation !", INO_T (fop->ino), (void *)con);
             fileio_destroy (fop);
             return;
         }
@@ -392,7 +300,7 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (fop->ino), (void *)con);
         http_connection_release (con);
         fileio_destroy (fop);
         return;
@@ -443,21 +351,14 @@ static void fileio_write_on_send_cb (HttpConnection *con, void *ctx, gboolean su
     G_GNUC_UNUSED struct evkeyvalq *headers)
 {
     FileWriteData *wdata = (FileWriteData *) ctx;
-    const char *versioning_header;
 
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to send bufer to server !", INO_T (wdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to send buffer to server !", INO_T (wdata->ino), (void *)con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
-    }
-
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (wdata->fop->app),
-            wdata->ino, versioning_header);
     }
 
     // empty part buffer
@@ -513,7 +414,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (wdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (wdata->ino), (void *)con);
         http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
@@ -595,7 +496,7 @@ static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, g
     wdata->fop->multipart_initiated = TRUE;
 
     if (!success || !buf_len) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to get multipart init data from the server !", INO_T (wdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get multipart init data from the server !", INO_T (wdata->ino), (void *)con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -603,7 +504,7 @@ static void fileio_write_on_multipart_init_cb (HttpConnection *con, void *ctx, g
 
     uploadid = get_uploadid (buf, buf_len);
     if (!uploadid) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to parse multipart init data!", INO_T (wdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to parse multipart init data!", INO_T (wdata->ino), (void *)con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
         return;
@@ -639,7 +540,7 @@ static void fileio_write_on_multipart_init_con_cb (gpointer client, gpointer ctx
     g_free (path);
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (wdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (wdata->ino), (void *)con);
         http_connection_release (con);
         wdata->on_buffer_written_cb (wdata->fop, wdata->ctx, FALSE, 0);
         g_free (wdata);
@@ -721,37 +622,95 @@ typedef struct {
     off_t request_offset;
     FileIO_on_buffer_read_cb on_buffer_read_cb;
     gpointer ctx;
+    char *aws_etag;
+    gboolean cache_etag_is_set;
 } FileReadData;
+
+void fileread_destroy (FileReadData *rdata)
+{
+    if (rdata->aws_etag)
+        g_free (rdata->aws_etag);
+    g_free (rdata);
+}
 
 static void fileio_read_get_buf (FileReadData *rdata);
 
+static gboolean insure_cache_etag_consistent_or_invalidate_cache(struct evkeyvalq *headers, FileReadData *rdata)
+{
+    const char *aws_etag, *cached_etag;
+
+    // consistency checking:
+    //    If AWS and cached ETag's aren't equal, invalidate local cache
+
+    aws_etag = http_find_header (headers, "ETag");
+
+    if (!aws_etag) {
+        LOG_err (FIO_LOG, INO_H"Header fails to contain ETag!", INO_T (rdata->ino));
+        rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
+        fileread_destroy (rdata);
+        return FALSE;
+    }
+
+    if (!rdata->aws_etag)
+        rdata->aws_etag = strdup (aws_etag);
+    else if (strcmp (rdata->aws_etag, aws_etag)) {
+        g_free (rdata->aws_etag);
+        rdata->aws_etag = strdup (aws_etag);
+    }
+
+    cached_etag = cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino);
+
+    if (cached_etag) {
+        if (!strcmp(rdata->aws_etag, cached_etag)) {
+            LOG_debug (FIO_LOG, INO_H"ETags same %.8s..., using local cached file",
+                INO_T (rdata->ino), rdata->aws_etag+1);
+        } else {
+            LOG_debug (FIO_LOG, INO_H"ETags differ, invalidating local cached file!: AWS %.8s..., cache %.8s...",
+                INO_T (rdata->ino), rdata->aws_etag+1, cached_etag+1);
+            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
+        }
+    } else {
+        if (cache_mng_update_etag (application_get_cache_mng (rdata->fop->app), rdata->ino, rdata->aws_etag)) {
+            LOG_debug (FIO_LOG, INO_H"Set cache etag: %.8s...", INO_T (rdata->ino), rdata->aws_etag+1);
+            rdata->cache_etag_is_set = TRUE;
+        }
+    }
+
+    return TRUE;
+}
+
 /*{{{ GET request */
 static void fileio_read_on_get_cb (HttpConnection *con, void *ctx, gboolean success,
-    const gchar *buf, size_t buf_len,
-    G_GNUC_UNUSED struct evkeyvalq *headers)
+    const gchar *buf, size_t buf_len, struct evkeyvalq *headers)
 {
     FileReadData *rdata = (FileReadData *) ctx;
-    const char *versioning_header = NULL;
+    const char *cached_etag;
 
     // release HttpConnection
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to get file from server !", INO_T (rdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get file from server !", INO_T (rdata->ino), (void *)con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
+
+    if (!insure_cache_etag_consistent_or_invalidate_cache(headers, rdata))
+        return;
 
     // store it in the local cache
     cache_mng_store_file_buf (application_get_cache_mng (rdata->fop->app),
         rdata->ino, buf_len, rdata->request_offset, (unsigned char *) buf,
         NULL, NULL);
 
-    // update version ID
-    versioning_header = http_find_header (headers, "x-amz-version-id");
-    if (versioning_header) {
-        cache_mng_update_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino, versioning_header);
+    cached_etag = cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino);
+    LOG_debug (FIO_LOG, INO_H"Read from server done, AWS etag %.8s..., cache etag %.8s...",
+        INO_T (rdata->ino), rdata->aws_etag+1, cached_etag ? cached_etag+1 : "not set");
+
+    if (rdata->aws_etag && !cached_etag) {
+        LOG_debug (FIO_LOG, INO_H"Setting cache etag: %.8s...", INO_T (rdata->ino), rdata->aws_etag+1);
+        cache_mng_update_etag (application_get_cache_mng (rdata->fop->app), rdata->ino, rdata->aws_etag);
     }
 
     LOG_debug (FIO_LOG, INO_H"Storing [%"G_GUINT64_FORMAT" %zu]", INO_T(rdata->ino), rdata->request_offset, buf_len);
@@ -797,10 +756,10 @@ static void fileio_read_on_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), (void *)con);
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
 }
@@ -809,17 +768,21 @@ static void fileio_read_on_cache_cb (unsigned char *buf, size_t size, gboolean s
 {
     FileReadData *rdata = (FileReadData *) ctx;
 
-    // we got data from the cache
     if (success) {
+        // read directly from cache
         LOG_debug (FIO_LOG, INO_H"Reading from cache", INO_T (rdata->ino));
         rdata->on_buffer_read_cb (rdata->ctx, TRUE, (char *)buf, size);
-        g_free (rdata);
+        fileread_destroy (rdata);
     } else {
+        // try reading from server, using fileio_read_on_con_cb() callback
         LOG_debug (FIO_LOG, INO_H"Reading from server !", INO_T (rdata->ino));
-        if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
+        if (client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_con_cb, rdata)) {
+            // fileio_read_on_con_cb() callback will resume handling this request
+        } else {
+            // couldn't get HTTP client to try accessing server; fail directly
             LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (rdata->ino));
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-            g_free (rdata);
+            fileread_destroy (rdata);
             return;
         }
     }
@@ -874,91 +837,36 @@ static void fileio_read_on_head_cb (HttpConnection *con, void *ctx, gboolean suc
     http_connection_release (con);
 
     if (!success) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to get HEAD from server !", INO_T (rdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to get HEAD from server !", INO_T (rdata->ino), (void *)con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
 
     rdata->fop->head_req_sent = TRUE;
+
     // update DirTree
     dtree = application_get_dir_tree (rdata->fop->app);
     dir_tree_set_entry_exist (dtree, rdata->ino);
 
-    // consistency checking:
-
-    // 1. check local and remote file sizes
+    // Set file size from header Content-Length
     content_len_header = http_find_header (headers, "Content-Length");
     if (content_len_header) {
-        guint64 local_size = 0;
         gint64 size = 0;
 
         size = strtoll ((char *)content_len_header, NULL, 10);
         if (size < 0) {
-            LOG_err (FIO_LOG, INO_CON_H"Header contains incorrect file size!", INO_T (rdata->ino), con);
+            LOG_err (FIO_LOG, INO_CON_H"Header contains incorrect file size!", INO_T (rdata->ino), (void *)con);
             size = 0;
         }
 
         rdata->fop->file_size = size;
         LOG_debug (FIO_LOG, INO_H"Remote file size: %"G_GUINT64_FORMAT, INO_T (rdata->ino), rdata->fop->file_size);
-
-        local_size = cache_mng_get_file_length (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        if (local_size != rdata->fop->file_size) {
-            LOG_debug (FIO_LOG, INO_H"Local and remote file sizes do not match, invalidating local cached file!",
-                INO_T (rdata->ino));
-            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        }
     }
 
-    // 2. use one of the following ways to check that local and remote files are identical
-    // if versioning is enabled: compare version IDs
-    // if bucket has versioning disabled: compare MD5 sums
-    if (conf_get_boolean (application_get_conf (rdata->fop->app), "s3.versioning")) {
-        const char *versioning_header = http_find_header (headers, "x-amz-version-id");
-        if (versioning_header) {
-            const gchar *local_version_id = cache_mng_get_version_id (application_get_cache_mng (rdata->fop->app), rdata->ino);
-            if (local_version_id && !strcmp (local_version_id, versioning_header)) {
-                LOG_debug (FIO_LOG, INO_H"Both version IDs match, using local cached file!", INO_T (rdata->ino));
-            } else {
-                LOG_debug (FIO_LOG, INO_H"Version IDs do not match, invalidating local cached file!: %s %s",
-                    INO_T (rdata->ino), local_version_id, versioning_header);
-                cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-            }
-
-        // header was not found
-        } else {
-            LOG_debug (FIO_LOG, INO_H"Versioning header was not found, invalidating local cached file!", INO_T (rdata->ino));
-            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        }
-
-    //check for MD5
-    } else  {
-        const char *md5_header = http_find_header (headers, "x-amz-meta-md5");
-        if (md5_header) {
-            gchar *md5str = NULL;
-
-            // at this point we have both remote and local MD5 sums
-            if (cache_mng_get_md5 (application_get_cache_mng (rdata->fop->app), rdata->ino, &md5str)) {
-                if (!strncmp (md5_header, md5str, 32)) {
-                    LOG_debug (FIO_LOG, INO_H"MD5 sums match, using local cached file!", INO_T (rdata->ino));
-                } else {
-                    LOG_debug (FIO_LOG, INO_H"MD5 sums do not match, invalidating local cached file!", INO_T (rdata->ino));
-                    cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-                }
-            } else {
-                LOG_debug (FIO_LOG, INO_H"Failed to get local MD5 sum, invalidating local cached file!", INO_T (rdata->ino));
-                cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-            }
-
-            if (md5str)
-                g_free (md5str);
-
-        // header was not found
-        } else {
-            LOG_debug (FIO_LOG, INO_H"MD5 sum header was not found, invalidating local cached file!", INO_T (rdata->ino));
-            cache_mng_remove_file (application_get_cache_mng (rdata->fop->app), rdata->ino);
-        }
-    }
+    // Check that the etag we're caching matches the AWS ETag
+    if (!insure_cache_etag_consistent_or_invalidate_cache(headers, rdata))
+        return;
 
     // resume downloading file
     fileio_read_get_buf (rdata);
@@ -980,10 +888,10 @@ static void fileio_read_on_head_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), con);
+        LOG_err (FIO_LOG, INO_CON_H"Failed to create HTTP request !", INO_T (rdata->ino), (void *)con);
         http_connection_release (con);
         rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-        g_free (rdata);
+        fileread_destroy (rdata);
         return;
     }
 }
@@ -1005,18 +913,24 @@ void fileio_read_buffer (FileIO *fop,
     rdata->on_buffer_read_cb = on_buffer_read_cb;
     rdata->ctx = ctx;
     rdata->request_offset = off;
+    rdata->aws_etag = NULL;
 
     // send HEAD request first
     if (!rdata->fop->head_req_sent) {
+        rdata->cache_etag_is_set = FALSE;
          // get HTTP connection to download manifest or a full file
         if (!client_pool_get_client (application_get_read_client_pool (rdata->fop->app), fileio_read_on_head_con_cb, rdata)) {
             LOG_err (FIO_LOG, INO_H"Failed to get HTTP client !", INO_T (rdata->ino));
             rdata->on_buffer_read_cb (rdata->ctx, FALSE, NULL, 0);
-            g_free (rdata);
+            fileread_destroy (rdata);
         }
 
     // HEAD is sent, try to get data from cache
     } else {
+        if (cache_mng_get_etag (application_get_cache_mng (rdata->fop->app), rdata->ino))
+            rdata->cache_etag_is_set = TRUE;
+        else
+            rdata->cache_etag_is_set = FALSE;
         fileio_read_get_buf (rdata);
     }
 }
@@ -1060,7 +974,7 @@ static void fileio_simple_upload_on_con_cb (gpointer client, gpointer ctx)
     char time_str[50];
     gboolean res;
 
-    LOG_debug (FIO_LOG, CON_H"Uploading data. Size: %zu", con, evbuffer_get_length (fsim->write_buf));
+    LOG_debug (FIO_LOG, CON_H"Uploading data. Size: %zu", (void *)con, evbuffer_get_length (fsim->write_buf));
 
     http_connection_acquire (con);
 
@@ -1081,7 +995,7 @@ static void fileio_simple_upload_on_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, CON_H"Failed to create HTTP request !", con);
+        LOG_err (FIO_LOG, CON_H"Failed to create HTTP request !", (void *)con);
         http_connection_release (con);
         fsim->on_upload_cb (fsim->ctx, FALSE);
         fileio_simple_upload_destroy (fsim);
@@ -1142,7 +1056,7 @@ static void fileio_simple_download_on_con_cb (gpointer client, gpointer ctx)
     FileIOSimpleDownload *fsim = (FileIOSimpleDownload *) ctx;
     gboolean res;
 
-    LOG_debug (FIO_LOG, CON_H"Downloading data.", con);
+    LOG_debug (FIO_LOG, CON_H"Downloading data.", (void *)con);
 
     http_connection_acquire (con);
 
@@ -1155,7 +1069,7 @@ static void fileio_simple_download_on_con_cb (gpointer client, gpointer ctx)
     );
 
     if (!res) {
-        LOG_err (FIO_LOG, CON_H"Failed to create HTTP request !", con);
+        LOG_err (FIO_LOG, CON_H"Failed to create HTTP request !", (void *)con);
         http_connection_release (con);
         fsim->on_download_cb (fsim->ctx, FALSE, NULL, 0);
         fileio_simple_download_destroy (fsim);

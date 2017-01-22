@@ -41,7 +41,7 @@ struct _CacheEntry {
     Range *avail_range;
     time_t modification_time;
     GList *ll_lru;
-    gchar *version_id;
+    gchar *etag;
 };
 
 struct _CacheContext {
@@ -74,7 +74,14 @@ CacheMng *cache_mng_create (Application *app)
     cmng->q_lru = g_queue_new ();
     cmng->size = 0;
     cmng->check_time = time (NULL);
-    cmng->max_size = conf_get_uint (application_get_conf (cmng->app), "filesystem.cache_dir_max_size");
+    // If "filesystem.cache_dir_max_megabyte_size" is set, use it, else use "filesystem.cache_dir_max_size"
+    if (conf_node_exists (application_get_conf (cmng->app), "filesystem.cache_dir_max_megabyte_size")) {
+        cmng->max_size = conf_get_uint (application_get_conf (cmng->app), "filesystem.cache_dir_max_megabyte_size");
+        cmng->max_size *= 1024 * 1024;      // Convert from megabytes to bytes
+    } else {
+        cmng->max_size = conf_get_uint (application_get_conf (cmng->app), "filesystem.cache_dir_max_size");
+    }
+    LOG_debug (CMNG_LOG, "Maximum cache size (bytes): %"PRId64, cmng->max_size);
     // generate random folder name for storing cache
     rnd_str = get_random_string (20, TRUE);
     cmng->cache_dir = g_strdup_printf ("%s/%s",
@@ -110,7 +117,7 @@ static struct _CacheEntry* cache_entry_create (fuse_ino_t ino)
     entry->avail_range = range_create ();
     entry->ll_lru = NULL;
     entry->modification_time = time (NULL);
-    entry->version_id = NULL; // version not set
+    entry->etag = NULL;
 
     return entry;
 }
@@ -120,8 +127,8 @@ static void cache_entry_destroy (gpointer data)
     struct _CacheEntry * entry = (struct _CacheEntry*) data;
 
     range_destroy(entry->avail_range);
-    if (entry->version_id)
-        g_free (entry->version_id);
+    if (entry->etag)
+        g_free (entry->etag);
     g_free(entry);
 }
 
@@ -179,55 +186,8 @@ static void cache_mng_rm_cache_dir (CacheMng *cmng)
     }
 }
 
-
-// we can only get md5 of an object containing 1 range
-// XXX: move code to separate thread
-gboolean cache_mng_get_md5 (CacheMng *cmng, fuse_ino_t ino, gchar **md5str)
-{
-    struct _CacheEntry *entry;
-    unsigned char digest[MD5_DIGEST_LENGTH];
-    MD5_CTX md5ctx;
-    ssize_t bytes;
-    unsigned char data[1024];
-    char path[PATH_MAX];
-    size_t i;
-    gchar *out;
-    FILE *in;
-
-    entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
-    if (!entry)
-        return FALSE;
-
-    if (range_count (entry->avail_range) != 1) {
-        LOG_debug (CMNG_LOG, INO_H"Entry contains more than 1 range, can't take MD5 sum of such object !", INO_T (ino));
-        return FALSE;
-    }
-
-    cache_mng_file_name (cmng, path, sizeof (path), ino);
-    in = fopen (path, "rb");
-    if (in == NULL) {
-        LOG_debug (CMNG_LOG, INO_H"Can't open file for reading: %s", INO_T (ino), path);
-        return FALSE;
-    }
-
-    MD5_Init (&md5ctx);
-    while ((bytes = fread (data, 1, 1024, in)) != 0)
-        MD5_Update (&md5ctx, data, bytes);
-    MD5_Final (digest, &md5ctx);
-    fclose (in);
-
-    out = g_malloc (33);
-    for (i = 0; i < 16; ++i)
-        sprintf (&out[i*2], "%02x", (unsigned int)digest[i]);
-
-    *md5str = out;
-
-    return TRUE;
-}
-
-// return version ID of cached file
-// return NULL if version ID is not set
-const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
+// What was Amazon's AWS ETag for this inode, when we cached it?
+const gchar *cache_mng_get_etag (CacheMng *cmng, fuse_ino_t ino)
 {
     struct _CacheEntry *entry;
 
@@ -235,24 +195,26 @@ const gchar *cache_mng_get_version_id (CacheMng *cmng, fuse_ino_t ino)
     if (!entry)
         return NULL;
 
-    return entry->version_id;
+    return entry->etag;
 }
 
-void cache_mng_update_version_id (CacheMng *cmng, fuse_ino_t ino, const gchar *version_id)
+gboolean cache_mng_update_etag (CacheMng *cmng, fuse_ino_t ino, const gchar *etag)
 {
     struct _CacheEntry *entry;
 
     entry = g_hash_table_lookup (cmng->h_entries, GUINT_TO_POINTER (ino));
     if (!entry)
-        return;
+        return FALSE;
 
-    if (entry->version_id) {
-        if (strcmp (entry->version_id, version_id)) {
-            g_free (entry->version_id);
-            entry->version_id = g_strdup (version_id);
+    if (entry->etag) {
+        if (strcmp (entry->etag, etag)) {
+            g_free (entry->etag);
+            entry->etag = g_strdup (etag);
         }
     } else
-        entry->version_id = g_strdup (version_id);
+        entry->etag = g_strdup (etag);
+
+    return TRUE;
 }
 /*}}}*/
 

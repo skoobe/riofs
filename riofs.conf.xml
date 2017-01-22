@@ -80,17 +80,18 @@
     <!-- time to keep file attributes cache (seconds) -->
     <file_cache_max_time type="uint">10</file_cache_max_time>
 
-    <!-- set True to enable calculating MD5 sum of file content, increases CPU load -->
-    <md5_enabled type="boolean">True</md5_enabled>
-    
     <!-- set True to enable objects caching -->
     <cache_enabled type="boolean">True</cache_enabled>
 
     <!-- directory for storing cache objects -->
     <cache_dir type="string">/tmp/riofs</cache_dir>
 
-    <!-- maximum size of cache directory (1Gb) -->
+    <!-- If cache_dir_max_megabyte_size is set, it applies, -->
+    <!-- ... otherwise cache_dir_max_size applies and must be set. -- >
+    <!-- maximum size of cache directory (1Gb default, in byte units, 4 GByte max) -->
     <cache_dir_max_size type="uint">1073741824</cache_dir_max_size>
+    <!-- maximum size of cache directory (1Gb default, in MByte units, 4 PetaByte max) -->
+    <!-- <cache_dir_max_megabyte_size type="uint">1024</cache_dir_max_megabyte_size> -->
 
     <!-- maximum time of cached object, 10 min -->
     <cache_object_ttl type="uint">600</cache_object_ttl>

@@ -23,6 +23,35 @@
 #include "cache_mng.h"
 #include "utils.h"
 
+/*
+ * The following union and convert_*() routines
+ * convert between a pointer (that might be either
+ * 32 or 64 bits, depending on architecture), and
+ * a 64 bit integer (the fuse fh, always uint64_t),
+ * and they do this without generating warnings
+ * when compiling with strict options.
+ */
+typedef union {
+    uint64_t fh;
+    void *p;
+} u64_ptr_union_t;
+
+static uint64_t convert_ptr_to_fh (void *p)
+{
+    u64_ptr_union_t u64_ptr_u;
+
+    u64_ptr_u.p = p;
+    return u64_ptr_u.fh;
+}
+
+static void *convert_fh_to_ptr (uint64_t fh)
+{
+    u64_ptr_union_t u64_ptr_u;
+
+    u64_ptr_u.fh = fh;
+    return u64_ptr_u.p;
+}
+
 /*{{{ struct / defines*/
 
 struct _DirEntry {
@@ -85,6 +114,7 @@ static DirEntry *dir_tree_add_entry (DirTree *dtree, const gchar *basename, mode
     DirEntryType type, fuse_ino_t parent_ino, off_t size, time_t ctime);
 static void dir_tree_entry_modified (DirTree *dtree, DirEntry *en);
 static void dir_entry_destroy (gpointer data);
+static void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers);
 /*}}}*/
 
 /*{{{ create / destroy */
@@ -439,7 +469,7 @@ void dir_tree_fill_on_dir_buf_cb (gpointer callback_data, gboolean success)
     }
 
     LOG_debug (DIR_TREE_LOG, "[ino: %"INO_FMT" req: %p] Dir fill callback: %s",
-        INO_T (dir_fill_data->ino), dir_fill_data->req, success ? "SUCCESS" : "FAILED");
+        INO_T (dir_fill_data->ino), (void *)dir_fill_data->req, success ? "SUCCESS" : "FAILED");
 
     en->dir_cache_updating = FALSE;
     // directory is updated
@@ -568,7 +598,7 @@ gboolean dir_tree_opendir (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info
     dop->buf = NULL;
     dop->size = 0;
 
-    fi->fh = (uint64_t) dop;
+    fi->fh = convert_ptr_to_fh (dop);
 
     return TRUE;
 }
@@ -577,7 +607,7 @@ gboolean dir_tree_releasedir (G_GNUC_UNUSED DirTree *dtree, G_GNUC_UNUSED fuse_i
 {
     DirOpData *dop;
 
-    dop = (DirOpData *) fi->fh;
+    dop = convert_fh_to_ptr (fi->fh);
     if (dop) {
         if (dop->buf)
             g_free (dop->buf);
@@ -612,7 +642,7 @@ void dir_tree_fill_dir_buf (DirTree *dtree,
 
     // get request structure
     if (fi && fi->fh) {
-        dop = (DirOpData *) fi->fh;
+        dop = convert_fh_to_ptr (fi->fh);
     }
 
     // if request buffer is set - return it right away
@@ -1304,9 +1334,9 @@ void dir_tree_file_create (DirTree *dtree, fuse_ino_t parent_ino, const char *na
     en->is_modified = TRUE;
 
     fop = fileio_create (dtree->app, en->fullpath, en->ino, TRUE);
-    fi->fh = (uint64_t) fop;
+    fi->fh = convert_ptr_to_fh (fop);
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"New Entry created: %s, directory ino: %"INO_FMT, INO_T (en->ino), fop, name, INO parent_ino);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"New Entry created: %s, directory ino: %"INO_FMT, INO_T (en->ino), (void *)fop, name, INO parent_ino);
 
     file_create_cb (req, TRUE, en->ino, en->mode, en->size, fi);
 }
@@ -1331,9 +1361,9 @@ void dir_tree_file_open (DirTree *dtree, fuse_ino_t ino, struct fuse_file_info *
     }
 
     fop = fileio_create (dtree->app, en->fullpath, en->ino, FALSE);
-    fi->fh = (uint64_t) fop;
+    fi->fh = convert_ptr_to_fh (fop);
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_open", INO_T (en->ino), fop);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_open", INO_T (en->ino), (void *)fop);
 
     file_open_cb (req, TRUE, fi);
 }
@@ -1356,9 +1386,9 @@ void dir_tree_file_release (DirTree *dtree, fuse_ino_t ino, G_GNUC_UNUSED struct
         return;
     }
 
-    fop = (FileIO *)fi->fh;
+    fop = convert_fh_to_ptr (fi->fh);
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_file_release", INO_T (ino), fop);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"dir_tree_file_release", INO_T (ino), (void *)fop);
 
     fileio_release (fop);
 }
@@ -1377,10 +1407,10 @@ static void dir_tree_on_buffer_read_cb (gpointer ctx, gboolean success, char *bu
 {
     FileReadOpData *op_data = (FileReadOpData *)ctx;
 
-    LOG_debug (DIR_TREE_LOG, INO_FROP_H"file READ_cb !", INO_T (op_data->ino), op_data);
+    LOG_debug (DIR_TREE_LOG, INO_FROP_H"file READ_cb !", INO_T (op_data->ino), (void *)op_data);
 
     if (!success) {
-        LOG_err (DIR_TREE_LOG, INO_FROP_H"Failed to read file !", INO_T (op_data->ino), op_data);
+        LOG_err (DIR_TREE_LOG, INO_FROP_H"Failed to read file !", INO_T (op_data->ino), (void *)op_data);
         op_data->file_read_cb (op_data->req, FALSE, NULL, 0);
         g_free (op_data);
         return;
@@ -1410,9 +1440,9 @@ void dir_tree_file_read (DirTree *dtree, fuse_ino_t ino,
         return;
     }
 
-    fop = (FileIO *)fi->fh;
+    fop = convert_fh_to_ptr (fi->fh);
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fop, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Read inode, size: %zu, off: %"OFF_FMT, INO_T (ino), (void *)fop, size, off);
 
     op_data = g_new0 (FileReadOpData, 1);
     op_data->file_read_cb = file_read_cb;
@@ -1442,7 +1472,7 @@ static void dir_tree_on_buffer_written_cb (FileIO *fop, gpointer ctx, gboolean s
 
     op_data->file_write_cb (op_data->req, success, count);
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Buffer written, count: %zu", INO_T (op_data->ino), fop, count);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"Buffer written, count: %zu", INO_T (op_data->ino), (void *)fop, count);
 
     // we need to update entry size !
     if (success) {
@@ -1491,12 +1521,12 @@ void dir_tree_file_write (DirTree *dtree, fuse_ino_t ino,
         return;
     }
 
-    fop = (FileIO *)fi->fh;
+    fop = convert_fh_to_ptr (fi->fh);
 
     // set updated time for write op
     en->updated_time = time (NULL);
 
-    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), fop, size, off);
+    LOG_debug (DIR_TREE_LOG, INO_FOP_H"write inode, size: %zu, off: %"OFF_FMT, INO_T (ino), (void *)fop, size, off);
 
     op_data = g_new0 (FileWriteOpData, 1);
     op_data->dtree = dtree;
@@ -1533,7 +1563,7 @@ static void dir_tree_file_remove_on_con_data_cb (HttpConnection *con, gpointer c
         LOG_err (DIR_TREE_LOG, INO_H"Entry not found !", INO_T (data->ino));
         if (data->file_remove_cb)
             data->file_remove_cb (data->req, FALSE);
-		g_free (data);
+                g_free (data);
         return;
     }
 
@@ -2005,7 +2035,7 @@ static void dir_tree_on_rename_copy_con_cb (gpointer client, gpointer ctx)
     else
         dst_path = g_strdup_printf ("/%s/%s", newparent_en->fullpath, rdata->newname);
 
-    LOG_debug (DIR_TREE_LOG, INO_CON_H"Rename: coping %s to %s", INO_T (en->ino), con, en->fullpath, dst_path);
+    LOG_debug (DIR_TREE_LOG, INO_CON_H"Rename: coping %s to %s", INO_T (en->ino), (void *)con, en->fullpath, dst_path);
 
     res = http_connection_make_request (con,
         dst_path, "PUT",
@@ -2131,7 +2161,7 @@ static const gchar *dir_tree_getxattr_from_entry (DirEntry *en, XAttrType attr_t
     return out;
 }
 
-void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
+static void dir_tree_entry_update_xattrs (DirEntry *en, struct evkeyvalq *headers)
 {
     const gchar *header = NULL;
 

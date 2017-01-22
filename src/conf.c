@@ -199,6 +199,7 @@ static void text_handler (G_GNUC_UNUSED GMarkupParseContext *context, const gcha
         }
     } else if (conf_node->type == CT_LIST) {
         l = NULL;
+        saved = NULL; // workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=71701
         // split string and remove whitespaces
         for (tok = strtok_r (tmp_text, ",", &saved); tok; tok = strtok_r (NULL, ",", &saved)) {
             tok_striped = g_strstrip (tok);

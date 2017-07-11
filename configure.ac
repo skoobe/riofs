@@ -79,7 +79,7 @@ AC_ARG_ENABLE(openssl,
 
 if test "x$enable_openssl" = "xyes" ; then
     # check if openssl is present
-    AC_CHECK_LIB([ssl], [SSL_library_init], [], [AC_MSG_FAILURE([could not find OpenSSL])])
+    AC_CHECK_LIB([ssl],[SSL_library_init],, AC_CHECK_LIB([ssl],[OPENSSL_init_ssl],, AC_MSG_ERROR([OpenSSL developer library 'libssl-dev' or 'openssl-devel' not installed])))
     PKG_CHECK_MODULES([LIBEVENT_OPENSSL], [libevent_openssl >= 2.1.2], [found_libevent_openssl=yes], [found_libevent_openssl=no])
     if test "x$found_libevent_openssl" = "xyes" ; then
         AC_DEFINE([SSL_ENABLED], [1], [Define to 1 if SSL support is enabled])

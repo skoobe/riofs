@@ -47,21 +47,17 @@ static gboolean parse_dir_xml (DirListRequest *dir_list, const char *xml, size_t
 
 // checks value for NULL, continue if it fails
 #define XML_VAR_CHK(v) \
-    do { \
         if ((v) == NULL) { \
             LOG_err (CON_DIR_LOG, "S3 returned incorrect XML !"); \
             continue; \
-        } \
-    } while (0)
+        }
 // checks value for NULL, continue if it fails, free key to avoid memleaks
 #define XML_VAR_CHK_KEY(v) \
-    do { \
         if ((v) == NULL) { \
             LOG_err (CON_DIR_LOG, "S3 returned incorrect XML !"); \
             xmlXPathFreeObject (key); \
             continue; \
-        } \
-    } while (0)
+        }
 
     doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
     if (doc == NULL)

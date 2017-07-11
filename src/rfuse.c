@@ -739,12 +739,9 @@ static void rfuse_write (fuse_req_t req, fuse_ino_t ino, const char *buf, size_t
 /*{{{ forget operation*/
 
 // forget callback
-static void rfuse_forget_cb (fuse_req_t req, gboolean success)
+static void rfuse_forget_cb (fuse_req_t req, G_GNUC_UNUSED gboolean success)
 {
-    if (success)
-        fuse_reply_none (req);
-    else
-        fuse_reply_none (req);
+    fuse_reply_none (req);
 }
 
 // Forget about an inode

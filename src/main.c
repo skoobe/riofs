@@ -579,7 +579,6 @@ static void application_destroy (Application *app)
     ERR_free_strings ();
     ERR_remove_thread_state (NULL);
     EVP_cleanup ();
-    CRYPTO_mem_leaks_fp (stderr);
 }
 /*}}}*/
 

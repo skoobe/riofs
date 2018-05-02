@@ -16,7 +16,7 @@ class Riofs < Formula
 
   def install
     system "./autogen.sh"
-    system "./configure --prefix=#{prefix}"
+    system %Q[./configure --prefix=#{prefix} CFLAGS="-D_XOPEN_SOURCE"]
     system "make install"
   end
 end
